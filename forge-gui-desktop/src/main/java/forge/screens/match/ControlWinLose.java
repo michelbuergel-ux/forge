@@ -53,8 +53,12 @@ public class ControlWinLose {
 
     /** Action performed when "quit" button is pressed in default win/lose UI. */
     public void actionOnQuit() {
+        final boolean campaignFight = forge.gamemodes.hexcrawl.HexNet.isCampaignFight();
         nextGameAction(NextGameDecision.QUIT);
         Singletons.getControl().setCurrentScreen(FScreen.HOME_SCREEN);
+        if (campaignFight) {
+            forge.gamemodes.hexcrawl.HexNet.resultScreenClosed(); // back to the map
+        }
     }
 
     private void nextGameAction(final NextGameDecision decision) {

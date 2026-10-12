@@ -487,6 +487,9 @@ public class FGameClient implements IToServer, IHasForgeLog {
                 for (final ILobbyListener listener : lobbyListeners) {
                     listener.update(event.getState(), event.getSlot());
                 }
+            } else if (msg instanceof forge.gamemodes.net.event.HexStateEvent hexState) {
+                forge.gamemodes.hexcrawl.HexNet.fromServer(hexState);
+                return;
             } else if (msg instanceof NetEvent netEvent && draftHandler != null
                     && draftHandler.dispatch(netEvent)) {
                 return;

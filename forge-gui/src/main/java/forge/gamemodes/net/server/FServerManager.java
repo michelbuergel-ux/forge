@@ -227,11 +227,34 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
         return byteTracker;
     }
 
+    /** Set by the hex campaign: try UPnP when the server starts, without asking (unless it is set to "never"). */
+    private static volatile boolean upnpWithoutAsking;
+    /** Result of the last UPnP attempt: null while unknown or not tried, then true or false. */
+    private static volatile Boolean upnpResult;
+    private static volatile boolean upnpTried;
+
+    public static void setUpnpWithoutAsking(final boolean value) {
+        upnpWithoutAsking = value;
+    }
+
+    /** Whether the router opened the port: null while the answer is pending (or nothing was tried). */
+    public static Boolean getUpnpResult() {
+        return upnpResult;
+    }
+
+    public static boolean wasUpnpTried() {
+        return upnpTried;
+    }
+
     public void startServer(final int port) {
         this.port = port;
         String UPnPOption = FModel.getNetPreferences().getPref(ForgeNetPreferences.FNetPref.UPnP);
         boolean startUPnP;
-        if (UPnPOption.equalsIgnoreCase("ASK")) {
+        upnpResult = null;
+        upnpTried = false;
+        if (upnpWithoutAsking && !UPnPOption.equalsIgnoreCase("NEVER")) {
+            startUPnP = true;
+        } else if (UPnPOption.equalsIgnoreCase("ASK")) {
             startUPnP = callUPnPDialog();
         } else {
             startUPnP = UPnPOption.equalsIgnoreCase("ALWAYS");
@@ -275,6 +298,7 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
                 }
             }).start();
             if (startUPnP) {
+                upnpTried = true;
                 mapNatPort();
             }
             Runtime.getRuntime().addShutdownHook(shutdownHook);
@@ -479,6 +503,10 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
     private void broadcastTo(final NetEvent event, final RemoteClient to) {
         event.updateForClient(to);
         to.send(event);
+    }
+
+    public ServerGameLobby getLobby() {
+        return localLobby;
     }
 
     public void setLobby(final ServerGameLobby lobby) {
@@ -803,6 +831,7 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
     }
 
     private void onUPnPResult(boolean success) {
+        upnpResult = success;
         String msg = success
             ? localizer.getMessage("lblUPnPSuccess", String.valueOf(port))
             : localizer.getMessage("lblUPnPFailed", String.valueOf(port));
@@ -1212,6 +1241,9 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
                 if (localLobby != null) {
                     localLobby.handleDraftPick(pickEvent, client.getIndex());
                 }
+                return;
+            } else if (msg instanceof forge.gamemodes.net.event.HexActionEvent hexAction) {
+                forge.gamemodes.hexcrawl.HexNet.fromClient(client.getUsername(), hexAction);
                 return;
             }
             // Note: MessageEvent is handled by MessageHandler, not here

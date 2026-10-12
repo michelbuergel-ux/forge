@@ -48,11 +48,16 @@ public enum CSubmenuOnlineLobby implements ICDoc, IMenuProvider {
         initialize();
     }
 
-    void hostGame() {
+    public void hostGame() {
+        hostGame(true);
+    }
+
+    /** @param showAddresses show Forge's list of server addresses (the hex campaign shows its own invitation instead) */
+    public void hostGame(final boolean showAddresses) {
         NetConnectUtil.ensurePlayerName();
         FThreads.invokeInBackgroundThread(() -> {
             try {
-                host();
+                host(showAddresses);
             } catch (Exception ex) {
                 // IntelliJ swears that BindException isn't thrown in this try block, but it is!
                 if (ex.getClass() == BindException.class) {
@@ -72,7 +77,13 @@ public enum CSubmenuOnlineLobby implements ICDoc, IMenuProvider {
         FThreads.invokeInBackgroundThread(() -> join(url));
     }
 
-    private void host() {
+    /** Joins a host from the hex campaign's join dialog (the address has been checked already). */
+    public void joinFromCampaign(final String url) {
+        NetConnectUtil.ensurePlayerName();
+        FThreads.invokeInBackgroundThread(() -> join(url));
+    }
+
+    private void host(final boolean showAddresses) {
         SwingUtilities.invokeLater(() -> {
             SOverlayUtils.startGameOverlay(Localizer.getInstance().getMessage("lblStartingServer"));
             SOverlayUtils.showOverlay();
@@ -88,7 +99,9 @@ public enum CSubmenuOnlineLobby implements ICDoc, IMenuProvider {
             }
         });
 
-        showServerAddressesDialog();
+        if (showAddresses) {
+            showServerAddressesDialog();
+        }
     }
 
     static void showServerAddressesDialog() {

@@ -575,6 +575,42 @@ public abstract class GameLobby implements IHasGameType {
         };
     }
 
+    /**
+     * Starts a match with players prepared by the caller (the hex campaign), bypassing the deck
+     * choices and ready flags of the lobby screen. Human players sit on lobby seats and get the
+     * screen of that seat (the host's own, or a connected guest's); all other players are AI.
+     *
+     * @param humanSeats the lobby slot index of every human player
+     * @param endGameHook run on the game thread when the game has ended
+     */
+    public HostedMatch startPreparedMatch(final forge.game.GameRules rules, final List<RegisteredPlayer> players,
+            final Map<RegisteredPlayer, Integer> humanSeats, final Runnable endGameHook) {
+        final Map<RegisteredPlayer, IGuiGame> guis = Maps.newHashMap();
+        final Map<RegisteredPlayer, LobbySlot> playerToSlot = Maps.newHashMap();
+        for (final Map.Entry<RegisteredPlayer, Integer> seat : humanSeats.entrySet()) {
+            final IGuiGame gui = getGui(seat.getValue());
+            if (gui == null) {
+                throw new IllegalStateException("No screen for seat " + seat.getValue());
+            }
+            guis.put(seat.getKey(), gui);
+            playerToSlot.put(seat.getKey(), getSlot(seat.getValue()));
+        }
+        hostedMatch = GuiBase.getInterface().hostMatch();
+        hostedMatch.setOnMatchOver(this::onMatchOver);
+        hostedMatch.setEndGameHook(endGameHook);
+        hostedMatch.startMatch(rules, null, players, guis, null);
+
+        for (final Player p : hostedMatch.getGame().getPlayers()) {
+            final LobbySlot slot = playerToSlot.get(p.getRegisteredPlayer());
+            if (slot != null && p.getController() instanceof IGameController controller) {
+                gameControllers.put(slot, controller);
+            }
+        }
+        hostedMatch.gameControllers = gameControllers;
+        onGameStarted();
+        return hostedMatch;
+    }
+
     protected void onMatchOver() {
         hostedMatch = null;
         gameControllers.clear();

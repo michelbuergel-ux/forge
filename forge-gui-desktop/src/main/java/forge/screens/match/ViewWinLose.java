@@ -125,6 +125,14 @@ public class ViewWinLose implements IWinLoseView<FButton> {
         btnQuit.setText(localizer.getMessage("btnQuitMatch"));
         btnQuit.setFont(FSkin.getRelativeFont(22));
         btnContinue.setEnabled(!game0.isMatchOver());
+        if (forge.gamemodes.hexcrawl.HexNet.isCampaignFight()) {
+            // a fight of the hex campaign is decided once: no next game, no rematch
+            btnContinue.setEnabled(false);
+            btnContinue.setVisible(false);
+            btnRestart.setEnabled(false);
+            btnRestart.setVisible(false);
+            btnQuit.setText(localizer.getMessage("lblHexBackToCampaign"));
+        }
 
         // Assemble game log scroller.
         final FTextArea txtLog = new FTextArea();
@@ -212,6 +220,12 @@ public class ViewWinLose implements IWinLoseView<FButton> {
         final Localizer localizer = Localizer.getInstance();
         if (winner == null || winner.isEmpty()) {
             return localizer.getMessage("lblItsADraw");
+        } else if (forge.gamemodes.hexcrawl.HexNet.isCampaignFight()) {
+            // the party is always team 0 in a fight of the hex campaign
+            // (a single head wins as a player, not as a team)
+            final boolean partyWon = winningTeam == forge.gamemodes.hexcrawl.HexBattle.PARTY_TEAM
+                    || (winningTeam == -1 && game.isWinner(forge.player.GamePlayerUtil.getGuiPlayer()));
+            return localizer.getMessage(partyWon ? "lblHexFightWon" : "lblHexFightLost");
         } else if (winningTeam != -1) {
             return localizer.getMessage("lblTeamWon").replace("%s", String.valueOf(winningTeam));
         } else {
