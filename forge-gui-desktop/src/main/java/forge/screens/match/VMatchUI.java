@@ -36,6 +36,8 @@ import forge.view.FView;
  */
 public class VMatchUI implements IVTopLevelUI {
     private List<VField> lstFields = new ArrayList<>();
+    /** Team games: the fields (own and teammates') that belong into the bottom cell; null otherwise. */
+    private java.util.Set<VField> teamFields;
     private List<VHand> lstHands = new ArrayList<>();
 
     // Tracking for dynamic split-mode cells so they can be cleaned up on relayout.
@@ -119,7 +121,9 @@ public class VMatchUI implements IVTopLevelUI {
             if (parent != null) {
                 parent.removeDoc(vField);
                 vField.setParentCell(null);
-                if (parent != c0 && parent != c1 && parent.getDocs().isEmpty()) {
+                if (parent != c0 && parent != c1 && parent.getDocs().isEmpty() && !dynamicCells.contains(parent)) {
+                    // (cells we split off ourselves are removed below; their base cell gets its
+                    // full width back, so there is no gap to fill)
                     SRearrangingUtil.fillGap(parent);
                     FView.SINGLETON_INSTANCE.removeDragCell(parent);
                 }
@@ -176,16 +180,18 @@ public class VMatchUI implements IVTopLevelUI {
             getBtnCancel().requestFocusInWindow();
         }
 
-        final boolean sortFieldsEnabled = lstFields.size() > 2
+        // a team of several heads keeps its fields together at the bottom, whatever the multiplayer layout says
+        final boolean teamLayout = teamFields != null && lstFields.size() > 2;
+        final boolean sortFieldsEnabled = lstFields.size() > 2 && !teamLayout
                 && !"OFF".equals(FModel.getPreferences().getPref(FPref.UI_MULTIPLAYER_FIELD_LAYOUT));
 
         // Clean up any existing dynamic split cells before re-assigning.
-        if (sortFieldsEnabled) {
+        if (sortFieldsEnabled || teamLayout) {
             cleanupDynamicCells();
         }
 
         // Ensure all field views are added to the layout
-        for (int i = 0; i < (sortFieldsEnabled ? 2 : lstFields.size()); i++) {
+        for (int i = 0; i < (sortFieldsEnabled || teamLayout ? 2 : lstFields.size()); i++) {
             VField vField = lstFields.get(i);
             // Check if field is in a visible cell (not a stale reference from old layout)
             DragCell parentCell = vField.getParentCell();
@@ -210,6 +216,9 @@ public class VMatchUI implements IVTopLevelUI {
 
         if (sortFieldsEnabled) {
             assignExtraFieldsToCells();
+        }
+        if (teamLayout) {
+            assignTeamFieldsToCells();
         }
 
         // Determine (an) existing hand panel
@@ -284,6 +293,53 @@ public class VMatchUI implements IVTopLevelUI {
      * layout and panel style preferences. Split mode uses percentage-based
      * rough bounds so the layout is resolution-independent.
      */
+    /**
+     * Team games (shared turns): our side of the table is the bottom row, the opponents' side the
+     * top row. A side of two heads shows both fields next to each other; a bigger side shows one
+     * field at a time, the others are tabs of the same cell.
+     */
+    private void assignTeamFieldsToCells() {
+        final DragCell bottom = lstFields.get(0).getParentCell();
+        final DragCell top = lstFields.get(1).getParentCell();
+        if (bottom == null || top == null || bottom == top) {
+            return;
+        }
+        final List<VField> mates = new ArrayList<>();
+        final List<VField> foes = new ArrayList<>();
+        for (int i = 2; i < lstFields.size(); i++) {
+            final VField vField = lstFields.get(i);
+            (teamFields.contains(vField) ? mates : foes).add(vField);
+        }
+        boolean split = placeTeamRow(bottom, mates);
+        split |= placeTeamRow(top, foes);
+        // the own field and the first opponent in front
+        bottom.setSelected(lstFields.get(0));
+        top.setSelected(lstFields.get(1));
+        if (split) {
+            SResizingUtil.resizeWindow();
+        }
+    }
+
+    /** Puts the further fields of one side next to its first field. Returns true if the row was split. */
+    private boolean placeTeamRow(final DragCell cell, final List<VField> others) {
+        if (others.size() != 1) {
+            for (final VField vField : others) {
+                cell.addDoc(vField);
+            }
+            return false;
+        }
+        // two heads: both fields side by side
+        final RectangleOfDouble rb = cell.getRoughBounds();
+        final double half = rb.getW() / 2.0;
+        cell.setRoughBounds(new RectangleOfDouble(rb.getX(), rb.getY(), half, rb.getH()));
+        final DragCell newCell = new DragCell();
+        newCell.setRoughBounds(new RectangleOfDouble(rb.getX() + half, rb.getY(), rb.getW() - half, rb.getH()));
+        FView.SINGLETON_INSTANCE.addDragCell(newCell);
+        newCell.addDoc(others.get(0));
+        dynamicCells.add(newCell);
+        return true;
+    }
+
     private void assignExtraFieldsToCells() {
         if (lstFields.size() <= 2) {
             return;
@@ -387,6 +443,11 @@ public class VMatchUI implements IVTopLevelUI {
     public List<VField> getFieldViews() {
         return lstFields;
     }
+    /** Team games: which of the fields belong to the own team (see {@link #assignTeamFieldsToCells()}). */
+    public void setTeamFields(final java.util.Set<VField> teamFields0) {
+        this.teamFields = teamFields0;
+    }
+
     public void setFieldViews(final List<VField> lst0) {
         this.lstFields = lst0;
     }

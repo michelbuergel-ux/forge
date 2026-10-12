@@ -251,6 +251,11 @@ public class HostedMatch {
             }
         }
 
+        // the screens arrange the fields by team, so they have to know who is whose opponent
+        for (final Player p : players) {
+            p.updateOpponentsForView();
+        }
+
         for (final Entry<IGuiGame, Collection<PlayerView>> e : playersPerGui.asMap().entrySet()) {
             e.getKey().openView(new TrackableCollection<>(e.getValue()));
         }

@@ -370,6 +370,9 @@ public final class CMatchUI
         return FSkin.getAvatars().get(avatarIdx >= 0 ? avatarIdx : defaultIndex);
     }
 
+    /** Team games: the local player and the teammates; null in every other game. */
+    private java.util.Set<PlayerView> teamPlayers;
+
     private void initMatch(final FCollectionView<PlayerView> sortedPlayers, final Collection<PlayerView> myPlayers) {
         this.sortedPlayers = sortedPlayers;
         allHands = sortedPlayers.size() == getLocalPlayerCount();
@@ -390,7 +393,8 @@ public final class CMatchUI
 
         int i = 0;
         for (final PlayerView p : sortedPlayers) {
-            final boolean mirror = !isLocalPlayer(p);
+            // teammates sit on our side of the table, the same way round as the own field
+            final boolean mirror = !isLocalPlayer(p) && (teamPlayers == null || !teamPlayers.contains(p));
             // A field must be initialized after it's instantiated, to update player info.
             // No player, no init.
             final EDocID fieldDoc = EDocID.Fields[i];
@@ -403,6 +407,18 @@ public final class CMatchUI
             i++;
         }
 
+        java.util.Set<VField> teamFields = null;
+        if (teamPlayers != null) {
+            teamFields = new java.util.HashSet<>();
+            int n = 0;
+            for (final PlayerView p : sortedPlayers) {
+                if (teamPlayers.contains(p)) {
+                    teamFields.add(fields.get(n));
+                }
+                n++;
+            }
+        }
+        view.setTeamFields(teamFields);
         view.setFieldViews(fields);
 
         initHandViews();
@@ -946,6 +962,17 @@ public final class CMatchUI
         if (lbl != null) {
             lbl.setActive(true);
         }
+        // shared team turns: light up the phase on the fields of all heads whose turn it is
+        final FCollectionView<PlayerView> activePlayers = getGameView().getActivePlayers();
+        if (ph != null && activePlayers != null && activePlayers.size() > 1) {
+            for (final PlayerView active : activePlayers) {
+                final VField field = getFieldViewFor(active);
+                final PhaseLabel activeLbl = field == null ? null : field.getPhaseIndicator().getLabelFor(ph);
+                if (activeLbl != null) {
+                    activeLbl.setActive(true);
+                }
+            }
+        }
 
         if (openAbilityMenu != null) { //ensure ability menu can't remain open between phases
             openAbilityMenu.setVisible(false);
@@ -993,6 +1020,12 @@ public final class CMatchUI
             writeMatchPreferences();
         }
         final GameView gameView = getGameView();
+        if (Singletons.getControl().getCurrentScreen() != screen) {
+            // the match screen is gone already (in a network game another player left the result
+            // screen first, which ends the match for everybody): a result screen would cover
+            // whatever is shown now
+            return;
+        }
         if (hasLocalPlayers() || gameView.isMatchOver()) {
             new ViewWinLose(gameView, this).show();
         }
@@ -1233,7 +1266,31 @@ public final class CMatchUI
         }
         // Multiplayer: sort by turn order with local player first
         final String layout = FModel.getPreferences().getPref(FPref.UI_MULTIPLAYER_FIELD_LAYOUT);
-        if (players.size() > 2 && myPlayers != null && myPlayers.size() >= 1
+        teamPlayers = null;
+        if (players.size() > 2 && myPlayers != null && myPlayers.size() >= 1) {
+            // a team of several heads: own field first, then an opponent, so that the two base
+            // cells are "us" (bottom) and "them" (top); the other fields join their side as tabs
+            final PlayerView me = myPlayers.get(0);
+            final List<PlayerView> mates = new ArrayList<>();
+            final List<PlayerView> foes = new ArrayList<>();
+            for (final PlayerView p : players) {
+                if (p.equals(me)) {
+                    continue;
+                }
+                (me.isOpponentOf(p) ? foes : mates).add(p);
+            }
+            if (!mates.isEmpty() && !foes.isEmpty()) {
+                final List<PlayerView> order = new ArrayList<>();
+                order.add(me);
+                order.add(foes.remove(0));
+                order.addAll(mates);
+                order.addAll(foes);
+                players = new FCollection<>(order);
+                teamPlayers = new java.util.HashSet<>(mates);
+                teamPlayers.add(me);
+            }
+        }
+        if (teamPlayers == null && players.size() > 2 && myPlayers != null && myPlayers.size() >= 1
                 && !"OFF".equals(layout)) {
             players = new FCollection<>(sortPlayersForMultiplayer(players, myPlayers.get(0), "ROWS".equals(layout)));
         }
