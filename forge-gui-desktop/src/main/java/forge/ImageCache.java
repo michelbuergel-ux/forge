@@ -582,8 +582,10 @@ public class ImageCache {
         if (1 == bestFitScale) {
             result = original;
         } else {
-            int destWidth  = (int)(original.getWidth()  * bestFitScale);
-            int destHeight = (int)(original.getHeight() * bestFitScale);
+            // a card panel can be squeezed to almost nothing while a layout changes; the scaler
+            // refuses targets below 3x3 pixels, which used to end in an error dialog
+            int destWidth  = Math.max(3, (int)(original.getWidth()  * bestFitScale));
+            int destHeight = Math.max(3, (int)(original.getHeight() * bestFitScale));
 
             ResampleOp resampler = new ResampleOp(destWidth, destHeight);
             result = resampler.filter(original, null);

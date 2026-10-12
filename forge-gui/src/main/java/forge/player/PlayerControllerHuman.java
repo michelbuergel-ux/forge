@@ -857,7 +857,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         final InputSelectEntitiesFromList<Player> input = new InputSelectEntitiesFromList<>(this, 1, 1, getGame().getPlayersInTurnOrder());
         input.setMessage(prompt);
         input.showAndWait();
-        return input.getFirstSelected();
+        // cancelling the choice must not leave the game without a starting player
+        final Player chosen = input.getFirstSelected();
+        return chosen == null ? this.player : chosen;
     }
 
     @Override
