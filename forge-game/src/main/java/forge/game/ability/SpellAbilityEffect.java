@@ -765,7 +765,7 @@ public abstract class SpellAbilityEffect {
         final Combat combat = game.getCombat();
 
         // CR 506.3b
-        if (sa.hasParam(attackingParam) && combat.getAttackingPlayer().equals(c.getController())) {
+        if (sa.hasParam(attackingParam) && combat.getAttackingPlayers().contains(c.getController())) {
             String attacking = sa.getParam(attackingParam);
 
             GameEntity defender = null;

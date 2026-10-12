@@ -1977,6 +1977,19 @@ public class GameAction {
             }
         }
 
+        if (losers != null && game.getRules().hasSharedTeamTurns()) {
+            // shared team turns: if one head falls, the whole team loses
+            for (Player p : Lists.newArrayList(losers)) {
+                for (Player mate : p.getTeamMates(false)) {
+                    if (losers.contains(mate) || mate.hasLost()) {
+                        continue;
+                    }
+                    mate.loseWithTeam(p);
+                    losers.add(mate);
+                }
+            }
+        }
+
         if (losers != null) {
             for (Player p : losers) {
                 game.onPlayerLost(p);

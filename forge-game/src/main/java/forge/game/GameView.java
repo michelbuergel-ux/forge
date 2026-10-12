@@ -108,6 +108,24 @@ public class GameView extends TrackableObject {
     }
     void updatePlayerTurn(PhaseHandler phaseHandler) {
         set(TrackableProperty.PlayerTurn, PlayerView.get(phaseHandler.getPlayerTurn()));
+        set(TrackableProperty.ActivePlayers, PlayerView.getCollection(phaseHandler.getActivePlayers()));
+    }
+
+    /** All players whose turn it is: more than one only with shared team turns (Multi-Headed Giant). */
+    public FCollectionView<PlayerView> getActivePlayers() {
+        return get(TrackableProperty.ActivePlayers);
+    }
+
+    /** True if it is the turn of the given player, including a turn shared with the team. */
+    public boolean isPlayerTurn(final PlayerView player) {
+        if (player == null) {
+            return false;
+        }
+        if (player.equals(getPlayerTurn())) {
+            return true;
+        }
+        final FCollectionView<PlayerView> active = getActivePlayers();
+        return active != null && active.contains(player);
     }
 
     public void updatePlanarPlayer(PlayerView p) {

@@ -524,7 +524,9 @@ public class CombatUtil {
 
             // Rule 802.4a: A player can block only creatures attacking him/her or a planeswalker he/she controls
             Player attacked = combat.getDefendingPlayerRelatedTo(attacker);
-            if (attacked != null && attacked != defendingPlayer) {
+            // (with shared team turns any head of the attacked team may block)
+            if (attacked != null && attacked != defendingPlayer
+                    && !(attacker.getGame().getRules().hasSharedTeamTurns() && defendingPlayer != null && attacked.sameTeam(defendingPlayer))) {
                 return false;
             }
         }

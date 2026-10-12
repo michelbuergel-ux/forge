@@ -168,8 +168,10 @@ public class AiBlockController {
                 // Begin with the attackers that pose the biggest threat
                 CardLists.sortByPowerDesc(ccAttackers);
                 sortedAttackers.addAll(ccAttackers);
-            } else if (defender instanceof Player && defender.equals(ai)) {
-                firstAttacker = combat.getAttackersOf(defender);
+            } else if (defender instanceof Player && (defender.equals(ai)
+                    || (ai.getGame().getRules().hasSharedTeamTurns() && ai.sameTeam((Player) defender)))) {
+                // (with shared team turns several heads can be attacked, keep all of their attackers)
+                firstAttacker.addAll(combat.getAttackersOf(defender));
                 CardLists.sortByPowerDesc(firstAttacker);
             }
         }

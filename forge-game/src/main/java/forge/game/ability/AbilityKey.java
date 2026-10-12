@@ -109,6 +109,7 @@ public enum AbilityKey {
     OriginalParams("OriginalParams"),
     PayingMana("PayingMana"),
     Phase("Phase"),
+    SharedTurnRepeat("SharedTurnRepeat"),
     Player("Player"),
     PreventedAmount("PreventedAmount"),
     Produced("Produced"),

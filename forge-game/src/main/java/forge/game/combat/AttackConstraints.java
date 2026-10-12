@@ -37,7 +37,11 @@ public class AttackConstraints {
     private final Multimap<GameEntity, StaticAbility> playerRequirements;
 
     public AttackConstraints(final Combat combat) {
-        possibleAttackers = combat.getAttackingPlayer().getCreaturesInPlay();
+        final CardCollection allAttackers = new CardCollection();
+        for (final forge.game.player.Player p : combat.getAttackingPlayers()) {
+            allAttackers.addAll(p.getCreaturesInPlay());
+        }
+        possibleAttackers = allAttackers;
         possibleDefenders = combat.getDefenders();
         globalRestrictions = GlobalAttackRestrictions.getGlobalRestrictions(combat.getAttackingPlayer(), possibleDefenders);
         playerRequirements = StaticAbilityMustAttack.mustAttackSpecific(combat.getAttackingPlayer(), possibleDefenders);

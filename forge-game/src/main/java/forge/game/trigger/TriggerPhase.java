@@ -57,6 +57,11 @@ public class TriggerPhase extends Trigger {
         if (!matchesValidParam("ValidPlayer", runParams.get(AbilityKey.Player))) {
             return false;
         }
+        // Shared team turns: the phase trigger is run once per member of the active team.
+        // "At the beginning of each upkeep" must still only happen once per turn.
+        if (runParams.containsKey(AbilityKey.SharedTurnRepeat) && !hasParam("ValidPlayer")) {
+            return false;
+        }
         return true;
     }
 

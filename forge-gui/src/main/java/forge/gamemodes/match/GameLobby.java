@@ -241,6 +241,16 @@ public abstract class GameLobby implements IHasGameType {
     }
 
     public void applyVariant(final GameType variant) {
+        if (variant == GameType.MultiHeadedGiant) {
+            // a rules option on top of the chosen format, not a format of its own
+            data.appliedVariants.add(variant);
+            // sensible default: all humans form one team against the AI players (can be changed per player)
+            for (final LobbySlot slot : data.slots) {
+                slot.setTeam(slot.getType() == LobbySlotType.AI ? 1 : 0);
+            }
+            updateView(true);
+            return;
+        }
         setGameType(variant);
         data.appliedVariants.add(variant);
 

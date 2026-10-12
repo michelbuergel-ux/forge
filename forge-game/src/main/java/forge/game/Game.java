@@ -371,6 +371,20 @@ public class Game {
             pl.setTeam(teamNum);
         }
 
+        if (rules.hasSharedTeamTurns()) {
+            // one life total per team: every head starts with the life of the first member of its team
+            for (Player pl : allPlayers) {
+                for (Player first : allPlayers) {
+                    if (first.getTeam() == pl.getTeam()) {
+                        if (first != pl) {
+                            pl.setStartingLife(first.getStartingLife());
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
         action = new GameAction(this);
         stack = new MagicStack(this);
         phaseHandler = new PhaseHandler(this);

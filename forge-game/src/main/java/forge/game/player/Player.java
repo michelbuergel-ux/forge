@@ -430,6 +430,7 @@ public class Player extends GameEntity implements Comparable<Player> {
         startingLife = startLife;
         life = startLife;
         view.updateLife(this);
+        syncTeamLife();
     }
 
     /** The number of cards in this player's main deck (not counting Commander/Sideboard/etc.) at game start. */
@@ -439,6 +440,26 @@ public class Player extends GameEntity implements Comparable<Player> {
 
     public final int getLife() {
         return life;
+    }
+
+    /**
+     * Shared team turns: a team has one life total. Life is still gained and lost by the individual
+     * player (so triggers and replacement effects see the right player), the result is then mirrored
+     * to all team mates.
+     */
+    private void syncTeamLife() {
+        if (teamNumber < 0 || game == null || !game.getRules().hasSharedTeamTurns()) {
+            return;
+        }
+        for (final Player p : game.getRegisteredPlayers()) {
+            if (p == this || p.teamNumber != teamNumber || p.life == life) {
+                continue;
+            }
+            final int old = p.life;
+            p.life = life;
+            p.view.updateLife(p);
+            game.fireEvent(new GameEventPlayerLivesChanged(p, old, p.life));
+        }
     }
 
     public final boolean gainLife(int lifeGain, final Card source, final SpellAbility sa) {
@@ -472,6 +493,7 @@ public class Player extends GameEntity implements Comparable<Player> {
         int oldLife = life;
         life += lifeGain;
         view.updateLife(this);
+        syncTeamLife();
         boolean firstGain = lifeGainedTimesThisTurn == 0;
         lifeGainedThisTurn += lifeGain;
         lifeGainedTimesThisTurn++;
@@ -530,6 +552,7 @@ public class Player extends GameEntity implements Comparable<Player> {
 
         life -= toLose;
         view.updateLife(this);
+        syncTeamLife();
         if (manaBurn) {
             game.fireEvent(new GameEventManaBurn(PlayerView.get(this), true, toLose));
         } else {
@@ -920,6 +943,7 @@ public class Player extends GameEntity implements Comparable<Player> {
         counters.clear();
         view.updateCounters(this);
         getGame().fireEvent(new GameEventPlayerCounters(this, null, 0, 0));
+        syncTeamPoison();
     }
 
     public void setCounters(final CounterType counterType, final Integer num, Player source, boolean fireEvents) {
@@ -937,6 +961,51 @@ public class Player extends GameEntity implements Comparable<Player> {
 
         if (counterType.is(CounterEnumType.RAD) && num <= 0) {
             removeRadiationEffect();
+        }
+        if (counterType.is(CounterEnumType.POISON)) {
+            syncTeamPoison();
+        }
+    }
+
+    /**
+     * Shared team turns: a team has one pool of poison counters, like it has one life total.
+     * Counters are still put on the individual player (so triggers see the right player), the
+     * result is then mirrored to all team mates.
+     */
+    /**
+     * The number of poison counters that loses the game: ten, and in a game with shared team
+     * turns (where a team shares its poison counters) five more for every further head of the team.
+     */
+    public final int getPoisonLossThreshold() {
+        if (teamNumber < 0 || game == null || !game.getRules().hasSharedTeamTurns()) {
+            return 10;
+        }
+        int heads = 0;
+        for (final Player p : game.getRegisteredPlayers()) {
+            if (p.teamNumber == teamNumber) {
+                heads++;
+            }
+        }
+        return 10 + 5 * Math.max(0, heads - 1);
+    }
+
+    private void syncTeamPoison() {
+        if (teamNumber < 0 || game == null || !game.getRules().hasSharedTeamTurns()) {
+            return;
+        }
+        final CounterType poison = CounterEnumType.POISON;
+        final int mine = getCounters(poison);
+        for (final Player p : game.getRegisteredPlayers()) {
+            if (p == this || p.teamNumber != teamNumber) {
+                continue;
+            }
+            final int old = p.getCounters(poison);
+            if (old == mine) {
+                continue;
+            }
+            p.setCounters(poison, mine);
+            p.view.updateCounters(p);
+            game.fireEvent(new GameEventPlayerCounters(p, poison, old, mine));
         }
     }
 
@@ -1995,6 +2064,13 @@ public class Player extends GameEntity implements Comparable<Player> {
         return true;
     }
 
+    /** Shared team turns: this player loses because a team mate lost. */
+    public final void loseWithTeam(final Player mate) {
+        final PlayerOutcome mateOutcome = mate.getOutcome();
+        final GameLossReason reason = mateOutcome != null && mateOutcome.lossState != null ? mateOutcome.lossState : GameLossReason.OpponentWon;
+        setOutcome(PlayerOutcome.loss(reason, mateOutcome != null ? mateOutcome.loseConditionSpell : null));
+    }
+
     public final void concede() { // No cantLose checks - just lose
         setOutcome(PlayerOutcome.concede());
     }
@@ -2056,7 +2132,7 @@ public class Player extends GameEntity implements Comparable<Player> {
 
         // Rule 704.5c - If a player has ten or more poison counters, he or she loses the game.
         // 704.6b In a Two-Headed Giant game, if a team has fifteen or more poison counters, that team loses the game. See rule 810, “Two-Headed Giant Variant.”
-        if (getCounters(CounterEnumType.POISON) >= 10 && loseConditionMet(GameLossReason.Poisoned, null)) {
+        if (getCounters(CounterEnumType.POISON) >= getPoisonLossThreshold() && loseConditionMet(GameLossReason.Poisoned, null)) {
             return true;
         }
 

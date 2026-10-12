@@ -70,12 +70,18 @@ public class Untap extends Phase {
     public void executeAt() {
         super.executeAt();
 
-        doPhasing(game.getPhaseHandler().getPlayerTurn());
+        // more than one player only with shared team turns
+        final List<Player> actors = game.getPhaseHandler().getPhaseActors();
+        for (final Player actor : actors) {
+            doPhasing(actor);
+        }
         doDayTime(game.getPhaseHandler().getPreviousPlayerTurn());
 
         game.getAction().checkStaticAbilities();
 
-        doUntap();
+        for (final Player actor : actors) {
+            doUntap(actor);
+        }
     }
 
     /**
@@ -83,8 +89,7 @@ public class Untap extends Phase {
      * doUntap.
      * </p>
      */
-    private void doUntap() {
-        final Player active = game.getPhaseHandler().getPlayerTurn();
+    private void doUntap(final Player active) {
         Map<Player, CardCollection> untapMap = Maps.newHashMap();
 
         CardCollection untapList = new CardCollection(active.getCardsIn(ZoneType.Battlefield));
@@ -254,10 +259,14 @@ public class Untap extends Phase {
         }
         final Game game = previous.getGame();
         List<Card> casted = game.getStack().getSpellsCastLastTurn();
+        // with shared team turns the previous turn belonged to the whole team of that player
+        final java.util.function.Predicate<Card> castByActive = game.getRules().hasSharedTeamTurns()
+                ? c -> c.getController() != null && c.getController().sameTeam(previous)
+                : CardPredicates.isController(previous);
 
-        if (game.isDay() && casted.stream().noneMatch(CardPredicates.isController(previous))) {
+        if (game.isDay() && casted.stream().noneMatch(castByActive)) {
             game.setDayTime(true);
-        } else if (game.isNight() && CardLists.count(casted, CardPredicates.isController(previous)) > 1) {
+        } else if (game.isNight() && casted.stream().filter(castByActive).count() > 1) {
             game.setDayTime(false);
         }
     }

@@ -126,6 +126,18 @@ public class AiAttackController {
     }
 
     public static List<Card> getOpponentCreatures(final Player defender) {
+        if (defender.getGame().getRules().hasSharedTeamTurns()) {
+            // shared team turns: every head of the defending team can block, so all their creatures count
+            final List<Card> all = new ArrayList<>();
+            for (final Player member : defender.getTeamMates(true)) {
+                all.addAll(getOpponentCreaturesOf(member));
+            }
+            return all;
+        }
+        return getOpponentCreaturesOf(defender);
+    }
+
+    private static List<Card> getOpponentCreaturesOf(final Player defender) {
         List<Card> defenders = defender.getCreaturesInPlay();
         int totalMana = ComputerUtilMana.getAvailableManaEstimate(defender, true);
         int manaReserved = 0; // for paying the cost to transform
@@ -746,7 +758,7 @@ public class AiAttackController {
         }
 
         int totalPoisonDamage = ComputerUtilCombat.sumPoisonIfUnblocked(unblockedAttackers, defendingOpponent);
-        if (totalPoisonDamage >= 10 - defendingOpponent.getPoisonCounters()) {
+        if (totalPoisonDamage >= defendingOpponent.getPoisonLossThreshold() - defendingOpponent.getPoisonCounters()) {
             return true;
         }
         for (Card trampler : trampleDmg.keySet()) {
@@ -755,7 +767,7 @@ public class AiAttackController {
                 totalPoisonDamage += dmg;
             }
             totalPoisonDamage += ComputerUtilCombat.predictExtraPoisonWithDamage(trampler, defendingOpponent, dmg);
-            if (totalPoisonDamage >= 10 - defendingOpponent.getPoisonCounters()) {
+            if (totalPoisonDamage >= defendingOpponent.getPoisonLossThreshold() - defendingOpponent.getPoisonCounters()) {
                 return true;
             }
         }

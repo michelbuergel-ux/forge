@@ -81,7 +81,18 @@ public class InputAttack extends InputSyncronizedBase {
 
     //determine whether currently attackers can be called back (undeclared)
     private boolean canCallBackAttackers() {
-        return !combat.getAttackers().isEmpty();
+        return !getOwnAttackers().isEmpty();
+    }
+
+    /** The attackers this player declared. With shared team turns team mates attack in the same combat. */
+    private List<Card> getOwnAttackers() {
+        final List<Card> own = new ArrayList<>();
+        for (final Card c : combat.getAttackers()) {
+            if (c.getController() == playerAttacks) {
+                own.add(c);
+            }
+        }
+        return own;
     }
 
     private void updatePrompt() {
@@ -114,7 +125,7 @@ public class InputAttack extends InputSyncronizedBase {
         //either alpha strike or undeclare all attackers based on whether any attackers have been declared
         if (canCallBackAttackers()) {
             //undeclare all attackers
-            List<Card> attackers = new ArrayList<>(combat.getAttackers()); //must copy list since it will be modified
+            List<Card> attackers = getOwnAttackers(); //a copy, since combat will be modified
             for (Card c : attackers) {
                 undeclareAttacker(c);
             }
@@ -288,6 +299,9 @@ public class InputAttack extends InputSyncronizedBase {
     }
 
     private boolean undeclareAttacker(final Card card) {
+        if (card.getController() != playerAttacks && combat.getAttackingPlayers().contains(card.getController())) {
+            return false; // a team mate's attacker: not ours to call back
+        }
         combat.removeFromCombat(card);
         getController().getGui().setHighlighted(List.of(CardView.get(card)), false);
         // When removing an attacker clear the attacking band

@@ -179,7 +179,7 @@ public class PlayerProperty {
                 return false;
             }
         } else if (property.equals("Attacking")) {
-            if (game.getCombat() == null || !player.equals(game.getCombat().getAttackingPlayer())) {
+            if (game.getCombat() == null || !game.getCombat().getAttackingPlayers().contains(player)) {
                 return false;
             }
         } else if (property.equals("Defending")) {

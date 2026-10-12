@@ -167,7 +167,9 @@ public class Combat {
         for (Card c : game.getCardsIncludePhasingIn(ZoneType.Battlefield)) {
             c.getDamageHistory().endCombat();
         }
-        playerWhoAttacks.clearAttackedPlayersMyCombat();
+        for (final Player p : getAttackingPlayers()) {
+            p.clearAttackedPlayersMyCombat();
+        }
 
         //update view for all attackers and blockers
         for (Card c : attackers) {
@@ -188,6 +190,33 @@ public class Combat {
         return playerWhoAttacks;
     }
 
+    /**
+     * All players attacking in this combat. More than one only with shared team turns,
+     * where the whole team of the active player attacks together.
+     */
+    public final FCollection<Player> getAttackingPlayers() {
+        final FCollection<Player> result = new FCollection<>();
+        result.add(playerWhoAttacks);
+        final Game game = playerWhoAttacks.getGame();
+        if (game.getRules().hasSharedTeamTurns()) {
+            for (final Player p : game.getPlayers()) {
+                if (p.sameTeam(playerWhoAttacks)) {
+                    result.add(p);
+                }
+            }
+        }
+        return result;
+    }
+
+    /** The player making attacker-side decisions for the given attacking creature. */
+    private Player getDecidingAttacker(final Card attacker) {
+        if (attacker != null && playerWhoAttacks.getGame().getRules().hasSharedTeamTurns()
+                && attacker.getController() != null && attacker.getController().sameTeam(playerWhoAttacks)) {
+            return attacker.getController();
+        }
+        return playerWhoAttacks;
+    }
+
     public final AttackConstraints getAttackConstraints() {
         return attackConstraints;
     }
@@ -198,7 +227,7 @@ public class Combat {
     //gets attacked player opponents (ignores planeswalkers)
     public final FCollection<Player> getAttackedOpponents(Player atk) {
         FCollection<Player> attackedOpps = new FCollection<>();
-        if (atk == playerWhoAttacks) {
+        if (atk == playerWhoAttacks || getAttackingPlayers().contains(atk)) {
             for (Player defender : getDefendingPlayers()) {
                 if (!getAttackersOf(defender).isEmpty()) {
                     attackedOpps.add(defender);
@@ -497,7 +526,7 @@ public class Combat {
         }
 
         // Damage Ordering needs to take cards like Melee into account, is that happening?
-        CardCollection orderedBlockers = playerWhoAttacks.getController().orderBlockers(attacker, blockers); // we know there's a list
+        CardCollection orderedBlockers = getDecidingAttacker(attacker).getController().orderBlockers(attacker, blockers); // we know there's a list
         blockersOrderedForDamageAssignment.get().put(attacker, orderedBlockers);
 
         // Display the chosen order of blockers in the log
@@ -529,7 +558,7 @@ public class Combat {
         if (oldBlockers == null || oldBlockers.isEmpty()) {
             blockersOrderedForDamageAssignment.get().put(attacker, new CardCollection(blocker));
         } else if (this.legacyOrderCombatants) {
-            CardCollection orderedBlockers = playerWhoAttacks.getController().orderBlocker(attacker, blocker, oldBlockers);
+            CardCollection orderedBlockers = getDecidingAttacker(attacker).getController().orderBlocker(attacker, blocker, oldBlockers);
             blockersOrderedForDamageAssignment.get().put(attacker, orderedBlockers);
         } else {
             oldBlockers.add(blocker);
@@ -954,6 +983,19 @@ public class Combat {
     }
 
     public boolean isPlayerAttacked(Player who) {
+        if (who != null && who.getGame().getRules().hasSharedTeamTurns()) {
+            // shared life total: an attack on one head is an attack on the team
+            for (final Player mate : who.getTeamMates(true)) {
+                if (isPlayerAttackedDirectly(mate)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return isPlayerAttackedDirectly(who);
+    }
+
+    private boolean isPlayerAttackedDirectly(Player who) {
         for (GameEntity defender : attackedByBands.get().keySet()) {
             Card defenderAsCard = defender instanceof Card ? (Card)defender : null;
             if ((null != defenderAsCard && (defenderAsCard.getController() != who && defenderAsCard.getProtectingPlayer() != who)) ||

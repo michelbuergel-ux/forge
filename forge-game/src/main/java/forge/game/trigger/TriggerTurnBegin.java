@@ -18,6 +18,10 @@ public class TriggerTurnBegin extends Trigger {
         if (!matchesValidParam("ValidPlayer", runParams.get(AbilityKey.Player))) {
             return false;
         }
+        // shared team turns: run once per head, but "each turn" still only happens once
+        if (runParams.containsKey(AbilityKey.SharedTurnRepeat) && !hasParam("ValidPlayer")) {
+            return false;
+        }
         return true;
     }
 

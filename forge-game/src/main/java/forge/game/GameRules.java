@@ -18,6 +18,7 @@ public class GameRules {
     private boolean allowCheatShuffle = false;
     private final Set<GameType> appliedVariants = EnumSet.noneOf(GameType.class);
     private int simTimeout = 120;
+    private boolean sharedTeamTurns = false;
 
     // it's a preference, not rule... but I could hardly find a better place for it
     private boolean useGrayText;
@@ -148,5 +149,17 @@ public class GameRules {
 
     public void setSimTimeout(final int duration) {
         this.simTimeout = duration;
+    }
+
+    /**
+     * Shared team turns ("Multi-Headed Giant"): all members of a team take their turn together,
+     * share one life total and lose together.
+     */
+    public boolean hasSharedTeamTurns() {
+        return sharedTeamTurns || appliedVariants.contains(GameType.MultiHeadedGiant);
+    }
+
+    public void setSharedTeamTurns(final boolean sharedTeamTurns) {
+        this.sharedTeamTurns = sharedTeamTurns;
     }
 }

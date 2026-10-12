@@ -3921,9 +3921,20 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         yieldController.setDisableAutoTriggers(disable);
     }
 
-    public boolean isUiSetToSkipPhase(final PlayerView turnPlayer, final PhaseType phase) {
+    public boolean isUiSetToSkipPhase(final PlayerView turnPlayer0, final PhaseType phase) {
         if (macros != null && macros.isReplaying()) {
             return false;
+        }
+        // Shared team turns: the turn belongs to the whole team, so in its team's turn every head
+        // uses the phase stops of its own field, not those it set for the head that leads the turn.
+        PlayerView turnPlayer = turnPlayer0;
+        final Player me = getPlayer();
+        if (me != null && turnPlayer0 != null && getGame() != null && getGame().getRules().hasSharedTeamTurns()
+                && !turnPlayer0.equals(me.getView())) {
+            final Player turnOwner = getGame().getPlayer(turnPlayer0);
+            if (turnOwner != null && turnOwner.sameTeam(me)) {
+                turnPlayer = me.getView();
+            }
         }
         if (isRemoteClient()) {
             return yieldController.isSkippingPhase(turnPlayer, phase);

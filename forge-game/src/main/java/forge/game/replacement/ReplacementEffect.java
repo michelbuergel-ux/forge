@@ -166,7 +166,7 @@ public abstract class ReplacementEffect extends TriggerReplacementBase {
                 }
             } else {
                 List<Player> players = AbilityUtils.getDefinedPlayers(getHostCard(), getParam("PlayerTurn"), this);
-                if (!players.contains(game.getPhaseHandler().getPlayerTurn())) {
+                if (!game.getPhaseHandler().isPlayerTurnOfAny(players)) {
                     return false;
                 }
             }
