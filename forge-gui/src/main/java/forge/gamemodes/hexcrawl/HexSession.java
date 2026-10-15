@@ -91,7 +91,21 @@ public class HexSession {
     public synchronized Set<String> getPresent() { return new LinkedHashSet<>(present); }
     public boolean isFightRunning() { return fightRunning; }
     /** Guest: does the host run the same build as this program? */
-    public boolean sameBuildAsHost() { return !guest || HexNet.BUILD_ID.equals(hostBuild); }
+    public boolean sameBuildAsHost() { return !guest || HexNet.buildId().equals(hostBuild); }
+
+    /** Host: the guests whose program is not the same build as the host's (they cannot play a fight together). */
+    public synchronized Set<String> guestsWithOtherBuild() {
+        final Set<String> result = new java.util.TreeSet<>();
+        for (final Map.Entry<String, String> e : guestBuilds.entrySet()) {
+            if (present.contains(e.getKey()) && !HexNet.buildId().equals(e.getValue())) {
+                result.add(e.getKey());
+            }
+        }
+        return result;
+    }
+
+    /** Host: the build of each guest, as their last action told it. */
+    private final Map<String, String> guestBuilds = new LinkedHashMap<>();
 
     /** True for heads played by the AI in a fight: companions and people who are not connected. */
     public synchronized boolean isAiHead(final String head) {
@@ -164,6 +178,9 @@ public class HexSession {
         }
         boolean start = false;
         synchronized (this) {
+            if (!actor.equals(myHead)) {
+                guestBuilds.put(actor, action.getBuild());
+            }
             final String head = action.getHead() == null ? actor : action.getHead();
             if (!mayActFor(actor, head) || (!present.contains(actor))) {
                 return;
@@ -337,7 +354,7 @@ public class HexSession {
         s.present.addAll(present);
         s.fightRunning = fightRunning;
         s.hostHead = hostHead;
-        s.buildId = HexNet.BUILD_ID;
+        s.buildId = HexNet.buildId();
         return GSON.toJson(s);
     }
 
@@ -349,6 +366,10 @@ public class HexSession {
             return;
         }
         final State s = GSON.fromJson(stateJson, State.class);
+        if (hostBuild == null) {
+            // the first state: tell the host which build this program is, before anything else is done
+            HexNet.sendToHost(new HexActionEvent(HexActionEvent.HELLO, 0, 0, null, false, null));
+        }
         synchronized (this) {
             campaign = HexCampaignIO.fromJson(s.campaignJson);
             myHead = yourHead;

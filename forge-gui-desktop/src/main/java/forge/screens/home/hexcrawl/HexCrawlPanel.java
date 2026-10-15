@@ -311,8 +311,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             lobby.addSlot();
         }
         final boolean changed = session.setGuests(guests);
-        if (!changed && ++ticks % 4 == 0) {
-            broadcast(); // also reaches people who reconnected
+        // also reaches people who reconnected; not during a fight, when the table needs the line
+        // and the campaign does not change
+        if (!changed && ++ticks % 4 == 0 && !session.isFightRunning()) {
+            broadcast();
         }
         if (btnInvite.isVisible()) {
             refresh();
@@ -382,9 +384,12 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         lblPlace.setText(place);
 
         final StringBuilder party = new StringBuilder();
+        final java.util.Set<String> otherBuild = session == null || guest ? java.util.Collections.emptySet() : session.guestsWithOtherBuild();
         for (final HexPlayer p : campaign.players) {
             party.append(p.name);
-            if (p.ai) {
+            if (otherBuild.contains(p.name)) {
+                party.append(" (").append(t("lblHexOtherBuild")).append(')');
+            } else if (p.ai) {
                 party.append(" (").append(t("lblHexCompanion")).append(')');
             } else if (!present.contains(p.name)) {
                 party.append(" (").append(t("lblHexAway")).append(')');
@@ -640,17 +645,33 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             } else if (!session.sameBuildAsHost()) {
                 text = t("lblHexConnOtherBuild", session.getHostHead());
                 color = new java.awt.Color(0xF0C05A);
+                warnOtherBuild(session.getHostHead());
             } else {
                 text = t("lblHexConnGuest", session.getHostHead(), session.getMyHead());
             }
         } else if (HostingServer.isHosting() && session != null) {
             text = t("lblHexConnHost", String.valueOf(Math.max(0, session.getPresent().size() - 1)));
+            for (final String other : session.guestsWithOtherBuild()) {
+                color = new java.awt.Color(0xF0C05A);
+                warnOtherBuild(other);
+            }
         }
         lblConnection.setVisible(text != null);
         if (text != null) {
             lblConnection.setText(text);
             lblConnection.setForeground(color);
         }
+    }
+
+    /** Whom the other-version warning was shown for already (once per program run and person). */
+    private final java.util.Set<String> warnedOtherBuild = new java.util.HashSet<>();
+
+    /** A different build breaks every fight: say so once, in a way nobody can miss. */
+    private void warnOtherBuild(final String who) {
+        if (who == null || !warnedOtherBuild.add(who)) {
+            return;
+        }
+        SwingUtilities.invokeLater(() -> FOptionPane.showMessageDialog(t("lblHexOtherBuildWarning", who), t("lblHexOtherBuild"), FOptionPane.WARNING_ICON));
     }
 
     /** Guest: leaves the host's campaign. */

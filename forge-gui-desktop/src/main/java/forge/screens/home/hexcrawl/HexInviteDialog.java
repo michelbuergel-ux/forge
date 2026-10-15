@@ -149,6 +149,8 @@ final class HexInviteDialog {
                     party.append(t("lblHexPartyHost"));
                 } else if (p.ai) {
                     party.append(t("lblHexCompanion"));
+                } else if (session.guestsWithOtherBuild().contains(p.name)) {
+                    party.append(t("lblHexPartyConnected")).append(" – ").append(t("lblHexOtherBuild"));
                 } else if (session.getPresent().contains(p.name)) {
                     party.append(t("lblHexPartyConnected"));
                 } else {
