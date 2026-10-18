@@ -53,6 +53,42 @@ public class HeadlessNetworkClient implements AutoCloseable, IHasForgeLog {
     private final AtomicLong totalDeltaBytes = new AtomicLong(0);
     private final AtomicLong eventStateMismatches = new AtomicLong(0);
 
+    // Team play (shared team turns)
+    private final AtomicInteger maxTeamMateHandCardsSeen = new AtomicInteger(0);
+    private final AtomicInteger pingsReceived = new AtomicInteger(0);
+    private final AtomicBoolean pingSent = new AtomicBoolean(false);
+    private final AtomicInteger priorityPrompts = new AtomicInteger(0);
+    private volatile boolean sendPing;
+    private volatile int disconnectAfterPrompts = -1;
+
+    /** Points the team mates at an own hand card once, at the first priority prompt. */
+    public void setSendPing(final boolean send) { sendPing = send; }
+    /** Drops the connection after this many priority prompts (simulates a crash). */
+    public void setDisconnectAfterPrompts(final int prompts) { disconnectAfterPrompts = prompts; }
+    public int getMaxTeamMateHandCardsSeen() { return maxTeamMateHandCardsSeen.get(); }
+    public int getPingsReceived() { return pingsReceived.get(); }
+    public int getPriorityPrompts() { return priorityPrompts.get(); }
+    public boolean isPlannedToDisconnect() { return disconnectAfterPrompts > 0; }
+
+    /** Counts the cards in team mates' hands this client can see. */
+    private void observeTeam(final GameView gv, final forge.game.player.PlayerView me) {
+        if (gv == null || me == null || gv.getPlayers() == null) {
+            return;
+        }
+        for (final forge.game.player.PlayerView pv : gv.getPlayers()) {
+            if (pv.equals(me) || !pv.sharesHandWith(me) || pv.getHand() == null) {
+                continue;
+            }
+            int seen = 0;
+            for (final forge.game.card.CardView cv : pv.getHand()) {
+                if (cv.canBeShownTo(me)) {
+                    seen++;
+                }
+            }
+            maxTeamMateHandCardsSeen.accumulateAndGet(seen, Math::max);
+        }
+    }
+
     public HeadlessNetworkClient(String username, String hostname, int port) {
         this.username = username;
         this.hostname = hostname;
@@ -439,9 +475,39 @@ public class HeadlessNetworkClient implements AutoCloseable, IHasForgeLog {
         }
 
         @Override
+        public void showPing(forge.game.player.PlayerView from, forge.game.card.CardView card) {
+            if (from != null && !from.getName().equals(client.username)) {
+                client.pingsReceived.incrementAndGet();
+            }
+        }
+
+        /** Team play hooks at a priority prompt: look at team mates' hands, ping, or drop out. */
+        private void onPriorityPrompt(forge.game.player.PlayerView owner) {
+            final int n = client.priorityPrompts.incrementAndGet();
+            final GameView gv = getGameView();
+            client.observeTeam(gv, owner);
+            if (client.sendPing && gameController != null && client.pingSent.compareAndSet(false, true)) {
+                for (final forge.game.player.PlayerView pv : gv.getPlayers()) {
+                    if (pv.equals(owner) && pv.getHand() != null && !pv.getHand().isEmpty()) {
+                        gameController.pingCard(pv.getHand().iterator().next());
+                        break;
+                    }
+                }
+            }
+            if (client.disconnectAfterPrompts > 0 && n == client.disconnectAfterPrompts) {
+                netLog.info("Dropping the connection after {} priority prompts", n);
+                new Thread(client::close, "HeadlessClient-Disconnect").start();
+            }
+        }
+
+        @Override
         public void updateButtons(forge.game.player.PlayerView owner, String label1, String label2, boolean enable1, boolean enable2, boolean focus1) {
             netLog.info("updateButtons(labels): '{}'/{}, '{}'/{}, controller={}",
                     label1, enable1, label2, enable2, gameController != null ? "set" : "null");
+            if (gameController != null && enable1 && enable2 && owner != null) {
+                // OK + End Turn/Undo: a priority prompt
+                onPriorityPrompt(owner);
+            }
             // Auto-respond to labeled button prompts - click first enabled button
             if (gameController != null && (enable1 || enable2)) {
                 String clickTarget = enable1 ? label1 : label2;

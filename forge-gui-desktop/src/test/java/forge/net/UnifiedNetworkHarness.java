@@ -126,6 +126,31 @@ public class UnifiedNetworkHarness implements IHasForgeLog {
      * Enable Commander format for this game.
      * Uses commander precon decks and applies Commander variant to the lobby.
      */
+    private int[] teams;
+    private boolean pingFromFirstClient;
+    private int disconnectSecondClientAfterPrompts = -1;
+
+    /**
+     * Multi-Headed Giant: shared team turns, with the given team for every slot
+     * (slot 0 is the host's AI, then the remote clients, then further AI).
+     */
+    public UnifiedNetworkHarness multiHeadedGiant(int... teamPerSlot) {
+        this.teams = teamPerSlot;
+        return this;
+    }
+
+    /** The first remote client points its team mates at one of its hand cards. */
+    public UnifiedNetworkHarness pingFromFirstClient(boolean ping) {
+        this.pingFromFirstClient = ping;
+        return this;
+    }
+
+    /** The second remote client drops its connection after that many priority prompts. */
+    public UnifiedNetworkHarness disconnectSecondClientAfterPrompts(int prompts) {
+        this.disconnectSecondClientAfterPrompts = prompts;
+        return this;
+    }
+
     public UnifiedNetworkHarness commander(boolean enable) {
         this.commander = enable;
         return this;
@@ -322,6 +347,14 @@ public class UnifiedNetworkHarness implements IHasForgeLog {
                 }
             }
 
+            if (teams != null) {
+                for (int i = 0; i < playerCount && i < teams.length; i++) {
+                    lobby.getSlot(i).setTeam(teams[i]);
+                }
+                lobby.applyVariant(GameType.MultiHeadedGiant);
+                netLog.info("Applied Multi-Headed Giant with teams {}", java.util.Arrays.toString(teams));
+            }
+
             // Brief pause for server initialization
             Thread.sleep(1000);
 
@@ -431,6 +464,10 @@ public class UnifiedNetworkHarness implements IHasForgeLog {
             Thread.sleep(staggerDelay);
 
             client = new HeadlessNetworkClient(clientName, "localhost", port);
+            client.setSendPing(clientIndex == 0 && pingFromFirstClient);
+            if (clientIndex == 1) {
+                client.setDisconnectAfterPrompts(disconnectSecondClientAfterPrompts);
+            }
             synchronized (remoteClients) {
                 remoteClients.add(client);
             }
@@ -597,7 +634,7 @@ public class UnifiedNetworkHarness implements IHasForgeLog {
             // Fail fast if any remote client has disconnected unexpectedly
             synchronized (remoteClients) {
                 for (HeadlessNetworkClient client : remoteClients) {
-                    if (!client.isConnected()) {
+                    if (!client.isConnected() && !client.isPlannedToDisconnect()) {
                         netLog.error("Remote client '{}' disconnected — aborting game",
                                 client.getMetricsSummary());
                         result.errorMessage = "Remote client disconnected unexpectedly";
@@ -636,6 +673,9 @@ public class UnifiedNetworkHarness implements IHasForgeLog {
                 result.fullStateSyncsReceived += client.getFullStateSyncsReceived();
                 result.totalDeltaBytes += client.getTotalDeltaBytes();
                 result.eventStateMismatches += client.getEventStateMismatches();
+                result.teamMateHandCardsSeen = Math.max(result.teamMateHandCardsSeen, client.getMaxTeamMateHandCardsSeen());
+                result.pingsReceived += client.getPingsReceived();
+                result.priorityPromptsPerClient.add(client.getPriorityPrompts());
             }
             // Snapshot client-side state from first remote client for post-game assertions
             if (!remoteClients.isEmpty()) {
@@ -776,6 +816,11 @@ public class UnifiedNetworkHarness implements IHasForgeLog {
 
         // Error information
         public String errorMessage;
+
+        // Team play
+        public int teamMateHandCardsSeen;
+        public int pingsReceived;
+        public List<Integer> priorityPromptsPerClient = new ArrayList<>();
         public Exception exception;
 
         /**

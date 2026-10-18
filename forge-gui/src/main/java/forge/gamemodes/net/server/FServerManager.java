@@ -83,6 +83,46 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
     private final Map<Channel, RemoteClient> clients = new ConcurrentHashMap<>();
     private final Map<String, RemoteClient> disconnectedClients = new ConcurrentHashMap<>();
     private final Map<String, Timer> reconnectTimers = new ConcurrentHashMap<>();
+    /** How long an AI stand-in keeps a seat for a disconnected player before taking it over for good. */
+    private static final int STAND_IN_TIMEOUT_SECONDS = 30 * 60;
+    /** If set, an AI plays for a player who drops out mid-game until they reconnect (Hex Campaign fights). */
+    private volatile boolean aiStandInWhileDisconnected;
+    /** Disconnected players an AI plays for: their own controller, given back when they reconnect. */
+    private final Map<String, PlayerControllerHuman> standIns = new ConcurrentHashMap<>();
+
+    public void setAiStandInWhileDisconnected(final boolean standIn) {
+        aiStandInWhileDisconnected = standIn;
+    }
+
+    /**
+     * Lets an AI play for a disconnected player for the time being. Unlike {@link #convertToAI},
+     * the player's own controller is kept and given back by {@link #endStandIn} on reconnect.
+     */
+    private boolean startStandIn(final RemoteClient client) {
+        final PlayerControllerHuman pch = findRemoteController(client.getIndex());
+        if (pch == null || !(pch.getGui() instanceof RemoteClientGuiGame)) { return false; }
+        final HostedMatch hostedMatch = localLobby.getHostedMatch();
+        final Game game = hostedMatch == null ? null : hostedMatch.getGame();
+        if (game == null || game.isGameOver()) { return false; }
+        final Player p = pch.getPlayer();
+        p.dangerouslySetController(new PlayerControllerAi(game, p, new LobbyPlayerAi(p.getName(), null)));
+        standIns.put(client.getUsername(), pch);
+        // unblock the game thread, which may wait for this player's answer
+        pch.getInputQueue().clearInputs();
+        netLog.info("[Reconnect] AI stands in for slot {} ({})", client.getIndex(), client.getUsername());
+        return true;
+    }
+
+    /** The player is back: their own controller takes over from the AI stand-in again. */
+    private void endStandIn(final String username) {
+        final PlayerControllerHuman pch = standIns.remove(username);
+        if (pch == null) { return; }
+        final HostedMatch hostedMatch = localLobby.getHostedMatch();
+        final Game game = hostedMatch == null ? null : hostedMatch.getGame();
+        if (game == null || game.isGameOver()) { return; }
+        pch.getPlayer().dangerouslySetController(pch);
+        netLog.info("[Reconnect] {} takes over from the AI stand-in again", username);
+    }
 
     // Abuse limits. Read per call rather than into constants so a test can vary
     // them: Integer.getInteger in a static initialiser fixes the value at
@@ -345,6 +385,7 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
         }
         reconnectTimers.clear();
         disconnectedClients.clear();
+        standIns.clear();
         clients.clear();
         afkSlots.clear();
 
@@ -1002,6 +1043,7 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
 
     private void handleReconnectTimeout(final String username) {
         reconnectTimers.remove(username);
+        standIns.remove(username); // the AI stand-in now keeps the seat for good
         final RemoteClient client = disconnectedClients.remove(username);
         if (client == null) { return; }
 
@@ -1147,6 +1189,7 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
                     netLog.info("[Reconnect] Channel swapped for {} (slot {})", username, disconnected.getIndex());
 
                     // Resume and resync
+                    endStandIn(username);
                     resumeAndResync(disconnected);
 
                     // Draft-side resync: re-send the current pack and clear grace state.
@@ -1294,9 +1337,11 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
                 // Match is active — pause, store for reconnect, run 5-minute reclaim timer.
                 pauseRemoteClientGuiGame(client);
                 disconnectedClients.put(username, client);
+                final boolean standIn = aiStandInWhileDisconnected && startStandIn(client);
+                final int timeout = standIn ? STAND_IN_TIMEOUT_SECONDS : RECONNECT_TIMEOUT_SECONDS;
 
-                // Start periodic countdown timer (ticks every 30s)
-                final int[] remaining = {RECONNECT_TIMEOUT_SECONDS};
+                // Start periodic countdown timer (ticks every 30s; with a stand-in only every 5 minutes a reminder)
+                final int[] remaining = {timeout};
                 final Timer timer = new Timer("reconnect-timeout-" + username, true);
                 reconnectTimers.put(username, timer);
                 timer.scheduleAtFixedRate(new TimerTask() {
@@ -1306,6 +1351,8 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
                         if (remaining[0] <= 0) {
                             cancel();
                             handleReconnectTimeout(username);
+                        } else if (standIn && remaining[0] % 300 != 0) {
+                            // the AI plays on: no need to count down every 30 seconds
                         } else {
                             broadcast(new MessageEvent(
                                 String.format("%s: %s remaining to reconnect.", username, formatTime(remaining[0]))));
@@ -1313,8 +1360,9 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
                     }
                 }, 30_000L, 30_000L);
 
-                broadcast(MessageEvent.warning(
-                    String.format("%s disconnected. Waiting %s for reconnect...", username, formatTime(RECONNECT_TIMEOUT_SECONDS))));
+                broadcast(MessageEvent.warning(standIn
+                    ? String.format("%s disconnected. The AI plays for them until they reconnect (%s).", username, formatTime(timeout))
+                    : String.format("%s disconnected. Waiting %s for reconnect...", username, formatTime(timeout))));
                 lobbyListener.message(null, "(Host can use /skipreconnect to replace disconnected player with AI, or /skiptimeout to wait indefinitely.)", ChatMessage.MessageType.SYSTEM);
                 netLog.info("[Disconnect] Player disconnected mid-game: {} (slot {}). Waiting for reconnect.", username, playerIndex);
             } else if (draftInProgress && client.hasValidSlot()) {

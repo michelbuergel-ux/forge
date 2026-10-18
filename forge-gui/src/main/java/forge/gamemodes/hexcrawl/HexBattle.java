@@ -204,7 +204,10 @@ public final class HexBattle {
         addEnemies(campaign, enc, players, avatar);
 
         final HostedMatch[] holder = new HostedMatch[1];
+        // a guest who drops out is played by the AI until they are back
+        forge.gamemodes.net.server.FServerManager.getInstance().setAiStandInWhileDisconnected(true);
         final Runnable hook = () -> {
+            forge.gamemodes.net.server.FServerManager.getInstance().setAiStandInWhileDisconnected(false);
             final HostedMatch match = holder[0];
             onFinished.accept(partyWon(match == null ? null : match.getGame()));
         };

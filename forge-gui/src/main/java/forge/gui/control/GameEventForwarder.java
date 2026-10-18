@@ -29,13 +29,20 @@ import java.util.stream.Collectors;
  *   <li>Sync points: explicit {@link #flush()} from {@code flushPendingEvents()}</li>
  * </ul>
  *
- * <p>No daemon thread — all delta collection runs on the game thread to avoid race issues.
+ * <p>No daemon thread — delta collection runs on the game thread, or with shared team priority
+ * on the threads of the team mates' prompts while the game thread waits for them. Those prompts
+ * open at the same time and each flushes every forwarder, so all forwarders share one lock.
  */
 public class GameEventForwarder implements Observer {
     private final IGuiGame gui;
     private final List<GameEvent> pendingEvents = new ArrayList<>();
     /** Whether anything but a redraw hint is waiting, which is what makes a pass of priority worth a batch. */
     private boolean somethingHappened;
+    /**
+     * One lock for all forwarders and network state walks: a flush walks the shared game state to
+     * build the deltas. Taken by {@code ProtocolGuiGame.updateGameView} as well.
+     */
+    public static final Object LOCK = new Object();
 
     public GameEventForwarder(IGuiGame gui) {
         this.gui = gui;
@@ -43,31 +50,42 @@ public class GameEventForwarder implements Observer {
 
     @Subscribe
     public void receiveGameEvent(GameEvent ev) {
-        if (ev instanceof GameEventTurnEnded && somethingHappened) {
-            flush();
-        }
-        pendingEvents.add(ev);
-        if (!(ev instanceof GameEventPlayerPriority)) {
-            somethingHappened |= !ev.isRedrawHint();
-        } else if (somethingHappened) {
-            flush();
+        synchronized (LOCK) {
+            if (ev instanceof GameEventTurnEnded && somethingHappened) {
+                flush();
+            }
+            pendingEvents.add(ev);
+            if (!(ev instanceof GameEventPlayerPriority)) {
+                somethingHappened |= !ev.isRedrawHint();
+            } else if (somethingHappened) {
+                flush();
+            }
         }
     }
 
     public void flush() {
-        if (pendingEvents.isEmpty()) {
-            return;
+        synchronized (LOCK) {
+            if (pendingEvents.isEmpty()) {
+                return;
+            }
+            List<GameEvent> batch = new ArrayList<>(pendingEvents);
+            pendingEvents.clear();
+            somethingHappened = false;
+            gui.handleGameEvents(batch);
         }
-        List<GameEvent> batch = new ArrayList<>(pendingEvents);
-        pendingEvents.clear();
-        somethingHappened = false;
-        gui.handleGameEvents(batch);
     }
 
     public boolean hasPendingEvents() {
-        return !pendingEvents.isEmpty();
+        synchronized (LOCK) {
+            return !pendingEvents.isEmpty();
+        }
     }
     public boolean hasPendingZoneChange(Object... args) {
+        synchronized (LOCK) {
+            return hasPendingZoneChange0(args);
+        }
+    }
+    private boolean hasPendingZoneChange0(Object... args) {
         List<Integer> zoneChangers = pendingEvents.stream().filter(GameEventCardChangeZone.class::isInstance).map(ev -> ((GameEventCardChangeZone) ev).card().getId()).collect(Collectors.toList());
         if (zoneChangers.isEmpty()) {
             return false;

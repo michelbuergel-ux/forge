@@ -194,6 +194,12 @@ public class ProtocolGuiGame extends NetworkGuiGame implements IHasForgeLog {
         updateGameView(true);
     }
     private void updateGameView(boolean flush) {
+        // shared team priority: team mates' prompts may get here at the same time, off the game thread
+        synchronized (forge.gui.control.GameEventForwarder.LOCK) {
+            updateGameView0(flush);
+        }
+    }
+    private void updateGameView0(boolean flush) {
         GameView gameView = getGameView();
         if (gameView == null) {
             return;
