@@ -42,7 +42,7 @@ import net.miginfocom.swing.MigLayout;
 
 /**
  * A town: one shop per kind of card (the cards are shown as pictures), a dealer in relics,
- * the notice board with tasks, and a counter where cards of the own deck are sold.
+ * the notice board with tasks, and a counter where cards of the own deck and sideboard are sold.
  * Everybody trades for their own head; the host also looks after heads nobody plays.
  */
 final class HexTownDialog {
@@ -96,7 +96,8 @@ final class HexTownDialog {
     // selling cards
     private final DefaultListModel<String> deckModel = new DefaultListModel<>();
     private final FList<String> lstDeck = new FList<>(deckModel);
-    private final List<String> deckNames = new ArrayList<>();
+    /** The rows of the sale list: deck cards first, then sideboard cards. */
+    private final List<SaleRow> deckNames = new ArrayList<>();
     private final CardPicturePanel picSell = new CardPicturePanel();
     private final FButton btnSell = new FButton();
 
@@ -522,7 +523,7 @@ final class HexTownDialog {
         page.add(btnSell, "h 28!");
         lstDeck.addListSelectionListener(e -> {
             final int i = lstDeck.getSelectedIndex();
-            final PaperCard card = i >= 0 && i < deckNames.size() ? content.getCard(deckNames.get(i)) : null;
+            final PaperCard card = i >= 0 && i < deckNames.size() ? content.getCard(deckNames.get(i).card()) : null;
             if (card != null) {
                 picSell.setItem(card);
                 btnSell.setText(t("lblHexSellFor", String.valueOf(content.sellPrice(card.getName()))));
@@ -532,11 +533,12 @@ final class HexTownDialog {
             final int i = lstDeck.getSelectedIndex();
             final HexPlayer p = head();
             if (i >= 0 && i < deckNames.size() && p != null) {
-                if (p.deck.size() <= HexCampaign.MIN_DECK_SIZE) {
+                final SaleRow row = deckNames.get(i);
+                if (!row.sideboard() && p.deck.size() <= HexCampaign.MIN_DECK_SIZE) {
                     lblMessage.setText(t("lblHexDeckTooSmall", String.valueOf(HexCampaign.MIN_DECK_SIZE)));
                 } else {
                     lblMessage.setText("");
-                    session.sell(p.name, deckNames.get(i));
+                    session.sell(p.name, row.card(), row.sideboard());
                 }
             }
             fill();
@@ -544,20 +546,28 @@ final class HexTownDialog {
         return page;
     }
 
+    /** One row of the sale list: a card name and whether the copies are in the sideboard. */
+    private record SaleRow(String card, boolean sideboard) { }
+
     private void fillDeck(final HexPlayer p) {
+        final List<String> lines = new ArrayList<>();
+        final List<SaleRow> rows = new ArrayList<>();
+        addSaleRows(p.deck, false, lines, rows);
+        addSaleRows(p.sideboard, true, lines, rows);
+        setList(deckModel, deckNames, lines, rows);
+    }
+
+    private void addSaleRows(final List<String> cards, final boolean sideboard, final List<String> lines, final List<SaleRow> rows) {
         final TreeMap<String, Integer> counts = new TreeMap<>();
-        for (final String card : p.deck) {
+        for (final String card : cards) {
             counts.merge(card, 1, Integer::sum);
         }
-        final List<String> lines = new ArrayList<>();
-        final List<String> names = new ArrayList<>();
         for (final Map.Entry<String, Integer> e : counts.entrySet()) {
             final PaperCard card = content.getCard(e.getKey());
-            names.add(e.getKey());
-            lines.add(e.getValue() + "x " + e.getKey() + (card == null ? "" : "   (" + card.getRules().getType() + ")")
-                    + "   +" + content.sellPrice(e.getKey()));
+            rows.add(new SaleRow(e.getKey(), sideboard));
+            lines.add((sideboard ? t("lblHexSideboardMark") + " " : "") + e.getValue() + "x " + e.getKey()
+                    + (card == null ? "" : "   (" + card.getRules().getType() + ")") + "   +" + content.sellPrice(e.getKey()));
         }
-        setList(deckModel, deckNames, lines, names);
     }
 
     /** Replaces the rows of a list only if they changed, so that a selection survives a refresh. */

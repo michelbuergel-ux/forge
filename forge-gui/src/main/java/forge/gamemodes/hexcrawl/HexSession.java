@@ -140,7 +140,16 @@ public class HexSession {
     }
 
     public void sell(final String head, final String card) {
-        act(new HexActionEvent(HexActionEvent.SELL, 0, 0, card, false, head));
+        sell(head, card, false);
+    }
+
+    public void sell(final String head, final String card, final boolean fromSideboard) {
+        act(new HexActionEvent(HexActionEvent.SELL, 0, 0, card, fromSideboard, head));
+    }
+
+    /** Moves a card between the deck and the sideboard of a head; not while a fight runs. */
+    public void moveCard(final String head, final String card, final boolean toSideboard) {
+        act(new HexActionEvent(HexActionEvent.MOVE, 0, 0, card, toSideboard, head));
     }
 
     public void buyLand(final String head, final HexColor color) {
@@ -190,7 +199,11 @@ public class HexSession {
             } else if (HexActionEvent.QUEST.equals(type)) {
                 campaign.acceptQuest(action.getQ());
             } else if (HexActionEvent.SELL.equals(type)) {
-                campaign.sell(head, action.getText());
+                campaign.sell(head, action.getText(), action.getFlag());
+            } else if (HexActionEvent.MOVE.equals(type)) {
+                if (!fightRunning) {
+                    campaign.moveCard(head, action.getText(), action.getFlag());
+                }
             } else if (HexActionEvent.LAND.equals(type)) {
                 try {
                     campaign.buyBasicLand(head, HexColor.valueOf(action.getText()));

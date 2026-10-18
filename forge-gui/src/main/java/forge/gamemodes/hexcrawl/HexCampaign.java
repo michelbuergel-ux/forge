@@ -653,6 +653,29 @@ public class HexCampaign {
         return Math.max(1, life);
     }
 
+    /**
+     * Moves one copy of a card between the deck and the sideboard of a head; a deck may not
+     * fall below the minimum size. Whether a fight is running is for the caller to check.
+     */
+    public boolean moveCard(final String playerName, final String card, final boolean toSideboard) {
+        final HexPlayer p = player(playerName);
+        if (p == null) {
+            return false;
+        }
+        if (toSideboard) {
+            if (p.deck.size() <= MIN_DECK_SIZE || !p.deck.remove(card)) {
+                return false;
+            }
+            p.sideboard.add(card);
+        } else {
+            if (!p.sideboard.remove(card)) {
+                return false;
+            }
+            p.deck.add(card);
+        }
+        return true;
+    }
+
     public boolean buyBasicLand(final String playerName, final HexColor color) {
         final HexPlayer p = player(playerName);
         if (!inTown() || p == null || p.gold < BASIC_LAND_PRICE) {
@@ -663,10 +686,18 @@ public class HexCampaign {
         return true;
     }
 
-    /** Sells one copy of a card; a deck may not fall below the minimum size. */
+    /** Sells one copy of a card of the deck; a deck may not fall below the minimum size. */
     public boolean sell(final String playerName, final String card) {
+        return sell(playerName, card, false);
+    }
+
+    /** Sells one copy of a card of the deck or the sideboard; a deck may not fall below the minimum size. */
+    public boolean sell(final String playerName, final String card, final boolean fromSideboard) {
         final HexPlayer p = player(playerName);
-        if (!inTown() || p == null || p.deck.size() <= MIN_DECK_SIZE || !p.deck.remove(card)) {
+        if (!inTown() || p == null) {
+            return false;
+        }
+        if (fromSideboard ? !p.sideboard.remove(card) : p.deck.size() <= MIN_DECK_SIZE || !p.deck.remove(card)) {
             return false;
         }
         final int price = HexContent.get().sellPrice(card);

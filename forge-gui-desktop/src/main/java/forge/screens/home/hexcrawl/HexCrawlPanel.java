@@ -16,7 +16,6 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
 import forge.Singletons;
-import forge.deckchooser.FDeckViewer;
 import forge.gamemodes.hexcrawl.HexBattle;
 import forge.gamemodes.hexcrawl.HexCampaign;
 import forge.gamemodes.hexcrawl.HexCampaignIO;
@@ -86,6 +85,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     /** Host or single player: a fight of the campaign is on the match screen (until its result is closed). */
     private volatile boolean fightOnScreen;
     private Runnable shopRefresher;
+    private Runnable deckRefresher;
     private int ticks;
     private final Timer hostTimer = new Timer(1500, e -> hostTick());
     /** Keeps the connection line up to date (a lost connection sends no message). */
@@ -427,6 +427,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         if (shopRefresher != null) {
             shopRefresher.run();
         }
+        if (deckRefresher != null) {
+            deckRefresher.run();
+        }
         revalidate();
         repaint();
     }
@@ -514,24 +517,11 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     // ------------------------------------------------------------------ towns and decks
 
     private void showDeck() {
-        final HexCampaign campaign = getCampaign();
-        if (campaign == null) {
+        if (session == null || getCampaign() == null) {
             return;
         }
-        HexPlayer p = campaign.players.get(0);
-        if (campaign.players.size() > 1) {
-            final List<String> names = new ArrayList<>();
-            for (final HexPlayer other : campaign.players) {
-                names.add(other.name);
-            }
-            final int idx = FOptionPane.showOptionDialog(t("lblHexWhichHead"), t("lblHexDecks"), FOptionPane.QUESTION_ICON, names,
-                    Math.max(0, names.indexOf(session.getMyHead())));
-            if (idx < 0) {
-                return;
-            }
-            p = campaign.players.get(idx);
-        }
-        FDeckViewer.show(HexContent.get().toDeck(p.name, p.deck));
+        new HexDeckDialog(session).show(refresher -> deckRefresher = refresher);
+        refresh();
     }
 
     public void openShop() {

@@ -12,6 +12,8 @@ public final class HexActionEvent implements NetEvent {
     public static final String LAND = "LAND";
     public static final String SELL_RELIC = "SELL_RELIC";
     public static final String QUEST = "QUEST";
+    /** Moves a card between deck and sideboard; the flag says "to the sideboard". */
+    public static final String MOVE = "MOVE";
 
     private final String type;
     private final int q;
@@ -32,8 +34,9 @@ public final class HexActionEvent implements NetEvent {
     public String getType() { return type; }
     public int getQ() { return q; }
     public int getR() { return r; }
-    /** A card or relic name (BUY, SELL, SELL_RELIC) or a colour (LAND). */
+    /** A card or relic name (BUY, SELL, SELL_RELIC, MOVE) or a colour (LAND). */
     public String getText() { return text; }
+    /** REWARD: take the card; SELL: from the sideboard; MOVE: to the sideboard. */
     public boolean getFlag() { return flag; }
     /** The head the action is for; null means the sender's own head. */
     public String getHead() { return head; }
