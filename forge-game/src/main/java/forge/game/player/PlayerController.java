@@ -285,6 +285,23 @@ public abstract class PlayerController {
     public abstract CardCollectionView tuckCardsViaMulligan(CardCollectionView hand, int cardsToReturn);
 
     public abstract List<SpellAbility> chooseSpellAbilityToPlay();
+
+    /**
+     * Shared team priority: whether {@link #chooseSpellAbilityToPlay()} may run on its own thread,
+     * at the same time as that of team mates. Controllers that answer true must support
+     * {@link #interruptSpellAbilityChoice()}.
+     */
+    public boolean canChooseSpellAbilityConcurrently() {
+        return false;
+    }
+    /** Controllers sharing this key (e.g. the same screen) are never asked at the same time. */
+    public Object getConcurrentChoiceKey() {
+        return this;
+    }
+    /** Called on the game thread before and after this controller is asked at the same time as its team mates. */
+    public void setConcurrentSpellAbilityChoice(final boolean concurrent) { }
+    /** A team mate acted first: end a running {@link #chooseSpellAbilityToPlay()} without a decision. */
+    public void interruptSpellAbilityChoice() { }
     public abstract boolean playChosenSpellAbility(SpellAbility sa);
 
     public abstract List<AbilitySub> chooseModeForAbility(SpellAbility sa, List<AbilitySub> possible, int min, int num, boolean allowRepeat);

@@ -87,6 +87,8 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
 
     private transient Player pPlayerPriority = null;
     private transient Player pFirstPriority = null;
+    /** Shared team turns: the heads holding priority together right now (empty otherwise). */
+    private transient volatile List<Player> priorityTeam = Collections.emptyList();
     private final transient Set<Player> skippingPhasePlayers = new HashSet<>();
     private transient Combat combat = null;
     private boolean skipDamageSteps = false;
@@ -219,6 +221,51 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
     }
     public final void resetPriority() {
         setPriority(playerTurn);
+    }
+
+    /**
+     * Whether p may act right now: the priority player, or with shared team turns any head of the
+     * team that holds priority (a team receives priority as a unit, CR 810.6 for Two-Headed Giant).
+     */
+    public final boolean hasPriority(final Player p) {
+        return p != null && (p.equals(pPlayerPriority) || priorityTeam.contains(p));
+    }
+
+    /** The heads sharing priority with p (p first, the others in turn order); just p in a normal game. */
+    private List<Player> getPriorityTeam(final Player p) {
+        final List<Player> result = Lists.newArrayList(p);
+        if (!isSharedTeamTurns()) {
+            return result;
+        }
+        Player next = game.getNextPlayerAfter(p);
+        int guard = game.getRegisteredPlayers().size();
+        while (guard-- > 0 && next != null && next != p) {
+            if (next.sameTeam(p) && !result.contains(next)) {
+                result.add(next);
+            }
+            next = game.getNextPlayerAfter(next);
+        }
+        return result;
+    }
+
+    /** Who receives priority after p: the next player, or with shared team turns the next team. */
+    private Player getNextPriorityPlayerAfter(final Player p) {
+        Player next = game.getNextPlayerAfter(p);
+        if (!isSharedTeamTurns()) {
+            return next;
+        }
+        int guard = game.getRegisteredPlayers().size();
+        while (guard-- > 0 && next != null && next != p && next.sameTeam(p)) {
+            next = game.getNextPlayerAfter(next);
+        }
+        return next;
+    }
+
+    private boolean isSamePriorityUnit(final Player a, final Player b) {
+        if (a == b) {
+            return true;
+        }
+        return isSharedTeamTurns() && a != null && b != null && a.sameTeam(b);
     }
 
     public final boolean inCombat() { return combat != null; }
@@ -1271,7 +1318,11 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
     }
 
     public void mainLoopStep() {
-        if (givePriorityToPlayer) {
+        if (givePriorityToPlayer && isSharedTeamTurns() && getPriorityTeam(pPlayerPriority).size() > 1) {
+            if (!teamPriorityStep()) {
+                return;
+            }
+        } else if (givePriorityToPlayer) {
             if (DEBUG_PHASES) {
                 sw.start();
             }
@@ -1311,34 +1362,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                     System.out.print("... " + pPlayerPriority + " plays " + chosenSa);
                 }
 
-                boolean rollback = false;
-                for (SpellAbility sa : chosenSa) {
-                    Card saHost = sa.getHostCard();
-                    final Zone originZone = saHost.getZone();
-                    final CardZoneTable triggerList = new CardZoneTable(game.getLastStateBattlefield(), game.getLastStateGraveyard());
-
-                    if (pPlayerPriority.getController().playChosenSpellAbility(sa)) {
-                        // 117.3c If a player has priority when they cast a spell, activate an ability, [play a land]
-                        // that player receives priority afterward.
-                        pFirstPriority = pPlayerPriority; // all opponents have to pass before stack is allowed to resolve
-                    } else if (game.EXPERIMENTAL_RESTORE_SNAPSHOT) {
-                        rollback = true;
-                    }
-
-                    saHost = game.getCardState(saHost);
-                    final Zone currentZone = saHost.getZone();
-
-                    // Need to check if Zone did change
-                    if (currentZone != null && originZone != null && !currentZone.equals(originZone) && (sa.isSpell() || sa.isLandAbility())) {
-                        // currently there can be only one Spell put on the Stack at once, or Land Abilities be played
-                        triggerList.put(originZone.getZoneType(), currentZone.getZoneType(), saHost);
-                        triggerList.triggerChangesZoneAll(game, sa);
-                    }
-                }
-                // Don't copy last state if we're in the middle of rolling back a spell...
-                if (!rollback) {
-                    game.copyLastState();
-                }
+                playChosenSpellAbilities(chosenSa);
                 loopCount++;
             } while (loopCount < 999 || !pPlayerPriority.getController().isAI());
 
@@ -1357,7 +1381,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
             System.out.print(" >> (no priority given to " + getPriorityPlayer() + ")\n");
         }
 
-        Player nextPlayer = game.getNextPlayerAfter(getPriorityPlayer());
+        Player nextPlayer = getNextPriorityPlayerAfter(getPriorityPlayer());
 
         if (game.isGameOver() || nextPlayer == null) {
             // conceded?
@@ -1367,7 +1391,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         if (DEBUG_PHASES) {
             System.out.println(TextUtil.concatWithSpace(playerTurn.toString(),TextUtil.addSuffix(phase.toString(),":"), pPlayerPriority.toString(),"is active, previous was", nextPlayer.toString()));
         }
-        if (pFirstPriority == nextPlayer) {
+        if (isSamePriorityUnit(pFirstPriority, nextPlayer)) {
             if (game.getStack().isEmpty()) {
                 if (playerTurn.hasLost()) {
                     setPriority(game.getNextPlayerAfter(playerTurn));
@@ -1397,6 +1421,201 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
 
         for (final Player p : game.getPlayers()) {
             p.setHasPriority(getPriorityPlayer() == p);
+        }
+    }
+
+    /** The priority player plays what it chose (CR 117.3c: it receives priority afterward). */
+    private void playChosenSpellAbilities(final List<SpellAbility> chosenSa) {
+        boolean rollback = false;
+        for (SpellAbility sa : chosenSa) {
+            Card saHost = sa.getHostCard();
+            final Zone originZone = saHost.getZone();
+            final CardZoneTable triggerList = new CardZoneTable(game.getLastStateBattlefield(), game.getLastStateGraveyard());
+
+            if (pPlayerPriority.getController().playChosenSpellAbility(sa)) {
+                // 117.3c If a player has priority when they cast a spell, activate an ability, [play a land]
+                // that player receives priority afterward.
+                pFirstPriority = pPlayerPriority; // all opponents have to pass before stack is allowed to resolve
+            } else if (game.EXPERIMENTAL_RESTORE_SNAPSHOT) {
+                rollback = true;
+            }
+
+            saHost = game.getCardState(saHost);
+            final Zone currentZone = saHost.getZone();
+
+            // Need to check if Zone did change
+            if (currentZone != null && originZone != null && !currentZone.equals(originZone) && (sa.isSpell() || sa.isLandAbility())) {
+                // currently there can be only one Spell put on the Stack at once, or Land Abilities be played
+                triggerList.put(originZone.getZoneType(), currentZone.getZoneType(), saHost);
+                triggerList.triggerChangesZoneAll(game, sa);
+            }
+        }
+        // Don't copy last state if we're in the middle of rolling back a spell...
+        if (!rollback) {
+            game.copyLastState();
+        }
+    }
+
+    private record PriorityChoice(Player player, List<SpellAbility> chosen, Throwable error) {}
+
+    /**
+     * Shared team turns: the team of the priority player holds priority as a unit. Every head may act
+     * while it holds it; the team passes once all heads have passed in a row. Heads that can be asked
+     * concurrently (humans, each at their own screen) are prompted at the same time, the first one to
+     * act plays; the others are asked again afterwards. Everything is still played one by one on
+     * this thread, so the stack works as usual.
+     *
+     * @return false if the game ended (or state-based actions must be looked at again first)
+     */
+    private boolean teamPriorityStep() {
+        final Player first = pPlayerPriority;
+        final Set<Player> passed = new HashSet<>();
+        int aiLoops = 0;
+        try {
+            while (true) {
+                if (checkStateBasedEffects()) {
+                    return false;
+                }
+                final List<Player> heads = getPriorityTeam(first);
+                heads.removeIf(Player::hasLost);
+                if (heads.isEmpty() || game.isGameOver()) {
+                    return !game.isGameOver();
+                }
+                priorityTeam = Collections.unmodifiableList(heads);
+                for (final Player p : game.getPlayers()) {
+                    p.setHasPriority(heads.contains(p));
+                }
+                if (passed.containsAll(heads)) {
+                    pPlayerPriority = first;
+                    return true;
+                }
+
+                game.fireEvent(new GameEventPlayerPriority(PlayerView.get(playerTurn), phase, PlayerView.get(first)));
+                game.stashGameState();
+
+                // heads that can't be asked at the same time first, one by one (AI, shared screens)
+                final List<Player> concurrent = Lists.newArrayList();
+                final Set<Object> keys = new HashSet<>();
+                PriorityChoice choice = null;
+                for (final Player head : heads) {
+                    if (passed.contains(head)) {
+                        continue;
+                    }
+                    if (head.getController().canChooseSpellAbilityConcurrently()
+                            && keys.add(head.getController().getConcurrentChoiceKey())) {
+                        concurrent.add(head);
+                        continue;
+                    }
+                    pPlayerPriority = head;
+                    final List<SpellAbility> chosen = head.getController().chooseSpellAbilityToPlay();
+                    if (chosen == null) {
+                        passed.add(head);
+                    } else {
+                        choice = new PriorityChoice(head, chosen, null);
+                        break;
+                    }
+                }
+                if (choice == null && concurrent.size() == 1) {
+                    final Player head = concurrent.get(0);
+                    pPlayerPriority = head;
+                    final List<SpellAbility> chosen = head.getController().chooseSpellAbilityToPlay();
+                    if (chosen == null) {
+                        passed.add(head);
+                    } else {
+                        choice = new PriorityChoice(head, chosen, null);
+                    }
+                } else if (choice == null && !concurrent.isEmpty()) {
+                    choice = chooseConcurrently(concurrent, passed);
+                }
+                if (choice == null) {
+                    continue;
+                }
+                if (game.isGameOver()) {
+                    return false;
+                }
+
+                final Player actor = choice.player();
+                pPlayerPriority = actor;
+                if (choice.chosen().isEmpty()) {
+                    continue; // e.g. an undo: just ask again
+                }
+                if (!game.getUndoManager().isOwner(actor)) {
+                    game.getUndoManager().barrier("Opponent acted");
+                }
+                playChosenSpellAbilities(choice.chosen());
+                // the game changed: every head may act again before the team passes
+                passed.clear();
+                if (actor.getController().isAI() && ++aiLoops >= 999) {
+                    aiLog.warn("AI looped too much with: " + choice.chosen());
+                    passed.add(actor);
+                }
+            }
+        } finally {
+            priorityTeam = Collections.emptyList();
+        }
+    }
+
+    /**
+     * Prompts the given heads at the same time. Returns the first decision to act (the other prompts
+     * are interrupted and their answers dropped), or null if all of them passed.
+     */
+    private PriorityChoice chooseConcurrently(final List<Player> heads, final Set<Player> passed) {
+        final java.util.concurrent.BlockingQueue<PriorityChoice> answers = new java.util.concurrent.LinkedBlockingQueue<>();
+        for (final Player head : heads) {
+            head.getController().setConcurrentSpellAbilityChoice(true);
+        }
+        try {
+            for (final Player head : heads) {
+                forge.util.ThreadUtil.invokeInGameThread(() -> {
+                    List<SpellAbility> chosen = null;
+                    Throwable error = null;
+                    try {
+                        chosen = head.getController().chooseSpellAbilityToPlay();
+                    } catch (final Throwable t) {
+                        error = t;
+                    }
+                    answers.add(new PriorityChoice(head, chosen, error));
+                });
+            }
+            PriorityChoice winner = null;
+            Throwable error = null;
+            for (int open = heads.size(); open > 0; open--) {
+                final PriorityChoice answer;
+                try {
+                    answer = answers.take();
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+                if (winner != null || error != null) {
+                    continue; // too late: someone else acted first
+                }
+                if (answer.error() != null) {
+                    error = answer.error();
+                } else if (answer.chosen() == null) {
+                    passed.add(answer.player());
+                    continue;
+                } else {
+                    winner = answer;
+                }
+                for (final Player other : heads) {
+                    if (other != answer.player()) {
+                        other.getController().interruptSpellAbilityChoice();
+                    }
+                }
+            }
+            if (error instanceof RuntimeException re) {
+                throw re;
+            } else if (error instanceof Error e) {
+                throw e;
+            } else if (error != null) {
+                throw new RuntimeException(error);
+            }
+            return winner;
+        } finally {
+            for (final Player head : heads) {
+                head.getController().setConcurrentSpellAbilityChoice(false);
+            }
         }
     }
 

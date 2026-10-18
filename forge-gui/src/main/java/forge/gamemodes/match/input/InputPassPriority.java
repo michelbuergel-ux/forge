@@ -58,6 +58,7 @@ public class InputPassPriority extends InputSyncronizedBase {
     private static final long serialVersionUID = -581477682214137181L;
 
     private List<SpellAbility> chosenSa;
+    private volatile boolean interrupted;
 
     private SuggestionType pendingSuggestion = null;
     private String pendingSuggestionMessage = null;
@@ -78,7 +79,23 @@ public class InputPassPriority extends InputSyncronizedBase {
             super.showAndWait();
         } finally {
             timeout.cancel();
+            // interrupted before it was even shown: don't leave it behind on the queue
+            if (interrupted && getController().getInputQueue().getInput() == this) {
+                getController().getInputQueue().removeInput(this);
+            }
         }
+    }
+
+    /** Shared team priority: a team mate acted first, this prompt ends without a decision. */
+    public void interrupt() {
+        interrupted = true;
+        if (isFinished()) return;
+        chosenSa = null;
+        stop();
+    }
+
+    public boolean isInterrupted() {
+        return interrupted;
     }
 
     /** {@inheritDoc} */
@@ -317,7 +334,7 @@ public class InputPassPriority extends InputSyncronizedBase {
             //if gui player has mana floating that will be lost if phase ended right now, prompt before passing priority
             final Game game = getController().getGame();
             if (game.getStack().isEmpty()) { //phase can't end right now if stack isn't empty
-                Player player = game.getPhaseHandler().getPriorityPlayer();
+                Player player = getController().getPlayer();
                 if (player != null && player.getManaPool().willManaBeLostAtEndOfPhase() && player.getLobbyPlayer() == GamePlayerUtil.getGuiPlayer()) {
                     //must invoke in game thread so dialog can be shown on mobile game
                     ThreadUtil.invokeInGameThread(() -> {

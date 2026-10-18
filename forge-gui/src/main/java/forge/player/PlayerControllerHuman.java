@@ -122,6 +122,12 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
     private final YieldController yieldController = new YieldController(this);
 
     protected final InputQueue inputQueue;
+
+    /** Shared team priority: team mates' prompts may scan the game at the same time, so they take turns for that. */
+    private static final Object CONCURRENT_SCAN_LOCK = new Object();
+    private volatile boolean concurrentChoice;
+    private volatile boolean choiceInterrupted;
+    private volatile InputPassPriority openPriorityInput;
     protected final InputProxy inputProxy;
 
     private final Localizer localizer = Localizer.getInstance();
@@ -1699,13 +1705,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         getGui().setWeaklySelectable(result);
     }
 
-    @Override
-    public List<SpellAbility> chooseSpellAbilityToPlay() {
-        final MagicStack stack = getGame().getStack();
-
-        // Skip when already yielding — yield proceeds regardless of available-actions.
-        // shouldAutoYield, not isYieldActive: it clears yields that have run their course, so an expiring one no longer skips the scan
-        // Compute the actionable set when APINA / suggestions / highlights need it.
+    private void refreshAvailableActions() {
         boolean highlightsEnabled = yieldController.getBoolPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS);
         if (!yieldController.shouldAutoYield() && (needsAvailableActions() || highlightsEnabled)) {
             long timeoutMs = computeAvailableActionsBudgetMs(getPlayer());
@@ -1721,6 +1721,22 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
             }
         } else {
             cachedActionableCards = null;
+        }
+    }
+
+    @Override
+    public List<SpellAbility> chooseSpellAbilityToPlay() {
+        final MagicStack stack = getGame().getStack();
+
+        // Skip when already yielding — yield proceeds regardless of available-actions.
+        // shouldAutoYield, not isYieldActive: it clears yields that have run their course, so an expiring one no longer skips the scan
+        // Compute the actionable set when APINA / suggestions / highlights need it.
+        if (concurrentChoice) {
+            synchronized (CONCURRENT_SCAN_LOCK) {
+                refreshAvailableActions();
+            }
+        } else {
+            refreshAvailableActions();
         }
 
         // yieldJustEndedFlag is read from the EDT (didYieldJustEnd); synchronized writer/reader pair handles visibility.
@@ -1761,20 +1777,61 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         }
         final UndoManager undo = getGame().getUndoManager();
         if (!isMacroActive()) {
-            if (UndoManager.OWN_TURN_ONLY && getGame().getPhaseHandler().getPlayerTurn() != player) {
+            if (concurrentChoice) {
+                // team mates are prompted at the same time: there is no single history to rewind
+                undo.barrier("Team mates act at the same time");
+            } else if (UndoManager.OWN_TURN_ONLY && getGame().getPhaseHandler().getPlayerTurn() != player) {
                 undo.barrier("Opponent's turn");
             } else {
                 undo.checkpoint(getGame(), player);      // must come BEFORE the prompt is built
             }
         }
         final InputPassPriority defaultInput = new InputPassPriority(this);
-        defaultInput.showAndWait();
+        openPriorityInput = defaultInput;
+        if (choiceInterrupted) {
+            openPriorityInput = null;
+            return null;
+        }
+        try {
+            defaultInput.showAndWait();
+        } finally {
+            openPriorityInput = null;
+        }
+        if (defaultInput.isInterrupted()) {
+            return null;
+        }
         netLog.trace("InputPassPriority returned for player {}, chosenSa={}", player.getName(), defaultInput.getChosenSa());
         if (undo.consumeRequest()) {            // restore on the GAME thread, not the EDT
             undo.undo(getGame());
             return Collections.emptyList();     // mainLoopStep just prompts again
         }
         return defaultInput.getChosenSa();
+    }
+
+    @Override
+    public boolean canChooseSpellAbilityConcurrently() {
+        return true;
+    }
+
+    @Override
+    public Object getConcurrentChoiceKey() {
+        // local players sharing one screen can't be prompted at the same time
+        return getGui();
+    }
+
+    @Override
+    public void setConcurrentSpellAbilityChoice(final boolean concurrent) {
+        concurrentChoice = concurrent;
+        choiceInterrupted = false;
+    }
+
+    @Override
+    public void interruptSpellAbilityChoice() {
+        choiceInterrupted = true;
+        final InputPassPriority inp = openPriorityInput;
+        if (inp != null) {
+            inp.interrupt();
+        }
     }
 
     @Override
@@ -2758,7 +2815,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
     }
 
     public boolean canUndoLastAction() {
-        if (getGame().getPhaseHandler().getPriorityPlayer() != player) return false;
+        if (!getGame().getPhaseHandler().hasPriority(player)) return false;
         return getGame().getUndoManager().canUndo(player) && inputQueue.getInput() instanceof InputPassPriority;
     }
 
