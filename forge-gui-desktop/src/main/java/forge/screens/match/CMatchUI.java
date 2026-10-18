@@ -1270,7 +1270,15 @@ public final class CMatchUI
         if (players.size() > 2 && myPlayers != null && myPlayers.size() >= 1) {
             // a team of several heads: own field first, then an opponent, so that the two base
             // cells are "us" (bottom) and "them" (top); the other fields join their side as tabs
-            final PlayerView me = myPlayers.get(0);
+            // the game's own instance: in a network game myPlayers holds copies sent with
+            // openView, which the game state updates never reach (hand and library stay empty)
+            PlayerView me = myPlayers.get(0);
+            for (final PlayerView p : players) {
+                if (p.equals(me)) {
+                    me = p;
+                    break;
+                }
+            }
             final List<PlayerView> mates = new ArrayList<>();
             final List<PlayerView> foes = new ArrayList<>();
             for (final PlayerView p : players) {
