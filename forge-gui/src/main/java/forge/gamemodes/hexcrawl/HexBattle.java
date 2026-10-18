@@ -152,6 +152,7 @@ public final class HexBattle {
         rules.setAppliedVariants(EnumSet.of(GameType.Constructed, GameType.MultiHeadedGiant));
         rules.setGamesPerMatch(1);
         rules.setPlayForAnte(false); // the campaign handles ante itself
+        rules.setStreamlinedPriority(true); // fewer OK clicks: auto-pass, no delays, lean phase stops
         rules.setManaBurn(FModel.getPreferences().getPrefBoolean(FPref.LEGACY_MANABURN));
         rules.setOrderCombatants(FModel.getPreferences().getPrefBoolean(FPref.LEGACY_ORDER_COMBATANTS));
         rules.setUseGrayText(FModel.getPreferences().getPrefBoolean(FPref.UI_GRAY_INACTIVE_TEXT));

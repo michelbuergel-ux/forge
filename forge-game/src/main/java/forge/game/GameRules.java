@@ -19,6 +19,7 @@ public class GameRules {
     private final Set<GameType> appliedVariants = EnumSet.noneOf(GameType.class);
     private int simTimeout = 120;
     private boolean sharedTeamTurns = false;
+    private boolean streamlinedPriority = false;
 
     // it's a preference, not rule... but I could hardly find a better place for it
     private boolean useGrayText;
@@ -161,5 +162,18 @@ public class GameRules {
 
     public void setSharedTeamTurns(final boolean sharedTeamTurns) {
         this.sharedTeamTurns = sharedTeamTurns;
+    }
+
+    /**
+     * Streamlined priority (Hex Campaign fights): the players' screens auto-pass when they can't do
+     * anything, skip the pauses between steps and stop at fewer phases, without touching their
+     * saved preferences.
+     */
+    public boolean hasStreamlinedPriority() {
+        return streamlinedPriority;
+    }
+
+    public void setStreamlinedPriority(final boolean streamlinedPriority) {
+        this.streamlinedPriority = streamlinedPriority;
     }
 }

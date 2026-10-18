@@ -49,6 +49,7 @@ public class GameView extends TrackableObject {
         set(TrackableProperty.IsCommander, rules.hasCommander());
         set(TrackableProperty.GameType, rules.getGameType());
         set(TrackableProperty.PoisonCountersToLose, rules.getPoisonCountersToLose());
+        set(TrackableProperty.StreamlinedPriority, rules.hasStreamlinedPriority());
         set(TrackableProperty.NumGamesInMatch, rules.getGamesPerMatch());
 
         set(TrackableProperty.NumPlayedGamesInMatch, game.getMatch().getOutcomes().size());
@@ -79,6 +80,12 @@ public class GameView extends TrackableObject {
 
     public GameType getGameType() {
         return get(TrackableProperty.GameType);
+    }
+
+    /** See {@link GameRules#hasStreamlinedPriority()}. */
+    public boolean isStreamlinedPriority() {
+        final Boolean value = get(TrackableProperty.StreamlinedPriority);
+        return value != null && value;
     }
 
     public int getPoisonCountersToLose() {

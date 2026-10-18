@@ -67,6 +67,7 @@ import forge.game.spellability.StackItemView;
 import forge.game.zone.ZoneType;
 import forge.util.IHasForgeLog;
 import forge.gamemodes.match.DrawOfferMessage;
+import forge.gamemodes.match.StreamlinedPriority;
 import forge.gamemodes.match.YieldMarker;
 import forge.gamemodes.net.NetworkGuiGame;
 import forge.gamemodes.net.client.FGameClient;
@@ -1019,6 +1020,7 @@ public final class CMatchUI
         if (isNetGame()) {
             writeMatchPreferences();
         }
+        StreamlinedPriority.clear();
         final GameView gameView = getGameView();
         if (Singletons.getControl().getCurrentScreen() != screen) {
             // the match screen is gone already (in a network game another player left the result
@@ -1473,6 +1475,9 @@ public final class CMatchUI
     }
 
     public void writeMatchPreferences() {
+        if (getGameView() != null && getGameView().isStreamlinedPriority()) {
+            return; // the phase stops of this game were only temporary
+        }
         final ForgePreferences prefs = FModel.getPreferences();
         final List<VField> fieldViews = getFieldViews();
         final PhaseType[] phases = PhaseType.values();
@@ -1489,6 +1494,8 @@ public final class CMatchUI
     }
 
     private void actuateMatchPreferences() {
+        // Hex Campaign fights: auto-pass, no delays and lean phase stops, just for this game
+        StreamlinedPriority.applyFor(getGameView());
         final ForgePreferences prefs = FModel.getPreferences();
         final List<VField> fieldViews = getFieldViews();
         final PhaseType[] phases = PhaseType.values();

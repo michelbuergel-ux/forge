@@ -38,6 +38,8 @@ import forge.util.TextUtil;
 public abstract class AbstractPreferences<T extends Enum<T> & IPreferences.IPref> implements IPreferences<T> {
     private final Map<T, String> preferenceValues;
     private final String filename;
+    /** Values set with {@link #setTemporaryPref}: the saved value of each, written by {@link #save()} instead. */
+    private final Map<T, String> temporaryOriginals = new java.util.HashMap<>();
 
     public AbstractPreferences(final String filename0, final Class<T> clasz) {
         preferenceValues = new EnumMap<>(clasz);
@@ -75,7 +77,8 @@ public abstract class AbstractPreferences<T extends Enum<T> & IPreferences.IPref
         try {
             writer = new BufferedWriter(new FileWriter(filename));
             for (final T key : getEnumValues()) {
-                writer.write(key + "=" + getPref(key));
+                final String value = temporaryOriginals.containsKey(key) ? temporaryOriginals.get(key) : getPref(key);
+                writer.write(key + "=" + value);
                 writer.newLine();
             }
         } catch (final IOException ex) {
@@ -98,7 +101,29 @@ public abstract class AbstractPreferences<T extends Enum<T> & IPreferences.IPref
 
     @Override
     public final void setPref(final T q0, final String s0) {
+        // an explicit choice replaces a temporary value for good
+        temporaryOriginals.remove(q0);
         preferenceValues.put(q0, s0);
+    }
+
+    /**
+     * Sets a value for the time being (e.g. for one match): {@link #getPref} returns it, but
+     * {@link #save()} keeps writing the previous value until {@link #clearTemporaryPrefs()}.
+     * Setting the preference normally in between keeps that new value.
+     */
+    public final synchronized void setTemporaryPref(final T q0, final String s0) {
+        if (!temporaryOriginals.containsKey(q0)) {
+            temporaryOriginals.put(q0, getPref(q0));
+        }
+        preferenceValues.put(q0, s0);
+    }
+
+    /** Puts back the values that {@link #setTemporaryPref} replaced. */
+    public final synchronized void clearTemporaryPrefs() {
+        for (final Map.Entry<T, String> e : temporaryOriginals.entrySet()) {
+            preferenceValues.put(e.getKey(), e.getValue());
+        }
+        temporaryOriginals.clear();
     }
 
     @Override
