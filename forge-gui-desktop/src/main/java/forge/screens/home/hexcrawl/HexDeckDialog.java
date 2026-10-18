@@ -11,6 +11,7 @@ import javax.swing.JPanel;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
 import forge.deckchooser.FDeckViewer;
+import forge.gamemodes.hexcrawl.HexDeckStats;
 import forge.gamemodes.hexcrawl.HexCampaign;
 import forge.gamemodes.hexcrawl.HexContent;
 import forge.gamemodes.hexcrawl.HexPlayer;
@@ -81,6 +82,8 @@ final class HexDeckDialog {
     }
 
     /** Shows the dialog until it is closed. The given hook is told how to refresh the open dialog. */
+    private final HexDeckStatsPanel statsPanel = new HexDeckStatsPanel();
+
     void show(final java.util.function.Consumer<Runnable> refreshHook) {
         if (heads.isEmpty() || campaign() == null) {
             return;
@@ -112,6 +115,8 @@ final class HexDeckDialog {
         btnView.setText(t("lblHexViewDeck"));
         panel.add(btnView, "h 28!");
         panel.add(lblMessage, "h 28!, span 3");
+        panel.add(new FLabel.Builder().text(t("lblHexStats")).fontStyle(Font.BOLD).fontAlign(SwingConstants.LEFT).build(), "h 22!, span 4");
+        panel.add(statsPanel, "h 110!, span 4");
 
         lstDeck.addListSelectionListener(e -> {
             if (lstDeck.getSelectedIndex() >= 0) {
@@ -183,6 +188,7 @@ final class HexDeckDialog {
             return;
         }
         lblCounts.setText(t("lblHexDeckCounts", String.valueOf(p.deck.size()), String.valueOf(p.sideboard.size())));
+        statsPanel.setStats(HexDeckStats.of(p.deck, content));
         setList(lstDeck, deckModel, deckNames, p.deck);
         setList(lstSide, sideModel, sideNames, p.sideboard);
         final boolean editable = mayEdit(p);

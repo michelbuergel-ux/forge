@@ -162,8 +162,11 @@ public class HexMapPanel extends JPanel {
                 sb.append(" – ").append(loc.getMessage("lblHexEnemyMarker", enemy.enemyName, life));
             }
             sb.append(HexCrawlPanel.enemyExtras(campaign, enemy));
+            // scouting: what the party knows of the enemy's deck before the fight
+            sb.append(HexCrawlPanel.scoutReport(enemy));
         }
-        return sb.toString();
+        final String text = sb.toString().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+        return "<html>" + text.replace("\n", "<br>") + "</html>";
     }
 
     @Override

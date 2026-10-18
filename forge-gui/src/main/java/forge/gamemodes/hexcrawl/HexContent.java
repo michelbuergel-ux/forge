@@ -511,6 +511,65 @@ public final class HexContent {
         return deck;
     }
 
+    /** What scouting tells about an enemy before the fight: the colours of its deck and its most valuable cards. */
+    public static final class ScoutReport {
+        public final List<HexColor> colors;
+        public final List<String> keyCards;
+
+        ScoutReport(final List<HexColor> colors, final List<String> keyCards) {
+            this.colors = colors;
+            this.keyCards = keyCards;
+        }
+    }
+
+    private static final byte[] COLOR_BITS = { MagicColor.WHITE, MagicColor.BLUE, MagicColor.BLACK, MagicColor.RED, MagicColor.GREEN };
+    private final Map<String, ScoutReport> scoutReports = new HashMap<>();
+
+    /** The scout report of an enemy (decks are read once and remembered). Null if its deck can't be read. */
+    public synchronized ScoutReport scout(final HexEncounter enc) {
+        if (enc == null || enc.deckPath == null) {
+            return null;
+        }
+        final ScoutReport known = scoutReports.get(enc.deckPath);
+        if (known != null) {
+            return known;
+        }
+        final Deck deck;
+        try {
+            deck = loadEnemyDeck(enc);
+        } catch (final RuntimeException e) {
+            return null;
+        }
+        final int[] perColor = new int[COLOR_BITS.length];
+        int colored = 0;
+        final Map<String, Integer> values = new HashMap<>();
+        for (final Map.Entry<PaperCard, Integer> entry : deck.getMain()) {
+            final CardRules rules = entry.getKey().getRules();
+            if (rules == null || rules.getType().isLand()) {
+                continue;
+            }
+            for (int i = 0; i < COLOR_BITS.length; i++) {
+                if (rules.getColor().hasAnyColor(COLOR_BITS[i])) {
+                    perColor[i] += entry.getValue();
+                    colored += entry.getValue();
+                }
+            }
+            values.put(entry.getKey().getName(), price(entry.getKey().getName()));
+        }
+        // a colour counts if at least a sixth of the coloured cards have it (no splash of one card)
+        final List<HexColor> colors = new ArrayList<>();
+        for (int i = 0; i < COLOR_BITS.length; i++) {
+            if (perColor[i] > 0 && perColor[i] * 6 >= colored) {
+                colors.add(HexColor.COLORS[i]);
+            }
+        }
+        final List<String> names = new ArrayList<>(values.keySet());
+        names.sort((a, b) -> values.get(a).equals(values.get(b)) ? a.compareTo(b) : values.get(b) - values.get(a));
+        final ScoutReport report = new ScoutReport(colors, names.subList(0, Math.min(3, names.size())));
+        scoutReports.put(enc.deckPath, report);
+        return report;
+    }
+
     /** A random card from the enemy's deck that is not a basic land, or null. */
     public String randomAnteCard(final HexEncounter enc, final Random rnd) {
         final List<String> names = new ArrayList<>();

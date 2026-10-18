@@ -260,6 +260,12 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         // like the lobby's start button: the match screen has to be built on the screen thread,
         // and never on the network thread that delivered the last player's action
+        // the campaign is saved with the pending fight, so a crash in the fight leads back to it
+        try {
+            HexCampaignIO.save(s.getCampaign());
+        } catch (final RuntimeException e) {
+            e.printStackTrace();
+        }
         SwingUtilities.invokeLater(() -> {
             try {
                 fightOnScreen = true;
@@ -436,7 +442,36 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
     private String describe(final HexEncounter enc) {
         return t(enc.boss ? "lblHexBossAhead" : "lblHexEncounterAhead", enc.enemyName, String.valueOf(getCampaign().enemyLife(enc)))
-                + enemyExtras(getCampaign(), enc);
+                + enemyExtras(getCampaign(), enc) + scoutReport(enc);
+    }
+
+    private static final String[] COLOR_NAME_KEYS = { "lblWhite", "lblBlue", "lblBlack", "lblRed", "lblGreen" };
+
+    /** Before a fight: the enemy deck's colours, its most valuable cards and the reward. */
+    static String scoutReport(final HexEncounter enc) {
+        final Localizer loc = Localizer.getInstance();
+        final StringBuilder sb = new StringBuilder();
+        final HexContent.ScoutReport report = HexContent.get().scout(enc);
+        if (report != null) {
+            final List<String> colors = new ArrayList<>();
+            for (final HexColor c : report.colors) {
+                colors.add(loc.getMessage(COLOR_NAME_KEYS[java.util.Arrays.asList(HexColor.COLORS).indexOf(c)]));
+            }
+            if (!colors.isEmpty()) {
+                sb.append('\n').append(loc.getMessage("lblHexScoutColors", String.join(", ", colors)));
+            }
+            if (!report.keyCards.isEmpty()) {
+                final List<String> cards = new ArrayList<>();
+                for (final String name : report.keyCards) {
+                    cards.add(forge.util.CardTranslation.getTranslatedName(name));
+                }
+                sb.append('\n').append(loc.getMessage("lblHexScoutCards", String.join(", ", cards)));
+            }
+        }
+        if (enc.gold > 0) {
+            sb.append('\n').append(loc.getMessage("lblHexScoutReward", String.valueOf(enc.gold)));
+        }
+        return sb.toString();
     }
 
     // ------------------------------------------------------------------ travelling
