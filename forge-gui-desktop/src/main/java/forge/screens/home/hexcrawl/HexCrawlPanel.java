@@ -414,8 +414,11 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             party.append(campaign.defeatedBosses.contains(c) ? "[x] " : "[ ] ").append(HexContent.get().getBossName(c)).append("  ");
         }
         party.append('\n').append(t("lblHexRecord", String.valueOf(campaign.battlesWon), String.valueOf(campaign.battlesLost)));
+        if (campaign.goldMultiplier > 1) {
+            party.append("   ").append(t("lblHexGoldMultiplierInfo", String.valueOf(campaign.goldMultiplier)));
+        }
         for (final HexQuest quest : campaign.quests) {
-            party.append('\n').append(t("lblHexQuestLine", quest.enemyName, String.valueOf(quest.gold)));
+            party.append('\n').append(t("lblHexQuestLine", quest.enemyName, String.valueOf(campaign.gold(quest.gold))));
         }
         if (campaign.won) {
             party.append("\n\n").append(t("lblHexJournalVictory"));
@@ -442,13 +445,13 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
     private String describe(final HexEncounter enc) {
         return t(enc.boss ? "lblHexBossAhead" : "lblHexEncounterAhead", enc.enemyName, String.valueOf(getCampaign().enemyLife(enc)))
-                + enemyExtras(getCampaign(), enc) + scoutReport(enc);
+                + enemyExtras(getCampaign(), enc) + scoutReport(getCampaign(), enc);
     }
 
     private static final String[] COLOR_NAME_KEYS = { "lblWhite", "lblBlue", "lblBlack", "lblRed", "lblGreen" };
 
     /** Before a fight: the enemy deck's colours, its most valuable cards and the reward. */
-    static String scoutReport(final HexEncounter enc) {
+    static String scoutReport(final HexCampaign campaign, final HexEncounter enc) {
         final Localizer loc = Localizer.getInstance();
         final StringBuilder sb = new StringBuilder();
         final HexContent.ScoutReport report = HexContent.get().scout(enc);
@@ -469,7 +472,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             }
         }
         if (enc.gold > 0) {
-            sb.append('\n').append(loc.getMessage("lblHexScoutReward", String.valueOf(enc.gold)));
+            sb.append('\n').append(loc.getMessage("lblHexScoutReward", String.valueOf(campaign.gold(enc.gold))));
         }
         return sb.toString();
     }
@@ -700,6 +703,15 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         if (companions < 0) {
             return;
         }
+        final List<String> goldOptions = new ArrayList<>();
+        for (final int m : HexCampaign.GOLD_MULTIPLIERS) {
+            goldOptions.add(m == 1 ? t("lblHexGoldNormal") : m + "x");
+        }
+        final int goldChoice = FOptionPane.showOptionDialog(t("lblHexGoldMultiplierQuestion"), t("lblHexNewCampaign"),
+                FOptionPane.QUESTION_ICON, goldOptions, 0);
+        if (goldChoice < 0) {
+            return;
+        }
         String me = FModel.getPreferences().getPref(FPref.PLAYER_NAME);
         if (me == null || me.trim().isEmpty()) {
             me = t("lblHexHero");
@@ -709,7 +721,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         for (int i = 1; i <= companions; i++) {
             players.add(new HexPlayer(t("lblHexCompanion") + " " + i, true));
         }
-        final HexCampaign campaign = HexCampaign.create(name.trim(), new Random().nextLong(), 6, players);
+        final HexCampaign campaign = HexCampaign.create(name.trim(), new Random().nextLong(), 6, players,
+                HexCampaign.GOLD_MULTIPLIERS[goldChoice]);
         HexCampaignIO.save(campaign);
         setSession(new HexSession(campaign));
         if (HostingServer.isHosting()) {

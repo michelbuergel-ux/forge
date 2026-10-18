@@ -155,7 +155,7 @@ public class HexMapPanel extends JPanel {
         if (enemy != null) {
             final String life = String.valueOf(campaign.enemyLife(enemy));
             if (quest != null) {
-                sb.append(" – ").append(loc.getMessage("lblHexQuestMarker", quest.enemyName, life, String.valueOf(quest.gold)));
+                sb.append(" – ").append(loc.getMessage("lblHexQuestMarker", quest.enemyName, life, String.valueOf(campaign.gold(quest.gold))));
             } else if (t.poi == HexPoi.BOSS) {
                 sb.append(" (").append(loc.getMessage("lblHexLifeShort", life)).append(')');
             } else {
@@ -163,7 +163,7 @@ public class HexMapPanel extends JPanel {
             }
             sb.append(HexCrawlPanel.enemyExtras(campaign, enemy));
             // scouting: what the party knows of the enemy's deck before the fight
-            sb.append(HexCrawlPanel.scoutReport(enemy));
+            sb.append(HexCrawlPanel.scoutReport(campaign, enemy));
         }
         final String text = sb.toString().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
         return "<html>" + text.replace("\n", "<br>") + "</html>";

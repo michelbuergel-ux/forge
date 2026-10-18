@@ -606,7 +606,7 @@ final class HexTownDialog {
         final int far = HexMap.distance(quest.q, quest.r, c.partyQ, c.partyR);
         final forge.gamemodes.hexcrawl.HexEncounter enc = content.questEncounter(quest);
         return t("lblHexQuestDetail", quest.enemyName, String.valueOf(c.enemyLife(enc)), t(quest.color.getLabelKey()),
-                String.valueOf(far), String.valueOf(quest.gold)) + "\n\n" + HexCrawlPanel.enemyExtras(c, enc).trim();
+                String.valueOf(far), String.valueOf(c.gold(quest.gold))) + "\n\n" + HexCrawlPanel.enemyExtras(c, enc).trim();
     }
 
     private void fillQuests(final HexCampaign c) {
@@ -616,13 +616,13 @@ final class HexTownDialog {
         if (offers != null) {
             for (final HexQuest quest : offers) {
                 newOffers.add(quest);
-                offerLines.add(t("lblHexQuestLine", quest.enemyName, String.valueOf(quest.gold)));
+                offerLines.add(t("lblHexQuestLine", quest.enemyName, String.valueOf(c.gold(quest.gold))));
             }
         }
         setList(questOfferModel, questOffers, offerLines, newOffers);
         final List<String> activeLines = new ArrayList<>();
         for (final HexQuest quest : c.quests) {
-            activeLines.add(t("lblHexQuestLine", quest.enemyName, String.valueOf(quest.gold)));
+            activeLines.add(t("lblHexQuestLine", quest.enemyName, String.valueOf(c.gold(quest.gold))));
         }
         setList(questActiveModel, questActive, activeLines, new ArrayList<>(c.quests));
         lblQuestActive.setText(t("lblHexQuestActive", String.valueOf(c.quests.size()), String.valueOf(HexCampaign.MAX_ACTIVE_QUESTS)));

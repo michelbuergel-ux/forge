@@ -34,6 +34,8 @@ public class HexCampaign {
     public static final int RESTOCK_AFTER_WINS = 4;
     /** Shop themes every head picks for itself, besides the town's theme and the random one. */
     public static final int PICKED_THEMES = 2;
+    /** The gold multipliers a new campaign can be started with (starting gold, fight rewards, bounties). */
+    public static final int[] GOLD_MULTIPLIERS = { 1, 2, 3, 5, 10, 20 };
 
     public enum MoveResult { NOTHING, TOWN, ENCOUNTER, NOT_ADJACENT, LOCKED, BUSY }
 
@@ -52,6 +54,8 @@ public class HexCampaign {
     public int steps;
     /** Shared life total of the party at the start of a fight. */
     public int teamLife = 20;
+    /** Multiplies the starting gold and all gold rewards (fights and bounties); 1 = normal. */
+    public int goldMultiplier = 1;
     /** How far the party sees: enemies on fields up to this many steps away are shown on the map. */
     public static final int SIGHT = 2;
     /** Chance in percent that an enemy roams a field when the party sees it for the first time. */
@@ -85,8 +89,13 @@ public class HexCampaign {
     public HexCampaign() { }
 
     public static HexCampaign create(final String name, final long seed, final int radius, final List<HexPlayer> players) {
+        return create(name, seed, radius, players, 1);
+    }
+
+    public static HexCampaign create(final String name, final long seed, final int radius, final List<HexPlayer> players, final int goldMultiplier) {
         final HexCampaign c = new HexCampaign();
         c.name = name;
+        c.goldMultiplier = Math.max(1, goldMultiplier);
         c.seed = seed;
         c.map = HexMap.generate(seed, radius);
         c.partyQ = c.prevQ = c.map.startQ;
@@ -106,7 +115,7 @@ public class HexCampaign {
             }
         }
         for (final HexPlayer p : players) {
-            p.gold = START_GOLD;
+            p.gold = c.gold(START_GOLD);
             p.deck = content.starterDeck(c.random());
             c.players.add(p);
         }
@@ -126,7 +135,7 @@ public class HexCampaign {
     /** A new head joins the party (a friend connecting to a running campaign) with a starter deck. */
     public HexPlayer addPlayer(final String playerName) {
         final HexPlayer p = new HexPlayer(playerName, false);
-        p.gold = START_GOLD;
+        p.gold = gold(START_GOLD);
         p.deck = HexContent.get().starterDeck(random());
         players.add(p);
         log(msg("lblHexJournalJoined", playerName));
@@ -315,7 +324,7 @@ public class HexCampaign {
             for (final HexPlayer p : players) {
                 final HexReward reward = new HexReward();
                 reward.playerName = p.name;
-                reward.gold = enc.gold;
+                reward.gold = gold(enc.gold);
                 reward.card = content.randomAnteCard(enc, random());
                 pendingRewards.add(reward);
             }
@@ -324,9 +333,9 @@ public class HexCampaign {
                 quests.remove(quest);
                 questsDone++;
                 for (final HexPlayer p : players) {
-                    p.gold += quest.gold; // the bounty: the same for every head
+                    p.gold += gold(quest.gold); // the bounty: the same for every head
                 }
-                log(msg("lblHexJournalQuestDone", quest.enemyName, String.valueOf(quest.gold)));
+                log(msg("lblHexJournalQuestDone", quest.enemyName, String.valueOf(gold(quest.gold))));
             }
             if (enc.boss) {
                 final HexTile t = map.get(enc.q, enc.r);
@@ -475,6 +484,11 @@ public class HexCampaign {
             }
         }
         return result;
+    }
+
+    /** A gold reward (starting gold, a fight's reward, a bounty) with the campaign's gold multiplier. */
+    public int gold(final int base) {
+        return base * Math.max(1, goldMultiplier);
     }
 
     // ------------------------------------------------------------------ shop themes
