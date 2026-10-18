@@ -176,8 +176,7 @@ public class CardProperty {
                 return false;
             }
         } else if (property.startsWith("YouCtrl")) {
-            if (!controller.equals(sourceController)
-                    && !(game.getRules().hasSharedTeamTurns() && sourceController != null && controller.sameTeam(sourceController))) {
+            if (!controller.equals(sourceController)) {
                 return false;
             }
         } else if (property.startsWith("YourTeamCtrl")) {
