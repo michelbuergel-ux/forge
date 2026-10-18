@@ -486,6 +486,17 @@ public class YieldController {
         ctrl.sendYieldUpdate(new YieldUpdate.SetAutoPassUntilEndOfTurn(local, true));
     }
 
+    /**
+     * Passes priority until the first main phase of the own (team's) next turn; being attacked,
+     * opponents' spells and the other interrupts still stop it. With shared team turns team mates
+     * keep acting on their own.
+     */
+    public static void passUntilOurNextTurn(IGameController ctrl, PlayerView local, GameView gv) {
+        if (ctrl == null || local == null || gv == null) return;
+        final boolean atOrPast = isPriorityAtOrPastMarker(gv, local, PhaseType.MAIN1);
+        ctrl.sendYieldUpdate(new YieldUpdate.SetMarker(local, PhaseType.MAIN1, atOrPast));
+    }
+
     /** Eager check at REVEAL/notifyOfValue call sites — no GameEventReveal exists. */
     public void maybeInterruptOnReveal() {
         if (!getBoolPref(FPref.YIELD_INTERRUPT_ON_REVEAL)) return;
@@ -495,7 +506,9 @@ public class YieldController {
     public void onSpellAbilityCast(SpellAbilityStackInstance si) {
         PlayerView local = owner.getLocalPlayerView();
         if (local == null) return;
-        boolean isOpponent = !si.getActivatingPlayer().getView().equals(local);
+        // a team mate's spell is no reason to stop yielding
+        boolean isOpponent = !si.getActivatingPlayer().getView().equals(local)
+                && (owner.getPlayer() == null || !si.getActivatingPlayer().sameTeam(owner.getPlayer()));
 
         if (isOpponent && getBoolPref(FPref.YIELD_INTERRUPT_ON_OPPONENT_SPELL)) {
             applyInterrupt();

@@ -1,16 +1,9 @@
 package forge.ai;
 
-import com.google.common.collect.Lists;
-import forge.deck.Deck;
 import forge.game.Game;
-import forge.game.GameRules;
-import forge.game.GameStage;
-import forge.game.GameType;
-import forge.game.Match;
 import forge.game.card.Card;
 import forge.game.phase.PhaseType;
 import forge.game.player.Player;
-import forge.game.player.RegisteredPlayer;
 import forge.game.spellability.SpellAbility;
 import forge.game.zone.ZoneType;
 import org.testng.AssertJUnit;
@@ -55,7 +48,7 @@ public class SharedTeamPriorityTest extends AITest {
         }
 
         @Override
-        public void interruptSpellAbilityChoice() {
+        public void interruptSpellAbilityChoice(final Player actedFirst, final Card card) {
             interrupts.incrementAndGet();
             interrupted.countDown();
         }
@@ -69,27 +62,9 @@ public class SharedTeamPriorityTest extends AITest {
         }
     }
 
-    private Game createTeamGame() {
-        final List<RegisteredPlayer> players = Lists.newArrayList();
-        final String[] names = {"a1", "b1", "a2", "b2"}; // teams sit alternately
-        for (int i = 0; i < names.length; i++) {
-            final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(names[i], null));
-            rp.setTeamNumber(i % 2);
-            players.add(rp);
-        }
-        final GameRules rules = new GameRules(GameType.Constructed);
-        rules.setSharedTeamTurns(true);
-        final Match match = new Match(rules, players, "Test");
-        final Game game = new Game(players, rules, match);
-        game.setAge(GameStage.Play);
-        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
-        game.getPhaseHandler().onStackResolved();
-        return game;
-    }
-
     @Test(timeOut = 60000)
     public void testTeamMateCanActWhileTheOtherIsStillThinking() {
-        final Game game = createTeamGame();
+        final Game game = initAndCreateTeamGame();
         final Player a1 = game.getPlayers().get(0);
         final Player a2 = game.getPlayers().get(2);
         AssertJUnit.assertTrue(a1.sameTeam(a2));
@@ -141,7 +116,7 @@ public class SharedTeamPriorityTest extends AITest {
 
     @Test(timeOut = 60000)
     public void testPhaseEndsOnlyAfterBothTeamsPassed() {
-        final Game game = createTeamGame();
+        final Game game = initAndCreateTeamGame();
         final Player a1 = game.getPlayers().get(0);
         final Player a2 = game.getPlayers().get(2);
         final ConcurrentHead c1 = new ConcurrentHead(game, a1);

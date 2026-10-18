@@ -55,6 +55,9 @@ public interface IGameController {
      */
     void requestResync();
 
+    /** Team play: points the team mates at a card (it lights up on their screens for a moment). */
+    default void pingCard(CardView card) { }
+
     // Auto-yield preferences
     default boolean shouldAutoYield(String key) {
         return getYieldController().shouldAutoYield(key);

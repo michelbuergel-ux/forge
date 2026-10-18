@@ -128,6 +128,26 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
     private volatile boolean concurrentChoice;
     private volatile boolean choiceInterrupted;
     private volatile InputPassPriority openPriorityInput;
+    /** Shared team priority: what the team mate who acted first is doing (shown while waiting). */
+    private volatile String teamActivity;
+
+    public String getTeamActivity() {
+        return teamActivity;
+    }
+
+    @Override
+    public void pingCard(final CardView card) {
+        if (card == null) {
+            return;
+        }
+        // to every screen of the team, the own one too (as feedback)
+        final Set<IGuiGame> guis = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (final Player mate : player.getTeamMates(true)) {
+            if (mate.getController() instanceof PlayerControllerHuman pch && pch.getGui() != null && guis.add(pch.getGui())) {
+                pch.getGui().showPing(player.getView(), card);
+            }
+        }
+    }
     protected final InputProxy inputProxy;
 
     private final Localizer localizer = Localizer.getInstance();
@@ -1727,6 +1747,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
     @Override
     public List<SpellAbility> chooseSpellAbilityToPlay() {
         final MagicStack stack = getGame().getStack();
+        teamActivity = null;
 
         // Skip when already yielding — yield proceeds regardless of available-actions.
         // shouldAutoYield, not isYieldActive: it clears yields that have run their course, so an expiring one no longer skips the scan
@@ -1826,7 +1847,14 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
     }
 
     @Override
-    public void interruptSpellAbilityChoice() {
+    public void interruptSpellAbilityChoice(final Player actedFirst, final Card card) {
+        if (actedFirst != null && actedFirst != player) {
+            // shown while waiting, until this head gets priority again
+            final String who = actedFirst.getName();
+            teamActivity = card != null && card.getView().canBeShownTo(player.getView())
+                    ? localizer.getMessage("lblTeamMatePlaying", who, CardTranslation.getTranslatedName(card.getName()))
+                    : localizer.getMessage("lblTeamMateActing", who);
+        }
         choiceInterrupted = true;
         final InputPassPriority inp = openPriorityInput;
         if (inp != null) {

@@ -134,6 +134,11 @@ public class NetGameController implements IGameController {
     }
 
     @Override
+    public void pingCard(final CardView card) {
+        send(ProtocolMethod.pingCard, card);
+    }
+
+    @Override
     public void requestResync() {
         send(ProtocolMethod.requestResync);
     }

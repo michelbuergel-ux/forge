@@ -119,6 +119,20 @@ public class PlayerView extends GameEntityView {
         set(TrackableProperty.Opponents, PlayerView.getCollection(p.getOpponents()));
     }
 
+    /**
+     * The players who may look at this player's hand: the team mates in a game with shared team
+     * turns (as in Two-Headed Giant, CR 810.6), nobody otherwise.
+     */
+    public boolean sharesHandWith(final PlayerView other) {
+        final TrackableCollection<PlayerView> col = get(TrackableProperty.HandSharedWith);
+        // indexOf, not contains: see CardView.mayPlayerLook
+        return col != null && other != null && col.indexOf(other) != -1;
+    }
+    void updateHandSharedWith(Player p) {
+        final List<Player> mates = p.getGame().getRules().hasSharedTeamTurns() ? p.getTeamMates(false) : List.of();
+        set(TrackableProperty.HandSharedWith, mates.isEmpty() ? null : PlayerView.getCollection(mates));
+    }
+
     public boolean isOpponentOf(final PlayerView other) {
         return getOpponents().contains(other);
     }

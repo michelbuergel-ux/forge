@@ -428,13 +428,23 @@ public final class CMatchUI
         screen.setCloseButtonTooltip(getConcedeCaption() + " Game");
     }
 
+    /** Shared team turns: a team mate's hand gets its own tab, like the own hand. */
+    private boolean sharesHandWithLocalPlayer(final PlayerView p) {
+        for (final PlayerView local : getLocalPlayers()) {
+            if (p.sharesHandWith(local)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void initHandViews() {
         final List<VHand> hands = new ArrayList<>();
         final Iterable<PlayerView> localPlayers = getLocalPlayers();
 
         int i = 0;
         for (final PlayerView p : sortedPlayers) {
-            if (allHands || isLocalPlayer(p) || CardView.mayViewAny(p.getHand(), localPlayers)) {
+            if (allHands || isLocalPlayer(p) || sharesHandWithLocalPlayer(p) || CardView.mayViewAny(p.getHand(), localPlayers)) {
                 final EDocID doc = EDocID.Hands[i];
                 final VHand newHand = new VHand(this, doc, p);
                 newHand.getLayoutControl().initialize();

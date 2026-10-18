@@ -650,7 +650,8 @@ public class CardView extends GameEntityView {
             }
             break;
         case Hand:
-            if (controller.equals(viewer)) {
+            // with shared team turns team mates see each other's hands
+            if (controller.equals(viewer) || controller.sharesHandWith(viewer)) {
                 return true;
             }
             break;

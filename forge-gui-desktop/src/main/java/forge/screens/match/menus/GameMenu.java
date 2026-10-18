@@ -40,6 +40,7 @@ public final class GameMenu {
         menu.add(getMenuItem_Concede());
         menu.add(getMenuItem_OfferDraw());
         menu.add(getMenuItem_EndTurn());
+        menu.add(getMenuItem_PassUntilOurTurn());
         menu.add(getMenuItem_AlphaStrike());
         menu.addSeparator();
         menu.add(getMenuItem_ViewDeckList());
@@ -93,6 +94,14 @@ public final class GameMenu {
         final SkinnedMenuItem menuItem = new SkinnedMenuItem(localizer.getMessage("lblEndTurn"));
         setAcceleratorFromPref(menuItem, FPref.SHORTCUT_ENDTURN);
         menuItem.addActionListener(e -> YieldController.endTurn(matchUI.getGameController(), matchUI.getCurrentPlayer()));
+        return menuItem;
+    }
+
+    private SkinnedMenuItem getMenuItem_PassUntilOurTurn() {
+        final Localizer localizer = Localizer.getInstance();
+        final SkinnedMenuItem menuItem = new SkinnedMenuItem(localizer.getMessage("lblPassUntilOurTurn"));
+        setAcceleratorFromPref(menuItem, FPref.SHORTCUT_PASS_UNTIL_OUR_TURN);
+        menuItem.addActionListener(e -> YieldController.passUntilOurNextTurn(matchUI.getGameController(), matchUI.getCurrentPlayer(), matchUI.getGameView()));
         return menuItem;
     }
 

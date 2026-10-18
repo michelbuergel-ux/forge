@@ -307,6 +307,7 @@ public class Player extends GameEntity implements Comparable<Player> {
 
     public void updateOpponentsForView() {
         view.updateOpponents(this);
+        view.updateHandSharedWith(this);
     }
 
     public void updateFlashbackForView() {

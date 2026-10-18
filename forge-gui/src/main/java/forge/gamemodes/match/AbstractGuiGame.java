@@ -326,6 +326,56 @@ public abstract class AbstractGuiGame implements IGuiGame, IMayViewCards {
         return highlighted.contains(ge);
     }
 
+    /** Alt+click on a card: point the team mates at it. */
+    public void pingCard(final CardView card) {
+        final IGameController controller = getGameController();
+        if (controller != null && card != null) {
+            controller.pingCard(card);
+        }
+    }
+
+    /** How long a card a team mate pointed at stays lit up. */
+    private static final int PING_MILLIS = 4000;
+    /** Pinged cards and until when (System.currentTimeMillis) they stay lit up. */
+    private final Map<CardView, Long> pinged = new java.util.concurrent.ConcurrentHashMap<>();
+
+    @Override
+    public void showPing(final PlayerView from, final CardView card0) {
+        if (card0 == null) {
+            return;
+        }
+        // in a network game the card arrives as a copy: use the one the screen shows
+        CardView card = card0;
+        final GameView gv = getGameView();
+        if (gv != null && gv.getTracker() != null) {
+            final CardView known = gv.getTracker().getObj(TrackableTypes.CardViewType, card0.getId());
+            if (known != null) {
+                card = known;
+            }
+        }
+        final CardView shown = card;
+        pinged.put(shown, System.currentTimeMillis() + PING_MILLIS);
+        FThreads.invokeInEdtNowOrLater(() -> {
+            updateCard(shown);
+            if (mayView(shown)) {
+                setCard(shown);
+            }
+        });
+        forge.util.ThreadUtil.delay(PING_MILLIS + 50, () -> FThreads.invokeInEdtLater(() -> {
+            final Long until = pinged.get(shown);
+            if (until != null && until <= System.currentTimeMillis()) {
+                pinged.remove(shown);
+                updateCard(shown);
+            }
+        }));
+    }
+
+    @Override
+    public boolean isPinged(final CardView card) {
+        final Long until = card == null ? null : pinged.get(card);
+        return until != null && until > System.currentTimeMillis();
+    }
+
     private final Set<CardView> selectableCards = Sets.newHashSet();
     private int selectionMin = 0;
     private int selectionMax = 0;

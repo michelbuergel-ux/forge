@@ -160,7 +160,10 @@ public abstract class CardPanelContainer extends SkinnedPanel {
                 final CardPanel panel = getCardPanel(evt.getX(), evt.getY());
                 if (panel != null && mouseDownPanel == panel) {
                     getMatchUI().setLastClickedCardPanel(panel);
-                    if (SwingUtilities.isLeftMouseButton(evt)) {
+                    if (SwingUtilities.isLeftMouseButton(evt) && evt.isAltDown()) {
+                        // Alt+click: point the team mates at this card
+                        getMatchUI().pingCard(panel.getCard());
+                    } else if (SwingUtilities.isLeftMouseButton(evt)) {
                         mouseLeftClicked(panel, evt);
                     } else if (SwingUtilities.isRightMouseButton(evt)) {
                         mouseRightClicked(panel, evt);

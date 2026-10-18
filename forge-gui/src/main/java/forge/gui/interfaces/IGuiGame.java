@@ -80,6 +80,9 @@ public interface IGuiGame {
 
     /** Open or refresh the draw-offer dialog with the current tally. Default no-op for GUIs that don't render it. */
     default void updateDrawOffer(DrawOfferMessage.Status update) { }
+    /** A team mate pointed at a card: light it up for a moment. */
+    default void showPing(PlayerView from, CardView card) { }
+    default boolean isPinged(CardView card) { return false; }
 
     default void updateButtons(final PlayerView owner, final boolean okEnabled, final boolean cancelEnabled, final boolean focusOk) {
         updateButtons(owner, Localizer.getInstance().getMessage("lblOK"), Localizer.getInstance().getMessage("lblCancel"), okEnabled, cancelEnabled, focusOk);

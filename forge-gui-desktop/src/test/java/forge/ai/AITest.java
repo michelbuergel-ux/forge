@@ -84,6 +84,29 @@ public class AITest {
         return game;
     }
 
+    /**
+     * A 2-vs-2 game with shared team turns (Multi-Headed Giant): seats a1, b1, a2, b2, the teams
+     * sitting alternately; it is a1's (and so team a's) first main phase.
+     */
+    protected Game initAndCreateTeamGame() {
+        initAndCreateGame();
+        List<RegisteredPlayer> players = Lists.newArrayList();
+        final String[] names = {"a1", "b1", "a2", "b2"};
+        for (int i = 0; i < names.length; i++) {
+            final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(names[i], null));
+            rp.setTeamNumber(i % 2);
+            players.add(rp);
+        }
+        GameRules rules = new GameRules(GameType.Constructed);
+        rules.setSharedTeamTurns(true);
+        Match match = new Match(rules, players, "Test");
+        Game game = new Game(players, rules, match);
+        game.setAge(GameStage.Play);
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
+        game.getPhaseHandler().onStackResolved();
+        return game;
+    }
+
     protected void gameLoopUntilNextPhase(Game game) {
         int maxIterations = 100;
         int iterations = 0;

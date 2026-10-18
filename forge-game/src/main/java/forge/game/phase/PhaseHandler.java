@@ -1598,9 +1598,10 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                 } else {
                     winner = answer;
                 }
+                final Card played = winner != null && !winner.chosen().isEmpty() ? winner.chosen().get(0).getHostCard() : null;
                 for (final Player other : heads) {
                     if (other != answer.player()) {
-                        other.getController().interruptSpellAbilityChoice();
+                        other.getController().interruptSpellAbilityChoice(answer.player(), played);
                     }
                 }
             }

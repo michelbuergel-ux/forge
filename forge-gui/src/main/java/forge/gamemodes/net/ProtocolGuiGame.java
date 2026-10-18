@@ -454,6 +454,12 @@ public class ProtocolGuiGame extends NetworkGuiGame implements IHasForgeLog {
         return syncAndSendAndWait(ProtocolMethod.manipulateCardList, title, cards, manipulable, toTop, toBottom, toAnywhere);
     }
 
+    @Override
+    public void showPing(final PlayerView from, final CardView card) {
+        // the card is known on the client already; plain send works from any thread
+        send(ProtocolMethod.showPing, from, card);
+    }
+
     public void setHighlighted(final Iterable<GameEntityView> entities, final boolean value) {
         super.setHighlighted(entities, value);
         syncAndSend(ProtocolMethod.setHighlighted, entities, value);

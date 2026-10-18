@@ -334,6 +334,7 @@ public class ForgePreferences extends AbstractPreferences<ForgePreferences.FPref
         SHORTCUT_UNDO ("17 90"),
         SHORTCUT_CONCEDE ("17 81"),
         SHORTCUT_ENDTURN ("17 69"),
+        SHORTCUT_PASS_UNTIL_OUR_TURN ("17 82"),
         SHORTCUT_ALPHASTRIKE ("17 65"),
         SHORTCUT_SHOWTARGETING ("84"),
         SHORTCUT_AUTOYIELD_ALWAYS_YES ("89"),

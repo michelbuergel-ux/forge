@@ -338,6 +338,13 @@ public class CardPanel extends SkinnedPanel implements CardContainer, IDisposabl
             g2d.fillRoundRect(cardXOffset - n2, (cardYOffset - n2) + offset, cardWidth + (n2 * 2), cardHeight + (n2 * 2), cornerSize + n2, cornerSize + n2);
         }
 
+        // Orange outline for a card a team mate pointed at
+        if (matchUI.isPinged(getCard())) {
+            g2d.setColor(Color.orange);
+            final int n3 = Math.max(2, Math.round(3 * cardWidth * CardPanel.SELECTED_BORDER_SIZE));
+            g2d.fillRoundRect(cardXOffset - n3, (cardYOffset - n3) + offset, cardWidth + (n3 * 2), cardHeight + (n3 * 2), cornerSize + n3, cornerSize + n3);
+        }
+
         // Green outline for hover
         if (isSelected) {
             g2d.setColor(Color.green);

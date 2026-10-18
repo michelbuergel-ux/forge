@@ -300,8 +300,12 @@ public abstract class PlayerController {
     }
     /** Called on the game thread before and after this controller is asked at the same time as its team mates. */
     public void setConcurrentSpellAbilityChoice(final boolean concurrent) { }
-    /** A team mate acted first: end a running {@link #chooseSpellAbilityToPlay()} without a decision. */
-    public void interruptSpellAbilityChoice() { }
+    /**
+     * A team mate acted first: end a running {@link #chooseSpellAbilityToPlay()} without a decision.
+     * @param actedFirst the team mate who acted
+     * @param card the card it plays (or activates), may be null
+     */
+    public void interruptSpellAbilityChoice(final Player actedFirst, final Card card) { }
     public abstract boolean playChosenSpellAbility(SpellAbility sa);
 
     public abstract List<AbilitySub> chooseModeForAbility(SpellAbility sa, List<AbilitySub> possible, int min, int num, boolean allowRepeat);
