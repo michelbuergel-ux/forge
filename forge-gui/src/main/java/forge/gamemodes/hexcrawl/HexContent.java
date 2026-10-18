@@ -622,34 +622,114 @@ public final class HexContent {
     }
 
     /**
-     * The stock of a town: every card shop offers a handful of cards of its kind, mostly in the
-     * town's colour and a few colourless ones; the relic dealer offers a few relics.
+     * The stock of a town for one theme: every card shop offers a handful of cards of its kind that
+     * fit the theme, mostly in the town's colour and a few colourless ones. A theme with too few such
+     * cards for a shop is topped up with ordinary cards of the town. Without a theme (null) the
+     * shops sell any cards of the town.
      */
-    public List<HexShopOffer> shopStock(final HexColor color, final Random rnd) {
+    public List<HexShopOffer> themeStock(final HexColor color, final HexTheme theme, final Random rnd) {
         final List<HexShopOffer> offers = new ArrayList<>();
         for (final HexShopType shop : HexShopType.CARD_SHOPS) {
-            final Map<HexColor, Map<CardRarity, List<PaperCard>>> shelves = cardsByShop.get(shop);
-            if (shelves == null) {
-                continue;
-            }
             final Set<String> names = new HashSet<>();
-            int guard = CARDS_PER_SHOP * 40;
-            while (names.size() < CARDS_PER_SHOP && guard-- > 0) {
-                final int roll = rnd.nextInt(100);
-                final CardRarity rarity = roll < 45 ? CardRarity.Common : roll < 78 ? CardRarity.Uncommon : roll < 96 ? CardRarity.Rare : CardRarity.MythicRare;
-                // artifacts are mostly colourless anyway; the other shops stock a colourless card now and then
-                final boolean colorless = shop == HexShopType.ARTIFACT ? rnd.nextInt(3) != 0 : rnd.nextInt(6) == 0;
-                final Map<CardRarity, List<PaperCard>> shelf = shelves.get(colorless ? HexColor.COLORLESS : color);
-                final List<PaperCard> list = shelf == null ? null : shelf.get(rarity);
-                if (list == null || list.isEmpty()) {
-                    continue;
-                }
-                final PaperCard card = list.get(rnd.nextInt(list.size()));
-                if (names.add(card.getName())) {
-                    offers.add(new HexShopOffer(shop, card.getName(), price(card.getName())));
-                }
+            stockShop(offers, names, shop, color, theme, theme, rnd);
+            if (theme != null && names.size() < CARDS_PER_SHOP) {
+                stockShop(offers, names, shop, color, null, theme, rnd); // a thin theme: fill up with what the town has
             }
         }
+        return offers;
+    }
+
+    /** Draws cards for one shop until it holds CARDS_PER_SHOP (or nothing more fits); offers are marked with the given tab theme. */
+    private void stockShop(final List<HexShopOffer> offers, final Set<String> names, final HexShopType shop, final HexColor color,
+            final HexTheme theme, final HexTheme tabTheme, final Random rnd) {
+        int guard = CARDS_PER_SHOP * 40;
+        while (names.size() < CARDS_PER_SHOP && guard-- > 0) {
+            final int roll = rnd.nextInt(100);
+            final CardRarity rarity = roll < 45 ? CardRarity.Common : roll < 78 ? CardRarity.Uncommon : roll < 96 ? CardRarity.Rare : CardRarity.MythicRare;
+            // artifacts are mostly colourless anyway; the other shops stock a colourless card now and then
+            final boolean colorless = shop == HexShopType.ARTIFACT ? rnd.nextInt(3) != 0 : rnd.nextInt(6) == 0;
+            final Map<CardRarity, List<PaperCard>> shelf = shelf(shop, colorless ? HexColor.COLORLESS : color, theme);
+            List<PaperCard> list = shelf.get(rarity);
+            if ((list == null || list.isEmpty()) && theme != null) {
+                list = shelf.get(null); // a theme has few cards: any of its rarities will do
+            }
+            if (list == null || list.isEmpty()) {
+                continue;
+            }
+            final PaperCard card = list.get(rnd.nextInt(list.size()));
+            if (names.add(card.getName())) {
+                final HexShopOffer offer = new HexShopOffer(shop, card.getName(), price(card.getName()));
+                offer.theme = tabTheme == null ? null : tabTheme.id;
+                offers.add(offer);
+            }
+        }
+    }
+
+    /** Theme shelves (cards of a shop and colour that fit a theme), by rarity; key null holds all rarities. */
+    private final Map<String, Map<CardRarity, List<PaperCard>>> themeShelves = new HashMap<>();
+
+    /** The cards of a shop in a colour, by rarity; only those that fit the theme if one is given. */
+    private synchronized Map<CardRarity, List<PaperCard>> shelf(final HexShopType shop, final HexColor color, final HexTheme theme) {
+        final Map<HexColor, Map<CardRarity, List<PaperCard>>> shelves = cardsByShop.get(shop);
+        final Map<CardRarity, List<PaperCard>> plain = shelves == null ? null : shelves.get(color);
+        if (plain == null) {
+            return new HashMap<>();
+        }
+        if (theme == null) {
+            return plain;
+        }
+        final String key = theme.id + "|" + shop + "|" + color;
+        Map<CardRarity, List<PaperCard>> themed = themeShelves.get(key);
+        if (themed == null) {
+            themed = new HashMap<>();
+            final List<PaperCard> any = new ArrayList<>();
+            for (final Map.Entry<CardRarity, List<PaperCard>> e : plain.entrySet()) {
+                final List<PaperCard> fitting = new ArrayList<>();
+                for (final PaperCard card : e.getValue()) {
+                    if (theme.fits(card.getRules())) {
+                        fitting.add(card);
+                    }
+                }
+                themed.put(e.getKey(), fitting);
+                any.addAll(fitting);
+            }
+            themed.put(null, any);
+            themeShelves.put(key, themed);
+        }
+        return themed;
+    }
+
+    /** A theme needs at least this many cards in a town's colour to be offered there. */
+    public static final int THEME_MIN_CARDS = 15;
+    private final Map<HexColor, List<HexTheme>> themesByColor = new EnumMap<>(HexColor.class);
+
+    /** The themes with enough cards in this colour to stock a town's shops (all themes if none has). */
+    public synchronized List<HexTheme> themesFor(final HexColor color) {
+        List<HexTheme> result = themesByColor.get(color);
+        if (result == null) {
+            result = new ArrayList<>();
+            for (final HexTheme theme : HexTheme.all()) {
+                int cards = 0;
+                for (final HexShopType shop : HexShopType.CARD_SHOPS) {
+                    final List<PaperCard> any = shelf(shop, color, theme).get(null);
+                    cards += any == null ? 0 : any.size();
+                }
+                if (cards >= THEME_MIN_CARDS) {
+                    result.add(theme);
+                }
+            }
+            if (result.isEmpty()) {
+                result.addAll(HexTheme.all());
+            }
+            result = java.util.Collections.unmodifiableList(result);
+            themesByColor.put(color, result);
+        }
+        return result;
+    }
+
+    /** The relics a town's dealer offers. */
+    public List<HexShopOffer> relicStock(final Random rnd) {
+        final List<HexShopOffer> offers = new ArrayList<>();
         final List<HexRelic> all = new ArrayList<>(relics.values());
         final Set<String> relicNames = new HashSet<>();
         int guard = 200;

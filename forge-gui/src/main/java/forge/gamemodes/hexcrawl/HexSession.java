@@ -122,12 +122,17 @@ public class HexSession {
     }
 
     /** Buys a card or a relic; the shop may be null if it does not matter which shop sells it. */
-    public void buy(final String head, final HexShopType shop, final String card) {
-        act(new HexActionEvent(HexActionEvent.BUY, shop == null ? -1 : shop.ordinal(), 0, card, false, head));
+    public void buy(final String head, final HexShopType shop, final String theme, final String card) {
+        act(new HexActionEvent(HexActionEvent.BUY, shop == null ? -1 : shop.ordinal(), HexTheme.indexOf(theme), card, false, head));
     }
 
     public void buy(final String head, final String card) {
-        buy(head, null, card);
+        buy(head, null, null, card);
+    }
+
+    /** A head picks the theme of one of its two theme tabs (slot 0 or 1). */
+    public void pickTheme(final String head, final int slot, final String theme) {
+        act(new HexActionEvent(HexActionEvent.THEME, slot, 0, theme, false, head));
     }
 
     public void sellRelic(final String head, final String relic) {
@@ -193,7 +198,13 @@ public class HexSession {
                 }
             } else if (HexActionEvent.BUY.equals(type)) {
                 final int shop = action.getQ();
-                campaign.buy(head, shop >= 0 && shop < HexShopType.values().length ? HexShopType.values()[shop] : null, action.getText());
+                final HexTheme theme = HexTheme.byIndex(action.getR());
+                campaign.buy(head, shop >= 0 && shop < HexShopType.values().length ? HexShopType.values()[shop] : null,
+                        theme == null ? null : theme.id, action.getText());
+            } else if (HexActionEvent.THEME.equals(type)) {
+                if (!fightRunning) {
+                    campaign.pickTheme(head, action.getQ(), action.getText());
+                }
             } else if (HexActionEvent.SELL_RELIC.equals(type)) {
                 campaign.sellRelic(head, action.getText());
             } else if (HexActionEvent.QUEST.equals(type)) {

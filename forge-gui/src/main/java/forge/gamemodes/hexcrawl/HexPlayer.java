@@ -15,6 +15,10 @@ public class HexPlayer {
     public List<String> sideboard = new ArrayList<>();
     /** Names of the relics the head carries, at most one per slot. */
     public List<String> relics = new ArrayList<>();
+    /** The two shop themes the head picked (HexTheme ids, null if none yet). */
+    public String[] themes = new String[HexCampaign.PICKED_THEMES];
+    /** For each picked theme: the number of fights fought when it was picked (it can change after the next fight). */
+    public int[] themesPickedAt = { -1, -1 };
 
     public HexPlayer() { }
 

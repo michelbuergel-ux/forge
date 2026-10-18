@@ -14,6 +14,8 @@ public final class HexActionEvent implements NetEvent {
     public static final String QUEST = "QUEST";
     /** Moves a card between deck and sideboard; the flag says "to the sideboard". */
     public static final String MOVE = "MOVE";
+    /** A head picks the theme of one of its theme tabs: q = slot, text = theme id. */
+    public static final String THEME = "THEME";
 
     private final String type;
     private final int q;

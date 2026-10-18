@@ -7,6 +7,8 @@ public class HexShopOffer {
     public int price;
     /** The shop that sells it. */
     public HexShopType shop;
+    /** The theme tab it is offered in (a HexTheme id); null for relics. */
+    public String theme;
 
     public HexShopOffer() { }
 

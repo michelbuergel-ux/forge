@@ -16,6 +16,8 @@ public class HexTile {
     public boolean scouted;
     /** The enemy that roams this field in plain sight, or null. */
     public HexEncounter enemy;
+    /** Towns only: the theme the town's shops always offer (a HexTheme id). */
+    public String theme;
 
     public HexTile() { }
     public HexTile(final int q0, final int r0) { q = q0; r = r0; }
