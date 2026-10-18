@@ -36,6 +36,16 @@ public class HexCampaign {
     public static final int PICKED_THEMES = 2;
     /** The gold multipliers a new campaign can be started with (starting gold, fight rewards, bounties). */
     public static final int[] GOLD_MULTIPLIERS = { 1, 2, 3, 5, 10, 20 };
+    /** Every head picks a perk after this many won fights. */
+    public static final int PERK_EVERY_WINS = 3;
+    /** Perks offered to choose from. */
+    public static final int PERK_CHOICES = 3;
+    /** Cards from the enemy's deck a head may choose its reward from. */
+    public static final int REWARD_CHOICES = 3;
+    /** Chance in percent that an empty field holds an event when the party sees it for the first time. */
+    public static final int EVENT_CHANCE = 12;
+    /** What every head pays to travel to another town it has been to. */
+    public static final int FAST_TRAVEL_GOLD = 10;
 
     public enum MoveResult { NOTHING, TOWN, ENCOUNTER, NOT_ADJACENT, LOCKED, BUSY }
 
@@ -56,6 +66,23 @@ public class HexCampaign {
     public int teamLife = 20;
     /** Multiplies the starting gold and all gold rewards (fights and bounties); 1 = normal. */
     public int goldMultiplier = 1;
+
+    // what events grant for the next fight (cleared when it is over)
+    /** Extra life of the party. */
+    public int boostLife;
+    /** Extra cards in every head's opening hand. */
+    public int boostHand;
+    /** Every head starts with a basic land in play. */
+    public boolean boostLand;
+    /** Extra life of the enemy side. */
+    public int boostEnemyLife;
+    /** The gold reward is doubled. */
+    public boolean boostDoubleGold;
+    /** The last event the party came across (shown to everybody once), and a counter for it. */
+    public String lastEvent;
+    public int eventSerial;
+    /** Ready check: the heads that looked at their deck since the pending fight came up. */
+    public List<String> deckChecked = new ArrayList<>();
     /** How far the party sees: enemies on fields up to this many steps away are shown on the map. */
     public static final int SIGHT = 2;
     /** Chance in percent that an enemy roams a field when the party sees it for the first time. */
@@ -139,6 +166,7 @@ public class HexCampaign {
         p.deck = HexContent.get().starterDeck(random());
         players.add(p);
         log(msg("lblHexJournalJoined", playerName));
+        offerPerks();
         return p;
     }
 
@@ -239,10 +267,15 @@ public class HexCampaign {
             if (t.poi != HexPoi.NONE || t.enemy != null || questAt(t.q, t.r) != null) {
                 continue;
             }
+            if (t.event != null) {
+                continue;
+            }
             if (rnd.nextInt(100) < (first ? encounterChance : encounterChanceExplored)) {
                 t.enemy = HexContent.get().randomEncounter(t.color, danger(t), rnd);
                 t.enemy.q = t.q;
                 t.enemy.r = t.r;
+            } else if (first && rnd.nextInt(100) < EVENT_CHANCE) {
+                t.event = HexEvent.values()[rnd.nextInt(HexEvent.values().length)].name();
             }
         }
     }
@@ -254,6 +287,7 @@ public class HexCampaign {
     public void reshuffleEnemies() {
         for (final HexTile t : map.tiles.values()) {
             t.enemy = null;
+            t.event = null;
             t.scouted = false;
         }
         scout();
@@ -291,6 +325,11 @@ public class HexCampaign {
         }
         final HexContent content = HexContent.get();
         final HexQuest quest = questAt(q, r);
+        if (target.event != null && quest == null && target.poi == HexPoi.NONE) {
+            triggerEvent(target);
+            return MoveResult.NOTHING;
+        }
+        deckChecked.clear();
         if (target.poi == HexPoi.BOSS && !target.cleared) {
             pendingEncounter = content.bossEncounter(target.color);
         } else if (quest != null) {
@@ -324,8 +363,17 @@ public class HexCampaign {
             for (final HexPlayer p : players) {
                 final HexReward reward = new HexReward();
                 reward.playerName = p.name;
-                reward.gold = gold(enc.gold);
-                reward.card = content.randomAnteCard(enc, random());
+                reward.gold = withGoldBonus(p, gold(enc.gold) * (boostDoubleGold ? 2 : 1));
+                final Random rnd = random();
+                for (int i = 0; i < REWARD_CHOICES * 4 && reward.cards.size() < REWARD_CHOICES; i++) {
+                    final String card = content.randomAnteCard(enc, rnd);
+                    if (card == null) {
+                        break;
+                    }
+                    if (!reward.cards.contains(card)) {
+                        reward.cards.add(card);
+                    }
+                }
                 pendingRewards.add(reward);
             }
             final HexQuest quest = quest(enc.questId);
@@ -333,7 +381,7 @@ public class HexCampaign {
                 quests.remove(quest);
                 questsDone++;
                 for (final HexPlayer p : players) {
-                    p.gold += gold(quest.gold); // the bounty: the same for every head
+                    p.gold += withGoldBonus(p, gold(quest.gold)); // the bounty: the same for every head (plus perks)
                 }
                 log(msg("lblHexJournalQuestDone", quest.enemyName, String.valueOf(gold(quest.gold))));
             }
@@ -362,7 +410,15 @@ public class HexCampaign {
             partyQ = prevQ;
             partyR = prevR;
         }
+        // what events promised for this fight is used up
+        boostLife = 0;
+        boostHand = 0;
+        boostLand = false;
+        boostEnemyLife = 0;
+        boostDoubleGold = false;
+        deckChecked.clear();
         reshuffleEnemies();
+        offerPerks();
     }
 
     /** Removes a random card that is not a basic land; a deck at minimum size gets a basic land in return. */
@@ -400,21 +456,246 @@ public class HexCampaign {
         return null;
     }
 
-    /** A head takes its reward: the card (if there is one and it wants it), otherwise the gold. */
+    /** A head takes its reward: the first card on offer (if any and it wants one), otherwise the gold. */
     public void chooseReward(final String playerName, final boolean takeCard) {
+        chooseReward(playerName, takeCard ? 0 : -1);
+    }
+
+    /** A head takes its reward: the card with this index among those on offer, or the gold (index -1). */
+    public void chooseReward(final String playerName, final int cardIndex) {
         final HexReward reward = pendingReward(playerName);
         final HexPlayer p = player(playerName);
         if (reward == null || p == null) {
             return;
         }
         pendingRewards.remove(reward);
-        if (takeCard && reward.card != null) {
-            p.deck.add(reward.card);
-            log(msg("lblHexJournalRewardCard", p.name, reward.card));
+        final List<String> options = reward.options();
+        if (cardIndex >= 0 && cardIndex < options.size()) {
+            p.deck.add(options.get(cardIndex));
+            log(msg("lblHexJournalRewardCard", p.name, options.get(cardIndex)));
         } else {
             p.gold += reward.gold;
             log(msg("lblHexJournalRewardGold", p.name, String.valueOf(reward.gold)));
         }
+    }
+
+    /** An AI head takes the most valuable card on offer. */
+    public void chooseRewardForAi(final String playerName) {
+        final HexReward reward = pendingReward(playerName);
+        if (reward == null) {
+            return;
+        }
+        final List<String> options = reward.options();
+        int best = -1;
+        for (int i = 0; i < options.size(); i++) {
+            if (best < 0 || HexContent.get().price(options.get(i)) > HexContent.get().price(options.get(best))) {
+                best = i;
+            }
+        }
+        chooseReward(playerName, best);
+    }
+
+    // ------------------------------------------------------------------ perks
+
+    /** How many perks the head may still choose (one every few won fights). */
+    public int perkPicksDue(final HexPlayer p) {
+        return p == null ? 0 : Math.max(0, battlesWon / PERK_EVERY_WINS - p.perks.size());
+    }
+
+    /** Gives every head that has a perk due a choice of perks (if it has none to choose from yet). */
+    public void offerPerks() {
+        for (final HexPlayer p : players) {
+            if (perkPicksDue(p) <= 0 || !p.perkOffer.isEmpty()) {
+                continue;
+            }
+            final List<HexPerk> open = new ArrayList<>();
+            for (final HexPerk perk : HexPerk.values()) {
+                if (perk.count(p) < perk.maxStacks) {
+                    open.add(perk);
+                }
+            }
+            final Random rnd = random();
+            while (!open.isEmpty() && p.perkOffer.size() < PERK_CHOICES) {
+                p.perkOffer.add(open.remove(rnd.nextInt(open.size())).name());
+            }
+        }
+    }
+
+    /** A head takes one of the perks offered to it. */
+    public boolean choosePerk(final String playerName, final String perkName) {
+        final HexPlayer p = player(playerName);
+        final HexPerk perk = HexPerk.of(perkName);
+        if (p == null || perk == null || !p.perkOffer.contains(perk.name()) || perkPicksDue(p) <= 0) {
+            return false;
+        }
+        p.perks.add(perk.name());
+        p.perkOffer.clear();
+        log(msg("lblHexJournalPerk", p.name, perk.getLabel()));
+        offerPerks(); // there may be another one due
+        return true;
+    }
+
+    /** An AI head takes the first perk offered. */
+    public void choosePerkForAi(final String playerName) {
+        final HexPlayer p = player(playerName);
+        if (p != null && !p.perkOffer.isEmpty()) {
+            choosePerk(playerName, p.perkOffer.get(0));
+        }
+    }
+
+    /** A gold reward of a head with its gold perks. */
+    public int withGoldBonus(final HexPlayer p, final int gold) {
+        return gold * (100 + HexPerk.GOLD_BONUS_PERCENT * HexPerk.GOLD_BONUS.count(p)) / 100;
+    }
+
+    /** What a head pays for an offer in the shops, with its discount perks. */
+    public int priceFor(final HexPlayer p, final int price) {
+        return Math.max(1, price * (100 - HexPerk.DISCOUNT_PERCENT * HexPerk.DISCOUNT.count(p)) / 100);
+    }
+
+    /** What a shop pays a head for a card, with its sell perks. */
+    public int sellPriceFor(final HexPlayer p, final String card) {
+        return HexContent.get().sellPrice(card) * (100 + HexPerk.SELL_BONUS_PERCENT * HexPerk.SELL_BONUS.count(p)) / 100;
+    }
+
+    // ------------------------------------------------------------------ events
+
+    /** The party steps onto a field with an event: it happens, and the field is empty afterwards. */
+    private void triggerEvent(final HexTile t) {
+        final HexEvent event = HexEvent.of(t.event);
+        t.event = null;
+        if (event == null) {
+            return;
+        }
+        final StringBuilder text = new StringBuilder(event.getLabel()).append(": ").append(event.getDescription());
+        switch (event) {
+            case SHRINE:
+                boostLife += HexEvent.SHRINE_LIFE;
+                break;
+            case CHEST:
+                for (final HexPlayer p : players) {
+                    p.gold += gold(HexEvent.CHEST_GOLD);
+                }
+                text.append(' ').append(msg("lblHexEventGold", String.valueOf(gold(HexEvent.CHEST_GOLD))));
+                break;
+            case CAMP:
+                final Random rnd = random();
+                for (final HexPlayer p : players) {
+                    final String card = HexContent.get().randomCardOfColor(t.color, rnd);
+                    if (card != null) {
+                        p.sideboard.add(card);
+                        text.append('\n').append(msg("lblHexEventFound", p.name, card));
+                    }
+                }
+                break;
+            case BLESSING:
+                boostHand = Math.max(boostHand, 1);
+                break;
+            case LEY_LINE:
+                boostLand = true;
+                break;
+            case ALTAR:
+                boostEnemyLife += HexEvent.ALTAR_ENEMY_LIFE;
+                boostDoubleGold = true;
+                break;
+            default:
+                break;
+        }
+        lastEvent = text.toString();
+        eventSerial++;
+        log(msg("lblHexJournalEvent", event.getLabel()));
+    }
+
+    /** What the next fight brings thanks to events, for the party panel; empty if nothing. */
+    public List<String> fightBoosts() {
+        final List<String> result = new ArrayList<>();
+        if (boostLife > 0) {
+            result.add(msg("lblHexBoostLife", String.valueOf(boostLife)));
+        }
+        if (boostHand > 0) {
+            result.add(msg("lblHexBoostHand", String.valueOf(boostHand)));
+        }
+        if (boostLand) {
+            result.add(msg("lblHexBoostLand"));
+        }
+        if (boostDoubleGold) {
+            result.add(msg("lblHexBoostAltar", String.valueOf(boostEnemyLife)));
+        }
+        return result;
+    }
+
+    // ------------------------------------------------------------------ ready check
+
+    /** A head looked at its deck while a fight is pending (shown in the ready check). */
+    public void markDeckChecked(final String playerName) {
+        if (pendingEncounter != null && player(playerName) != null && !deckChecked.contains(playerName)) {
+            deckChecked.add(playerName);
+        }
+    }
+
+    // ------------------------------------------------------------------ trading
+
+    /** In town a head gives gold to a team mate. */
+    public boolean giveGold(final String from, final String to, final int amount) {
+        final HexPlayer giver = player(from);
+        final HexPlayer taker = player(to);
+        if (!inTown() || giver == null || taker == null || giver == taker || amount <= 0 || giver.gold < amount) {
+            return false;
+        }
+        giver.gold -= amount;
+        taker.gold += amount;
+        log(msg("lblHexJournalGaveGold", giver.name, taker.name, String.valueOf(amount)));
+        return true;
+    }
+
+    /** In town a head gives a card of its deck or sideboard to a team mate (it goes to the mate's sideboard). */
+    public boolean giveCard(final String from, final String to, final String card, final boolean fromSideboard) {
+        final HexPlayer giver = player(from);
+        final HexPlayer taker = player(to);
+        if (!inTown() || giver == null || taker == null || giver == taker || card == null) {
+            return false;
+        }
+        if (fromSideboard ? !giver.sideboard.remove(card) : giver.deck.size() <= MIN_DECK_SIZE || !giver.deck.remove(card)) {
+            return false;
+        }
+        taker.sideboard.add(card);
+        log(msg("lblHexJournalGaveCard", giver.name, taker.name, card));
+        return true;
+    }
+
+    // ------------------------------------------------------------------ fast travel
+
+    /** Can the party travel from the town it is in to this town it has been to before? Every head pays a little gold. */
+    public boolean canFastTravel(final HexTile target) {
+        if (target == null || !inTown() || won || target == tile() || target.poi != HexPoi.TOWN || !target.explored) {
+            return false;
+        }
+        for (final HexPlayer p : players) {
+            if (p.gold < FAST_TRAVEL_GOLD) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Travels to another town the party has been to. */
+    public boolean fastTravel(final int q, final int r) {
+        final HexTile target = map.get(q, r);
+        if (!canFastTravel(target)) {
+            return false;
+        }
+        for (final HexPlayer p : players) {
+            p.gold -= FAST_TRAVEL_GOLD;
+        }
+        prevQ = partyQ;
+        prevR = partyR;
+        partyQ = q;
+        partyR = r;
+        steps++;
+        reshuffleEnemies();
+        log(msg("lblHexJournalFastTravel", target.name, String.valueOf(FAST_TRAVEL_GOLD)));
+        shop();
+        return true;
     }
 
     // ------------------------------------------------------------------ towns
@@ -566,13 +847,14 @@ public class HexCampaign {
         if (offer.shop == HexShopType.RELIC) {
             return buyRelic(p, offer, stock);
         }
-        if (p.gold < offer.price) {
+        final int price = priceFor(p, offer.price);
+        if (p.gold < price) {
             return false;
         }
-        p.gold -= offer.price;
+        p.gold -= price;
         p.deck.add(offer.card);
         stock.remove(offer);
-        log(msg("lblHexJournalBought", p.name, offer.card, String.valueOf(offer.price)));
+        log(msg("lblHexJournalBought", p.name, offer.card, String.valueOf(price)));
         return true;
     }
 
@@ -614,17 +896,18 @@ public class HexCampaign {
         }
         final HexRelic old = relicInSlot(p, relic.slot);
         final int refund = old == null ? 0 : content.relicSellPrice(old.name);
-        if (p.gold + refund < offer.price) {
+        final int price = priceFor(p, offer.price);
+        if (p.gold + refund < price) {
             return false;
         }
         if (old != null) {
             p.relics.remove(old.name);
             log(msg("lblHexJournalSold", p.name, old.name, String.valueOf(refund)));
         }
-        p.gold += refund - offer.price;
+        p.gold += refund - price;
         p.relics.add(relic.name);
         stock.remove(offer);
-        log(msg("lblHexJournalBought", p.name, relic.name, String.valueOf(offer.price)));
+        log(msg("lblHexJournalBought", p.name, relic.name, String.valueOf(price)));
         return true;
     }
 
@@ -742,8 +1025,9 @@ public class HexCampaign {
      * after the first, and what the relics of all heads add.
      */
     public int fightLife() {
-        int life = teamLife + LIFE_PER_EXTRA_HEAD * Math.max(0, players.size() - 1);
+        int life = teamLife + LIFE_PER_EXTRA_HEAD * Math.max(0, players.size() - 1) + boostLife;
         for (final HexPlayer p : players) {
+            life += HexPerk.TEAM_LIFE_PER_STACK * HexPerk.TEAM_LIFE.count(p);
             for (final String name : p.relics) {
                 final HexRelic relic = HexContent.get().getRelic(name);
                 life += relic == null ? 0 : relic.life;
@@ -762,7 +1046,7 @@ public class HexCampaign {
      * follower, and what the relics of the party do to it.
      */
     public int enemyLife(final HexEncounter enc) {
-        int life = enc.life + ENEMY_EXTRA_LIFE[Math.max(1, Math.min(ENEMY_EXTRA_LIFE.length, players.size())) - 1];
+        int life = enc.life + ENEMY_EXTRA_LIFE[Math.max(1, Math.min(ENEMY_EXTRA_LIFE.length, players.size())) - 1] + boostEnemyLife;
         for (final HexPlayer p : players) {
             for (final String name : p.relics) {
                 final HexRelic relic = HexContent.get().getRelic(name);
@@ -819,7 +1103,7 @@ public class HexCampaign {
         if (fromSideboard ? !p.sideboard.remove(card) : p.deck.size() <= MIN_DECK_SIZE || !p.deck.remove(card)) {
             return false;
         }
-        final int price = HexContent.get().sellPrice(card);
+        final int price = sellPriceFor(p, card);
         p.gold += price;
         log(msg("lblHexJournalSold", p.name, card, String.valueOf(price)));
         return true;

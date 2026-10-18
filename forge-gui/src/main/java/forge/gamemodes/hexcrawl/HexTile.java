@@ -18,6 +18,8 @@ public class HexTile {
     public HexEncounter enemy;
     /** Towns only: the theme the town's shops always offer (a HexTheme id). */
     public String theme;
+    /** Something the party finds here instead of an enemy (a HexEvent name), or null. */
+    public String event;
 
     public HexTile() { }
     public HexTile(final int q0, final int r0) { q = q0; r = r0; }

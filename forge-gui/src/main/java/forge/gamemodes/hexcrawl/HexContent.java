@@ -570,6 +570,22 @@ public final class HexContent {
         return report;
     }
 
+    /** A random common or uncommon card of a colour (any colour if there is none), or null. */
+    public String randomCardOfColor(final HexColor color, final Random rnd) {
+        Map<CardRarity, List<PaperCard>> byRarity = cardsByColor.get(color);
+        if (byRarity == null || byRarity.isEmpty()) {
+            byRarity = cardsByColor.get(HexColor.COLORS[rnd.nextInt(HexColor.COLORS.length)]);
+        }
+        final List<PaperCard> pool = new ArrayList<>();
+        for (final CardRarity rarity : new CardRarity[] { CardRarity.Common, CardRarity.Uncommon }) {
+            final List<PaperCard> list = byRarity == null ? null : byRarity.get(rarity);
+            if (list != null) {
+                pool.addAll(list);
+            }
+        }
+        return pool.isEmpty() ? null : pool.get(rnd.nextInt(pool.size())).getName();
+    }
+
     /** A random card from the enemy's deck that is not a basic land, or null. */
     public String randomAnteCard(final HexEncounter enc, final Random rnd) {
         final List<String> names = new ArrayList<>();

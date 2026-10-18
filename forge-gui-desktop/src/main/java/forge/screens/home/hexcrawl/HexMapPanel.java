@@ -164,6 +164,12 @@ public class HexMapPanel extends JPanel {
             sb.append(HexCrawlPanel.enemyExtras(campaign, enemy));
             // scouting: what the party knows of the enemy's deck before the fight
             sb.append(HexCrawlPanel.scoutReport(campaign, enemy));
+        } else if (forge.gamemodes.hexcrawl.HexEvent.of(t.event) != null) {
+            final forge.gamemodes.hexcrawl.HexEvent event = forge.gamemodes.hexcrawl.HexEvent.of(t.event);
+            sb.append(" – ").append(event.getLabel()).append('\n').append(event.getDescription());
+        }
+        if (t.poi == HexPoi.TOWN && t.explored && t != campaign.tile() && !campaign.isAdjacent(t)) {
+            sb.append('\n').append(loc.getMessage("lblHexFastTravelHint", String.valueOf(forge.gamemodes.hexcrawl.HexCampaign.FAST_TRAVEL_GOLD)));
         }
         final String text = sb.toString().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
         return "<html>" + text.replace("\n", "<br>") + "</html>";
@@ -301,6 +307,24 @@ public class HexMapPanel extends JPanel {
                 }
             }
             drawLife(g, campaign.enemyLife(enemy), (int) Math.round(cx + size * 0.5), (int) Math.round(cy - size * 0.48), size);
+        }
+
+        // events in plain sight: a golden coin with a question mark
+        for (final HexTile t : campaign.map.tiles.values()) {
+            if (t.event == null || campaign.enemyAt(t) != null) {
+                continue;
+            }
+            final int cx = (int) Math.round(centerX(t, size));
+            final int cy = (int) Math.round(centerY(t, size));
+            final int r = (int) Math.round(size * 0.42);
+            g.setColor(new Color(0xE8C04A));
+            g.fillOval(cx - r, cy - r, 2 * r, 2 * r);
+            g.setColor(new Color(0x5A3E00));
+            g.setStroke(new BasicStroke(Math.max(1.5f, (float) size / 14)));
+            g.drawOval(cx - r, cy - r, 2 * r, 2 * r);
+            g.setFont(getFont().deriveFont(Font.BOLD, (float) Math.max(9, size * 0.6)));
+            final FontMetrics fm = g.getFontMetrics();
+            g.drawString("?", cx - fm.stringWidth("?") / 2, cy + fm.getAscent() / 2 - 1);
         }
 
         // votes: a badge with the number of heads that want to go to a field

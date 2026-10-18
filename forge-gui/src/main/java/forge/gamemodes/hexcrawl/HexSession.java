@@ -118,7 +118,40 @@ public class HexSession {
     }
 
     public void chooseReward(final boolean takeCard) {
-        act(new HexActionEvent(HexActionEvent.REWARD, 0, 0, null, takeCard, null));
+        chooseReward(takeCard ? 0 : -1);
+    }
+
+    /** Takes the reward card with this index, or the gold (-1). */
+    public void chooseReward(final int cardIndex) {
+        act(new HexActionEvent(HexActionEvent.REWARD, cardIndex, 0, null, cardIndex >= 0, null));
+    }
+
+    public void choosePerk(final String perk) {
+        act(new HexActionEvent(HexActionEvent.PERK, 0, 0, perk, false, null));
+    }
+
+    /** In town: gives gold to a team mate. */
+    public void giveGold(final String head, final String to, final int amount) {
+        act(new HexActionEvent(HexActionEvent.GIVE, amount, indexOf(to), null, false, head));
+    }
+
+    /** In town: gives a card of the deck or the sideboard to a team mate. */
+    public void giveCard(final String head, final String to, final String card, final boolean fromSideboard) {
+        act(new HexActionEvent(HexActionEvent.GIVE, 0, indexOf(to), card, fromSideboard, head));
+    }
+
+    /** Ready check: this person has looked at their deck. */
+    public void deckSeen() {
+        act(new HexActionEvent(HexActionEvent.DECK_SEEN, 0, 0, null, false, null));
+    }
+
+    private int indexOf(final String head) {
+        for (int i = 0; campaign != null && i < campaign.players.size(); i++) {
+            if (campaign.players.get(i).name.equals(head)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** Buys a card or a relic; the shop may be null if it does not matter which shop sells it. */
@@ -185,7 +218,7 @@ public class HexSession {
             final String type = action.getType();
             if (HexActionEvent.VOTE.equals(type)) {
                 final HexTile target = campaign.map.get(action.getQ(), action.getR());
-                if (!fightRunning && campaign.canEnter(target)) {
+                if (!fightRunning && (campaign.canEnter(target) || campaign.canFastTravel(target))) {
                     votes.put(actor, target.key());
                 }
             } else if (HexActionEvent.FIGHT.equals(type)) {
@@ -194,8 +227,22 @@ public class HexSession {
                 }
             } else if (HexActionEvent.REWARD.equals(type)) {
                 if (campaign.pendingEncounter == null) {
-                    campaign.chooseReward(head, action.getFlag());
+                    campaign.chooseReward(head, action.getFlag() ? Math.max(0, action.getQ()) : -1);
                 }
+            } else if (HexActionEvent.PERK.equals(type)) {
+                campaign.choosePerk(head, action.getText());
+            } else if (HexActionEvent.GIVE.equals(type)) {
+                final int to = action.getR();
+                if (!fightRunning && to >= 0 && to < campaign.players.size()) {
+                    final String taker = campaign.players.get(to).name;
+                    if (action.getText() == null) {
+                        campaign.giveGold(head, taker, action.getQ());
+                    } else {
+                        campaign.giveCard(head, taker, action.getText(), action.getFlag());
+                    }
+                }
+            } else if (HexActionEvent.DECK_SEEN.equals(type)) {
+                campaign.markDeckChecked(head);
             } else if (HexActionEvent.BUY.equals(type)) {
                 final int shop = action.getQ();
                 final HexTheme theme = HexTheme.byIndex(action.getR());
@@ -247,10 +294,15 @@ public class HexSession {
         votes.keySet().retainAll(voters);
         fightReady.retainAll(voters);
 
-        // AI heads never keep the others waiting: they take the card
+        // AI heads never keep the others waiting: they take the best card, and a perk
         for (final HexReward reward : new ArrayList<>(campaign.pendingRewards)) {
             if (campaign.pendingEncounter == null && isAiHead(reward.playerName)) {
-                campaign.chooseReward(reward.playerName, true);
+                campaign.chooseRewardForAi(reward.playerName);
+            }
+        }
+        for (final HexPlayer p : campaign.players) {
+            if (isAiHead(p.name)) {
+                campaign.choosePerkForAi(p.name);
             }
         }
 
@@ -275,7 +327,13 @@ public class HexSession {
             votes.clear();
             fightReady.clear();
             final String[] qr = winner.split(",");
-            campaign.moveTo(Integer.parseInt(qr[0]), Integer.parseInt(qr[1]));
+            final int q = Integer.parseInt(qr[0]);
+            final int r = Integer.parseInt(qr[1]);
+            if (!campaign.isAdjacent(campaign.map.get(q, r)) && campaign.canFastTravel(campaign.map.get(q, r))) {
+                campaign.fastTravel(q, r); // a town the party has been to, further away
+            } else {
+                campaign.moveTo(q, r);
+            }
         } else if (campaign.isBusy()) {
             votes.clear();
         }

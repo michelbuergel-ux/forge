@@ -16,6 +16,12 @@ public final class HexActionEvent implements NetEvent {
     public static final String MOVE = "MOVE";
     /** A head picks the theme of one of its theme tabs: q = slot, text = theme id. */
     public static final String THEME = "THEME";
+    /** A head takes a perk: text = perk name. */
+    public static final String PERK = "PERK";
+    /** A head gives something to a team mate (index r): gold (q) or a card (text, flag = from the sideboard). */
+    public static final String GIVE = "GIVE";
+    /** A head looked at its deck before a fight (ready check). */
+    public static final String DECK_SEEN = "DECK_SEEN";
 
     private final String type;
     private final int q;

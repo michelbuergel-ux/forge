@@ -51,6 +51,7 @@ public final class HexBattle {
             rp.setTeamNumber(PARTY_TEAM);
             rp.setStartingLife(campaign.fightLife());
             applyRelics(p, rp);
+            applyPerksAndEvents(campaign, p, rp);
             players.add(rp);
         }
         addEnemies(campaign, enc, players, avatar);
@@ -103,6 +104,40 @@ public final class HexBattle {
         }
         if (hand != 0) {
             rp.setStartingHand(Math.max(1, rp.getStartingHand() + hand));
+        }
+    }
+
+    /** Perks of the head and events of the campaign: more cards in the opening hand, a land in play. */
+    private static void applyPerksAndEvents(final HexCampaign campaign, final HexPlayer p, final RegisteredPlayer rp) {
+        final int hand = HexPerk.EXTRA_CARD.count(p) + campaign.boostHand;
+        if (hand != 0) {
+            rp.setStartingHand(Math.max(1, rp.getStartingHand() + hand));
+        }
+        int lands = HexPerk.START_LAND.count(p) + (campaign.boostLand ? 1 : 0);
+        if (lands > 0) {
+            // the basic land the deck has most of
+            final Map<String, Integer> basics = new HashMap<>();
+            for (final String card : p.deck) {
+                if (HexContent.get().isBasicLand(card)) {
+                    basics.merge(card, 1, Integer::sum);
+                }
+            }
+            String land = HexColor.COLORLESS.getBasicLand();
+            int most = 0;
+            for (final Map.Entry<String, Integer> e : basics.entrySet()) {
+                if (e.getValue() > most) {
+                    most = e.getValue();
+                    land = e.getKey();
+                }
+            }
+            final List<forge.item.IPaperCard> inPlay = new ArrayList<>();
+            final forge.item.PaperCard card = HexContent.get().getCard(land);
+            for (; card != null && lands > 0; lands--) {
+                inPlay.add(card);
+            }
+            if (!inPlay.isEmpty()) {
+                rp.addExtraCardsOnBattlefield(inPlay);
+            }
         }
     }
 
@@ -199,6 +234,7 @@ public final class HexBattle {
             rp.setTeamNumber(PARTY_TEAM);
             rp.setStartingLife(campaign.fightLife());
             applyRelics(p, rp);
+            applyPerksAndEvents(campaign, p, rp);
             players.add(rp);
         }
         addEnemies(campaign, enc, players, avatar);

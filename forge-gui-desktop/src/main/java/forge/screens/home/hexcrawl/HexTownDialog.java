@@ -49,6 +49,7 @@ import net.miginfocom.swing.MigLayout;
 final class HexTownDialog {
     private static final String TAB_QUESTS = "QUESTS";
     private static final String TAB_SELL = "SELL";
+    private static final String TAB_TRADE = "TRADE";
     private static final String PAGE_CARDS = "cards";
     private static final int TILE_W = 196;
     private static final int TILE_H = 274;
@@ -113,6 +114,17 @@ final class HexTownDialog {
     private final CardPicturePanel picSell = new CardPicturePanel();
     private final FButton btnSell = new FButton();
 
+    // trading with team mates
+    private final List<String> mates = new ArrayList<>();
+    private final FComboBox<String> cboTradeTo = new FComboBox<>();
+    private final forge.toolbox.FSpinner spnGold = new forge.toolbox.FSpinner.Builder().minValue(1).maxValue(100000).initialValue(10).build();
+    private final FButton btnGiveGold = new FButton();
+    private final DefaultListModel<String> tradeModel = new DefaultListModel<>();
+    private final FList<String> lstTrade = new FList<>(tradeModel);
+    private final List<SaleRow> tradeRows = new ArrayList<>();
+    private final CardPicturePanel picTrade = new CardPicturePanel();
+    private final FButton btnGiveCard = new FButton();
+
     HexTownDialog(final HexSession session0) {
         session = session0;
         final String me = session.getMyHead();
@@ -163,6 +175,9 @@ final class HexTownDialog {
         }
         addTab(tabs, TAB_QUESTS, t("lblHexTabQuests"));
         addTab(tabs, TAB_SELL, t("lblHexTabSell"));
+        if (campaign().players.size() > 1) {
+            addTab(tabs, TAB_TRADE, t("lblHexTabTrade"));
+        }
         panel.add(tabs);
 
         body.setOpaque(false);
@@ -170,6 +185,7 @@ final class HexTownDialog {
         body.add(buildRelicPage(), HexShopType.RELIC.name());
         body.add(buildQuestPage(), TAB_QUESTS);
         body.add(buildSellPage(), TAB_SELL);
+        body.add(buildTradePage(), TAB_TRADE);
         body.setPreferredSize(new Dimension(1030, 372));
         panel.add(body, "h 372!");
         panel.add(lblMessage, "h 22!");
@@ -201,7 +217,7 @@ final class HexTownDialog {
     }
 
     private boolean isCardShop() {
-        return !TAB_QUESTS.equals(tab) && !TAB_SELL.equals(tab) && !HexShopType.RELIC.name().equals(tab);
+        return !TAB_QUESTS.equals(tab) && !TAB_SELL.equals(tab) && !TAB_TRADE.equals(tab) && !HexShopType.RELIC.name().equals(tab);
     }
 
     /** The offers of one shop of this town in the theme tab shown. Read only, so it is safe on a guest's copy too. */
@@ -354,6 +370,8 @@ final class HexTownDialog {
                 fillRelics(p);
             } else if (TAB_QUESTS.equals(tab)) {
                 fillQuests(c);
+            } else if (TAB_TRADE.equals(tab)) {
+                fillTrade(p);
             } else {
                 fillDeck(p);
             }
@@ -395,9 +413,10 @@ final class HexTownDialog {
     private void fillTiles(final HexShopType type) {
         pnlBasics.setVisible(type == HexShopType.LAND);
         final List<HexShopOffer> list = offers(type);
-        final StringBuilder shown = new StringBuilder(type.name()).append('/').append(themeTab);
+        final HexPlayer buyer = head();
+        final StringBuilder shown = new StringBuilder(type.name()).append('/').append(themeTab).append('/').append(buyer == null ? "" : buyer.name);
         for (final HexShopOffer o : list) {
-            shown.append('|').append(o.card).append('=').append(o.price);
+            shown.append('|').append(o.card).append('=').append(price(buyer, o));
         }
         if (shown.toString().equals(tilesShown)) {
             return; // nothing changed: keep the pictures as they are
@@ -418,14 +437,14 @@ final class HexTownDialog {
             }
             tile.add(pic, "h " + TILE_H + "!");
             tile.add(new FLabel.Builder().text(o.card).fontSize(12).fontAlign(SwingConstants.CENTER).build(), "h 20!");
-            final FButton buy = new FButton(t("lblHexBuyFor", String.valueOf(o.price)));
+            final FButton buy = new FButton(t("lblHexBuyFor", String.valueOf(price(buyer, o))));
             buy.setFont(FSkin.getFont(12));
             buy.addActionListener(e -> {
                 final HexPlayer p = head();
                 if (p == null) {
                     return;
                 }
-                if (p.gold < o.price) {
+                if (p.gold < price(p, o)) {
                     lblMessage.setText(t("lblHexNotEnoughGold"));
                 } else {
                     lblMessage.setText("");
@@ -483,7 +502,7 @@ final class HexTownDialog {
             final HexRelic relic = content.getRelic(relicOfferNames.get(i));
             final HexRelic old = relic == null ? null : campaign().relicInSlot(p, relic.slot);
             final int refund = old == null ? 0 : content.relicSellPrice(old.name);
-            if (relic == null || p.gold + refund < relic.price) {
+            if (relic == null || p.gold + refund < campaign().priceFor(p, relic.price)) {
                 lblMessage.setText(t("lblHexNotEnoughGold"));
             } else {
                 lblMessage.setText("");
@@ -514,7 +533,7 @@ final class HexTownDialog {
             final HexRelic relic = content.getRelic(o.card);
             if (relic != null) {
                 names.add(relic.name);
-                lines.add(o.price + "  –  " + relic.name + "   [" + slotName(relic.slot) + "]");
+                lines.add(price(p, o) + "  –  " + relic.name + "   [" + slotName(relic.slot) + "]");
             }
         }
         setList(relicOfferModel, relicOfferNames, lines, names);
@@ -648,7 +667,7 @@ final class HexTownDialog {
             final PaperCard card = i >= 0 && i < deckNames.size() ? content.getCard(deckNames.get(i).card()) : null;
             if (card != null) {
                 picSell.setItem(card);
-                btnSell.setText(t("lblHexSellFor", String.valueOf(content.sellPrice(card.getName()))));
+                btnSell.setText(t("lblHexSellFor", String.valueOf(campaign().sellPriceFor(head(), card.getName()))));
             }
         });
         btnSell.addActionListener(e -> {
@@ -668,18 +687,112 @@ final class HexTownDialog {
         return page;
     }
 
+    /** What the head pays for an offer (its discount perks included). */
+    private int price(final HexPlayer p, final HexShopOffer o) {
+        return p == null ? o.price : campaign().priceFor(p, o.price);
+    }
+
+    // ------------------------------------------------------------------ trading
+
+    private JPanel buildTradePage() {
+        final JPanel page = new JPanel(new MigLayout("insets 0, gap 8, wrap 2", "[520!, fill][grow, fill]"));
+        page.setOpaque(false);
+        final JPanel to = new JPanel(new MigLayout("insets 0, gap 8", "[][200!, fill][90!, fill][grow, fill]"));
+        to.setOpaque(false);
+        to.add(new FLabel.Builder().text(t("lblHexTradeTo")).fontAlign(SwingConstants.LEFT).build(), "h 26!");
+        to.add(cboTradeTo, "h 26!");
+        to.add(spnGold, "h 26!");
+        btnGiveGold.setText(t("lblHexGiveGold"));
+        to.add(btnGiveGold, "h 26!");
+        page.add(to, "span 2");
+        page.add(new FLabel.Builder().text(t("lblHexTradeCards")).fontStyle(Font.BOLD).fontAlign(SwingConstants.LEFT).build(), "h 22!");
+        picTrade.setOpaque(false);
+        page.add(picTrade, "spany 3, h 320!, w 230!, gapleft 40");
+        lstTrade.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        page.add(new FScrollPane(lstTrade, true), "h 260!");
+        btnGiveCard.setText(t("lblHexGiveCard"));
+        page.add(btnGiveCard, "h 28!");
+
+        lstTrade.addListSelectionListener(e -> {
+            final int i = lstTrade.getSelectedIndex();
+            final PaperCard card = i >= 0 && i < tradeRows.size() ? content.getCard(tradeRows.get(i).card()) : null;
+            if (card != null) {
+                picTrade.setItem(card);
+            }
+        });
+        btnGiveGold.addActionListener(e -> {
+            final HexPlayer p = head();
+            final String mate = (String) cboTradeTo.getSelectedItem();
+            final int amount = ((Number) spnGold.getValue()).intValue();
+            if (p == null || mate == null) {
+                return;
+            }
+            if (p.gold < amount) {
+                lblMessage.setText(t("lblHexNotEnoughGold"));
+            } else {
+                lblMessage.setText(t("lblHexGaveGold", String.valueOf(amount), mate));
+                session.giveGold(p.name, mate, amount);
+            }
+            fill();
+        });
+        btnGiveCard.addActionListener(e -> {
+            final HexPlayer p = head();
+            final String mate = (String) cboTradeTo.getSelectedItem();
+            final int i = lstTrade.getSelectedIndex();
+            if (p == null || mate == null || i < 0 || i >= tradeRows.size()) {
+                return;
+            }
+            final SaleRow row = tradeRows.get(i);
+            if (!row.sideboard() && p.deck.size() <= HexCampaign.MIN_DECK_SIZE) {
+                lblMessage.setText(t("lblHexDeckTooSmall", String.valueOf(HexCampaign.MIN_DECK_SIZE)));
+            } else {
+                lblMessage.setText(t("lblHexGaveCard", row.card(), mate));
+                session.giveCard(p.name, mate, row.card(), row.sideboard());
+            }
+            fill();
+        });
+        return page;
+    }
+
+    private void fillTrade(final HexPlayer p) {
+        final List<String> others = new ArrayList<>();
+        for (final HexPlayer mate : campaign().players) {
+            if (mate != p) {
+                others.add(mate.name);
+            }
+        }
+        if (!others.equals(mates)) {
+            final Object selected = cboTradeTo.getSelectedItem();
+            mates.clear();
+            mates.addAll(others);
+            cboTradeTo.removeAllItems();
+            for (final String name : mates) {
+                cboTradeTo.addItem(name);
+            }
+            if (selected != null && mates.contains(selected)) {
+                cboTradeTo.setSelectedItem(selected);
+            }
+        }
+        final List<String> lines = new ArrayList<>();
+        final List<SaleRow> rows = new ArrayList<>();
+        addSaleRows(p, p.deck, false, lines, rows, false);
+        addSaleRows(p, p.sideboard, true, lines, rows, false);
+        setList(tradeModel, tradeRows, lines, rows);
+    }
+
     /** One row of the sale list: a card name and whether the copies are in the sideboard. */
     private record SaleRow(String card, boolean sideboard) { }
 
     private void fillDeck(final HexPlayer p) {
         final List<String> lines = new ArrayList<>();
         final List<SaleRow> rows = new ArrayList<>();
-        addSaleRows(p.deck, false, lines, rows);
-        addSaleRows(p.sideboard, true, lines, rows);
+        addSaleRows(p, p.deck, false, lines, rows, true);
+        addSaleRows(p, p.sideboard, true, lines, rows, true);
         setList(deckModel, deckNames, lines, rows);
     }
 
-    private void addSaleRows(final List<String> cards, final boolean sideboard, final List<String> lines, final List<SaleRow> rows) {
+    private void addSaleRows(final HexPlayer p, final List<String> cards, final boolean sideboard, final List<String> lines,
+            final List<SaleRow> rows, final boolean withPrice) {
         final TreeMap<String, Integer> counts = new TreeMap<>();
         for (final String card : cards) {
             counts.merge(card, 1, Integer::sum);
@@ -688,7 +801,8 @@ final class HexTownDialog {
             final PaperCard card = content.getCard(e.getKey());
             rows.add(new SaleRow(e.getKey(), sideboard));
             lines.add((sideboard ? t("lblHexSideboardMark") + " " : "") + e.getValue() + "x " + e.getKey()
-                    + (card == null ? "" : "   (" + card.getRules().getType() + ")") + "   +" + content.sellPrice(e.getKey()));
+                    + (card == null ? "" : "   (" + card.getRules().getType() + ")")
+                    + (withPrice ? "   +" + campaign().sellPriceFor(p, e.getKey()) : ""));
         }
     }
 

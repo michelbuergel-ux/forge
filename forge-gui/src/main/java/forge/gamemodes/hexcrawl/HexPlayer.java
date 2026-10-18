@@ -19,6 +19,10 @@ public class HexPlayer {
     public String[] themes = new String[HexCampaign.PICKED_THEMES];
     /** For each picked theme: the number of fights fought when it was picked (it can change after the next fight). */
     public int[] themesPickedAt = { -1, -1 };
+    /** The perks the head has taken (HexPerk names, one entry per stack). */
+    public List<String> perks = new ArrayList<>();
+    /** The perks the head may choose from right now (empty if no choice is due). */
+    public List<String> perkOffer = new ArrayList<>();
 
     public HexPlayer() { }
 
