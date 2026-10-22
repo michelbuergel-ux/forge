@@ -237,6 +237,8 @@ public final class HexContent {
         final HexShopType shop;
         if (type.isLand()) {
             shop = type.isBasicLand() ? null : HexShopType.LAND;
+        } else if (type.isPlaneswalker()) {
+            shop = HexShopType.PLANESWALKER; // also the rare planeswalker creatures and artifacts
         } else if (type.isCreature()) {
             shop = HexShopType.CREATURE;
         } else if (type.isArtifact()) {

@@ -53,6 +53,30 @@ public class HexShopThemesTest extends AITest {
     }
 
     @Test
+    public void testPlaneswalkerShopAndTheme() {
+        final HexContent content = HexContent.get();
+        final HexTheme walkers = HexTheme.get("planeswalkers");
+        AssertJUnit.assertNotNull(walkers);
+        AssertJUnit.assertTrue(walkers.fits(content.getCard("Chandra, Torch of Defiance").getRules()));
+        AssertJUnit.assertFalse(walkers.fits(content.getCard("Grizzly Bears").getRules()));
+
+        // every coloured town sells planeswalkers, in their own shop
+        boolean themeOffered = false;
+        for (final HexColor color : HexColor.COLORS) {
+            int offered = 0;
+            for (final HexShopOffer o : content.themeStock(color, null, new Random(7))) {
+                if (o.shop == HexShopType.PLANESWALKER) {
+                    offered++;
+                    AssertJUnit.assertTrue(o.card + " is no planeswalker", content.getCard(o.card).getRules().getType().isPlaneswalker());
+                }
+            }
+            AssertJUnit.assertEquals(color + " planeswalkers", HexContent.CARDS_PER_SHOP, offered);
+            themeOffered |= content.themesFor(color).contains(walkers);
+        }
+        AssertJUnit.assertTrue("the theme is offered somewhere", themeOffered);
+    }
+
+    @Test
     public void testTownRandomAndPickedThemes() {
         final HexCampaign c = newCampaign();
         final List<HexShopOffer> stock = c.shop();

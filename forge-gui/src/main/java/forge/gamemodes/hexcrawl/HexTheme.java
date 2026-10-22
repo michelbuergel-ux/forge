@@ -61,6 +61,10 @@ public final class HexTheme {
         all.add(mechanic("enchantments", r -> r.getType().isEnchantment() || hints(r, DeckHints.Type.TYPE, "Enchantment", "Aura")));
         all.add(mechanic("spells", r -> r.getType().isInstant() || r.getType().isSorcery()
                 || hints(r, DeckHints.Type.TYPE, "Instant", "Sorcery")));
+        // planeswalkers, and the cards that help them (loyalty, proliferate, protecting or finding them)
+        all.add(mechanic("planeswalkers", r -> r.getType().isPlaneswalker()
+                || hints(r, DeckHints.Type.TYPE, "Planeswalker")
+                || mentionsPlaneswalkers(r)));
         all.add(mechanic("fliers", r -> (r.getType().isCreature() && r.hasKeyword("Flying"))
                 || hints(r, DeckHints.Type.KEYWORD, "Flying")));
         for (final String tribe : new String[] { "Elf", "Goblin", "Zombie", "Vampire", "Dragon", "Human", "Spirit",
@@ -74,6 +78,17 @@ public final class HexTheme {
 
     private static HexTheme mechanic(final String id, final Predicate<CardRules> fits) {
         return new HexTheme(id, "lblHexTheme_" + id, null, fits);
+    }
+
+    /** Rules text about planeswalkers you control or their loyalty (not "creature or planeswalker" removal). */
+    private static boolean mentionsPlaneswalkers(final CardRules r) {
+        final String oracle = r.getOracleText();
+        if (oracle == null) {
+            return false;
+        }
+        final String text = oracle.toLowerCase(java.util.Locale.ROOT);
+        return text.contains("loyalty") || text.contains("planeswalker you control") || text.contains("planeswalkers you control")
+                || text.contains("planeswalker card") || text.contains("planeswalker spell");
     }
 
     private static boolean hasCreatureType(final CardType type, final String tribe) {
