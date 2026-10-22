@@ -9,7 +9,7 @@ public class HexShopOffer {
     public HexShopType shop;
     /** The theme tab it is offered in (a HexTheme id); null for relics. */
     public String theme;
-    /** The theme tab it is on the shelves of (HexCampaign.tabKey); null for relics. */
+    /** The shelf it is on: a head's theme tab (HexCampaign.tabKey) or relic shelf (HexCampaign.relicTabKey). */
     public String tab;
 
     public HexShopOffer() { }

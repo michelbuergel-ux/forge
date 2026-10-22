@@ -179,6 +179,45 @@ public class HexShopThemesTest extends AITest {
     }
 
     @Test
+    public void testEveryHeadHasShelvesOfItsOwn() {
+        final HexCampaign c = HexCampaign.create("Test", 42L, 4, java.util.Arrays.asList(new HexPlayer("Ann", false), new HexPlayer("Bob", false)));
+        c.shop();
+        for (final HexShopType type : new HexShopType[] { HexShopType.CREATURE, HexShopType.RELIC }) {
+            final List<HexShopOffer> ann = c.shop(type, "Ann", HexCampaign.TAB_TOWN);
+            final List<HexShopOffer> bob = c.shop(type, "Bob", HexCampaign.TAB_TOWN);
+            AssertJUnit.assertFalse(type + " for Ann", ann.isEmpty());
+            AssertJUnit.assertFalse(type + " for Bob", bob.isEmpty());
+            for (final HexShopOffer o : ann) {
+                AssertJUnit.assertFalse(type + ": shelves of their own", bob.contains(o));
+            }
+        }
+
+        // nobody buys from another head's shelf; buying from one's own leaves the other's alone
+        final HexShopOffer annsCard = c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_TOWN).get(0);
+        c.player("Ann").gold = 10000;
+        c.player("Bob").gold = 10000;
+        final int bobsBefore = c.shop(HexShopType.CREATURE, "Bob", HexCampaign.TAB_TOWN).size();
+        AssertJUnit.assertFalse("not from Ann's shelf", c.buy("Bob", annsCard));
+        AssertJUnit.assertTrue(c.buy("Ann", annsCard));
+        AssertJUnit.assertEquals(bobsBefore, c.shop(HexShopType.CREATURE, "Bob", HexCampaign.TAB_TOWN).size());
+
+        // a restock renews the payer's shelves only
+        final List<HexShopOffer> bobsShelf = new java.util.ArrayList<>(c.shop(HexShopType.CREATURE, "Bob", HexCampaign.TAB_TOWN));
+        final List<HexShopOffer> bobsRelics = new java.util.ArrayList<>(c.shop(HexShopType.RELIC, "Bob", HexCampaign.TAB_TOWN));
+        final List<HexShopOffer> annsShelf = new java.util.ArrayList<>(c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_TOWN));
+        final int annsGold = c.player("Ann").gold;
+        final int bobsGold = c.player("Bob").gold;
+        AssertJUnit.assertTrue(c.restock("Ann"));
+        AssertJUnit.assertEquals(annsGold - HexCampaign.RESTOCK_PRICE, c.player("Ann").gold);
+        AssertJUnit.assertEquals("Bob pays nothing", bobsGold, c.player("Bob").gold);
+        AssertJUnit.assertEquals("Bob keeps his cards", bobsShelf, c.shop(HexShopType.CREATURE, "Bob", HexCampaign.TAB_TOWN));
+        AssertJUnit.assertEquals("and his relics", bobsRelics, c.shop(HexShopType.RELIC, "Bob", HexCampaign.TAB_TOWN));
+        for (final HexShopOffer o : c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_TOWN)) {
+            AssertJUnit.assertFalse("Ann's shelf is new", annsShelf.contains(o));
+        }
+    }
+
+    @Test
     public void testSaveFromBeforeThemesGetsThemedShops() {
         final HexCampaign c = newCampaign();
         for (final HexShopOffer o : c.shop()) {
@@ -196,10 +235,10 @@ public class HexShopThemesTest extends AITest {
     public void testSaveFromBeforeTabsGetsShelvesPerTab() {
         final HexCampaign c = newCampaign();
         for (final HexShopOffer o : c.shop()) {
-            o.tab = null;
+            o.tab = o.shop == HexShopType.RELIC ? null : "town"; // the shared shelves of earlier builds
         }
         for (final HexShopOffer o : c.shop()) {
-            AssertJUnit.assertTrue(o.shop == HexShopType.RELIC || o.tab != null);
+            AssertJUnit.assertNotNull("every offer is on a head's shelf", HexCampaign.ownerOfTab(o.tab));
         }
     }
 }

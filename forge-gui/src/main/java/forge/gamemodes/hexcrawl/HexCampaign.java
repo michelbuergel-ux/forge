@@ -1092,18 +1092,31 @@ public class HexCampaign {
     public static final int TAB_PICKED = 2;
 
     /**
-     * The key of a theme tab in the stock (HexShopOffer.tab). The town's and the random tab are the
-     * same for everybody; every head has picked tabs of its own, with shelves of their own even if
-     * the theme is the same as that of another tab.
+     * The key of a theme tab of a head in the stock (HexShopOffer.tab). Every head has shelves of
+     * its own in every tab, even where the theme is the same as another head's.
      */
     public static String tabKey(final String head, final int tab) {
         if (tab == TAB_TOWN) {
-            return "town";
+            return "town|" + head;
         }
         if (tab == TAB_RANDOM) {
-            return "random";
+            return "random|" + head;
         }
         return "pick|" + head + "|" + (tab - TAB_PICKED);
+    }
+
+    /** The key of a head's shelf at the relic dealer. */
+    public static String relicTabKey(final String head) {
+        return "relic|" + head;
+    }
+
+    /** The head whose shelf a tab key belongs to, or null. */
+    public static String ownerOfTab(final String tab) {
+        if (tab == null) {
+            return null;
+        }
+        final String[] parts = tab.split("\\|");
+        return parts.length >= 2 ? parts[1] : null;
     }
 
     /** The theme of a tab of the given head in the town the party is in (a HexTheme id), or null if it has none yet. */
@@ -1123,9 +1136,10 @@ public class HexCampaign {
     }
 
     /**
-     * The stock of the town the party is in (all shops and theme tabs); created at the first visit.
-     * The town's own tab and the relics are renewed now and then, the random tab and the tabs the
-     * heads picked after every fight; a head can also pay for a whole new stock (restock).
+     * The stock of the town the party is in: every head has shelves of its own in every shop and
+     * theme tab, and at the relic dealer. They are created at the first visit; the town's tab and
+     * the relics are renewed for everybody now and then, the random tab and the picked tabs after
+     * every fight; a head can also pay for new shelves of its own (restock).
      */
     public List<HexShopOffer> shop() {
         if (tile().poi != HexPoi.TOWN) {
@@ -1137,44 +1151,55 @@ public class HexCampaign {
         boolean stale = stock == null || since == null || battlesWon - since >= RESTOCK_AFTER_WINS;
         if (stock != null) {
             for (final HexShopOffer o : stock) {
-                // a save from before the towns had several shops, before the shops had themes, or before every tab had shelves of its own
-                stale |= o.shop == null || (o.shop != HexShopType.RELIC && (o.theme == null || o.tab == null));
+                // a save from before the towns had several shops, before the shops had themes, or before every head had shelves of its own
+                stale |= o.shop == null || (o.shop != HexShopType.RELIC && o.theme == null) || ownerOfTab(o.tab) == null;
             }
         }
         if (stale) {
             stock = new ArrayList<>();
             shops.put(key, stock);
             stockedAt.put(key, battlesWon);
-            stockTown(stock);
+            themeStockedAt.keySet().removeIf(k -> k.startsWith(key + "|"));
             questOffers.put(key, newQuests(tile()));
         }
-        // the random tab and the picked ones get fresh shelves after every fight, and when their theme changes
-        final Map<String, String> wanted = new java.util.LinkedHashMap<>();
-        wanted.put(tabKey(null, TAB_RANDOM), randomTheme().id);
         for (final HexPlayer p : players) {
+            // the relics and the town's tab: until the town is restocked (or the head pays for it)
+            if (!themeStockedAt.containsKey(key + "|" + relicTabKey(p.name) + "|relics")) {
+                stockRelics(stock, p.name);
+            }
+            final String town = tabKey(p.name, TAB_TOWN);
+            if (!themeStockedAt.containsKey(key + "|" + town + "|" + townTheme().id)) {
+                stockTab(stock, town, townTheme().id);
+            }
+            // the random tab and the picked ones get fresh shelves after every fight, and when their theme changes
+            final Map<String, String> wanted = new java.util.LinkedHashMap<>();
+            wanted.put(tabKey(p.name, TAB_RANDOM), randomTheme().id);
             for (int slot = 0; slot < PICKED_THEMES; slot++) {
                 final String id = tabTheme(p.name, TAB_PICKED + slot);
                 if (id != null) {
                     wanted.put(tabKey(p.name, TAB_PICKED + slot), id);
                 }
             }
-        }
-        for (final Map.Entry<String, String> e : wanted.entrySet()) {
-            final Integer at = themeStockedAt.get(key + "|" + e.getKey() + "|" + e.getValue());
-            if (at == null || at != fights()) {
-                stockTab(stock, e.getKey(), e.getValue());
+            for (final Map.Entry<String, String> e : wanted.entrySet()) {
+                final Integer at = themeStockedAt.get(key + "|" + e.getKey() + "|" + e.getValue());
+                if (at == null || at != fights()) {
+                    stockTab(stock, e.getKey(), e.getValue());
+                }
             }
         }
         return stock;
     }
 
-    /** A whole new stock for the town the party is in: the relics and the town's tab; the other tabs follow in shop(). */
-    private void stockTown(final List<HexShopOffer> stock) {
+    /** New relics on a head's shelf at the relic dealer of the town the party is in. */
+    private void stockRelics(final List<HexShopOffer> stock, final String head) {
         final String key = tile().key();
-        stock.clear();
-        stock.addAll(HexContent.get().relicStock(random()));
-        themeStockedAt.keySet().removeIf(k -> k.startsWith(key + "|"));
-        stockTab(stock, tabKey(null, TAB_TOWN), townTheme().id);
+        final String tab = relicTabKey(head);
+        stock.removeIf(o -> tab.equals(o.tab));
+        for (final HexShopOffer o : HexContent.get().relicStock(random())) {
+            o.tab = tab;
+            stock.add(o);
+        }
+        themeStockedAt.put(key + "|" + tab + "|relics", fights());
     }
 
     /** New shelves for one theme tab of the town the party is in. */
@@ -1189,28 +1214,30 @@ public class HexCampaign {
         themeStockedAt.put(key + "|" + tab + "|" + themeId, fights());
     }
 
-    /** What one shop of the town the party is in has on offer in a theme tab of the given head (relics: in every tab). */
+    /** What one shop of the town the party is in has on offer for the given head in a theme tab (relics: the head's shelf). */
     public List<HexShopOffer> shop(final HexShopType type, final String head, final int tab) {
-        final String tabKey = tabKey(head, tab);
+        final String tabKey = type == HexShopType.RELIC ? relicTabKey(head) : tabKey(head, tab);
         final List<HexShopOffer> result = new ArrayList<>();
         for (final HexShopOffer o : shop()) {
-            if (o.shop == type && (type == HexShopType.RELIC || tabKey.equals(o.tab))) {
+            if (o.shop == type && tabKey.equals(o.tab)) {
                 result.add(o);
             }
         }
         return result;
     }
 
-    /** A head pays for a whole new stock of the town the party is in: new cards in every tab, new relics. */
+    /** A head pays for new shelves of its own in the town the party is in: new cards in every tab, new relics. */
     public boolean restock(final String playerName) {
         final HexPlayer p = player(playerName);
         if (!inTown() || p == null || p.gold < RESTOCK_PRICE) {
             return false;
         }
         final List<HexShopOffer> stock = shop();
+        final String key = tile().key();
         p.gold -= RESTOCK_PRICE;
-        stockTown(stock);
-        shop(); // the random and the picked tabs
+        stock.removeIf(o -> playerName.equals(ownerOfTab(o.tab)));
+        themeStockedAt.keySet().removeIf(k -> k.startsWith(key + "|") && playerName.equals(ownerOfTab(k.substring(key.length() + 1))));
+        shop(); // the shelves of this head, new
         log(msg("lblHexJournalRestock", p.name, String.valueOf(RESTOCK_PRICE)));
         return true;
     }
@@ -1288,8 +1315,8 @@ public class HexCampaign {
     public boolean buy(final String playerName, final HexShopOffer offer) {
         final HexPlayer p = player(playerName);
         final List<HexShopOffer> stock = shop();
-        if (!inTown() || p == null || !stock.contains(offer)) {
-            return false;
+        if (!inTown() || p == null || !stock.contains(offer) || !playerName.equals(ownerOfTab(offer.tab))) {
+            return false; // only from the head's own shelves
         }
         if (offer.shop == HexShopType.RELIC) {
             return buyRelic(p, offer, stock);
@@ -1312,7 +1339,7 @@ public class HexCampaign {
     public boolean buy(final String playerName, final HexShopType type, final int tab, final String card) {
         final String tabKey = tab < 0 ? null : tabKey(playerName, tab);
         for (final HexShopOffer offer : shop()) {
-            if (offer.card.equals(card) && (type == null || offer.shop == type)
+            if (offer.card.equals(card) && (type == null || offer.shop == type) && playerName.equals(ownerOfTab(offer.tab))
                     && (tabKey == null || offer.shop == HexShopType.RELIC || tabKey.equals(offer.tab))) {
                 return buy(playerName, offer);
             }

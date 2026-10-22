@@ -239,7 +239,7 @@ final class HexTownDialog {
         final List<HexShopOffer> stock = c.shops.get(c.tile().key());
         if (stock != null) {
             for (final HexShopOffer o : stock) {
-                if (o.shop == type && (type == HexShopType.RELIC || tabKey.equals(o.tab))) {
+                if (o.shop == type && (type == HexShopType.RELIC ? HexCampaign.relicTabKey(p.name).equals(o.tab) : tabKey.equals(o.tab))) {
                     result.add(o);
                 }
             }
