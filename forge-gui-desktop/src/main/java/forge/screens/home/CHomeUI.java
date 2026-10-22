@@ -54,8 +54,11 @@ public enum CHomeUI implements ICDoc, IMenuProvider {
         lblSelected = VHomeUI.SINGLETON_INSTANCE.getAllSubmenuLabels().get(id0);
         lblSelected.setSelected(true);
 
-        prefs.setPref(FPref.SUBMENU_CURRENTMENU, id0.toString());
-        prefs.save();
+        if (id0 != EDocID.HOME_HEXCRAWL) {
+            // the Hex Campaign opens by itself for guests: it is never remembered as the start screen
+            prefs.setPref(FPref.SUBMENU_CURRENTMENU, id0.toString());
+            prefs.save();
+        }
 
         previousDoc = id0.getDoc().getLayoutControl();
     }
@@ -105,7 +108,7 @@ public enum CHomeUI implements ICDoc, IMenuProvider {
             selected = EDocID.valueOf(FModel.getPreferences().getPref(FPref.SUBMENU_CURRENTMENU));
         } catch (final Exception e) { }
 
-        if (selected != null && VHomeUI.SINGLETON_INSTANCE.getAllSubmenuLabels().get(selected) != null) {
+        if (selected != null && selected != EDocID.HOME_HEXCRAWL && VHomeUI.SINGLETON_INSTANCE.getAllSubmenuLabels().get(selected) != null) {
             itemClick(selected);
         }
         else {
