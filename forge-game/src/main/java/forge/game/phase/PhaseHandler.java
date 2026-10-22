@@ -420,6 +420,11 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                     }
                     for (final Player actor : getPhaseActors()) {
                         actor.drawCard();
+                        // a player set up to draw more each turn (the enemies of a Hex Campaign New Game Plus)
+                        final int extra = actor.getRegisteredPlayer() == null ? 0 : actor.getRegisteredPlayer().getExtraDrawsPerTurn();
+                        for (int i = 0; i < extra; i++) {
+                            actor.drawCard();
+                        }
                     }
                     break;
 

@@ -24,6 +24,8 @@ public class RegisteredPlayer {
 
     private int startingLife = 20;
     private int startingHand = 7;
+    /** Cards the player draws in each of its draw steps on top of the normal one (Hex Campaign New Game Plus). */
+    private int extraDrawsPerTurn = 0;
     private int manaShards = 0;
     private Iterable<IPaperCard> extraCardsOnBattlefield = null;
     private Iterable<IPaperCard> extraCardsInCommandZone = null;
@@ -103,6 +105,13 @@ public class RegisteredPlayer {
     }
     public void setStartingHand(int startingHand0) {
         this.startingHand = startingHand0;
+    }
+
+    public int getExtraDrawsPerTurn() {
+        return extraDrawsPerTurn;
+    }
+    public void setExtraDrawsPerTurn(int extraDraws0) {
+        this.extraDrawsPerTurn = Math.max(0, extraDraws0);
     }
 
     public Iterable<? extends IPaperCard> getSchemes() {

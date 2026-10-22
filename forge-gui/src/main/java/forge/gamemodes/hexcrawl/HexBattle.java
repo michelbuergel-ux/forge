@@ -73,6 +73,7 @@ public final class HexBattle {
         enemy.setStartingLife(life);
         addEquipment(enemy, enc);
         applyEnemyRelics(campaign, enemy);
+        applyCycle(campaign, enc, enemy, 1);
         players.add(enemy);
         if (enc.headsAlike()) {
             for (int n = 2; n <= campaign.enemyHeads(); n++) {
@@ -81,17 +82,49 @@ public final class HexBattle {
                 rp.setTeamNumber(ENEMY_TEAM);
                 rp.setStartingLife(life);
                 addEquipment(rp, enc);
+                applyCycle(campaign, enc, rp, n);
                 players.add(rp);
             }
             return;
         }
+        int head = 2;
         for (final HexEncounter follower : content.followers(enc, campaign.enemyHeads() - 1)) {
             final RegisteredPlayer rp = new RegisteredPlayer(content.loadEnemyDeck(follower));
             rp.setPlayer(GamePlayerUtil.createAiPlayer(follower.enemyName, avatar++));
             rp.setTeamNumber(ENEMY_TEAM);
             rp.setStartingLife(life);
+            applyCycle(campaign, enc, rp, head++);
             players.add(rp);
         }
+    }
+
+    /**
+     * New Game Plus: what every enemy head gets in this cycle (the extra life is in the shared
+     * life total already). The cards in play are the same each time the fight is set up.
+     */
+    private static void applyCycle(final HexCampaign campaign, final HexEncounter enc, final RegisteredPlayer rp, final int head) {
+        final HexContent content = HexContent.get();
+        final int hand = campaign.advantage(HexAdvantage.HAND);
+        if (hand > 0) {
+            rp.setStartingHand(rp.getStartingHand() + hand);
+        }
+        final List<forge.item.IPaperCard> inPlay = new ArrayList<>();
+        final forge.item.PaperCard land = content.getCard(enc.color.getBasicLand());
+        for (int i = 0; land != null && i < campaign.advantage(HexAdvantage.LANDS); i++) {
+            inPlay.add(land);
+        }
+        final java.util.Random rnd = new java.util.Random(enc.enemyName.hashCode() * 31L + enc.q * 131L + enc.r * 17L
+                + campaign.cycle * 7919L + head * 104729L);
+        for (int i = 0; i < campaign.advantage(HexAdvantage.BATTLEFIELD); i++) {
+            final forge.item.IPaperCard card = content.advantageCard(enc.color, rnd);
+            if (card != null) {
+                inPlay.add(card);
+            }
+        }
+        if (!inPlay.isEmpty()) {
+            rp.addExtraCardsOnBattlefield(inPlay);
+        }
+        rp.setExtraDrawsPerTurn(campaign.advantage(HexAdvantage.DRAW));
     }
 
     /** The cards and tokens the enemy starts the fight with (its equipment). */

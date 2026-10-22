@@ -158,6 +158,9 @@ public final class HexContent {
             if (rules == null) {
                 continue;
             }
+            if (needsCommander(rules)) {
+                continue; // the campaign has no commanders: such cards would do nothing
+            }
             final CardType type = rules.getType();
             sortIntoShop(card, rules);
             final boolean playable = type.isCreature() || type.isInstant() || type.isSorcery() || type.isEnchantment()
@@ -175,6 +178,20 @@ public final class HexContent {
             }
             cardsByColor.get(color).computeIfAbsent(rarity, k -> new ArrayList<>()).add(card);
         }
+    }
+
+    /**
+     * Cards that only work with a commander: they speak of "commander" (lieutenants, Command Tower,
+     * partners and the like), or they are or choose a Background. The campaign leaves them out of
+     * its shops, starter decks and rewards.
+     */
+    public static boolean needsCommander(final CardRules rules) {
+        if (rules == null) {
+            return false;
+        }
+        final String oracle = rules.getOracleText();
+        return (oracle != null && oracle.toLowerCase(java.util.Locale.ROOT).contains("commander"))
+                || rules.canBeBackground() || rules.hasKeyword("Choose a Background");
     }
 
     /** Puts a card on the shelf of the shop that deals in its kind. */
@@ -586,11 +603,60 @@ public final class HexContent {
         return pool.isEmpty() ? null : pool.get(rnd.nextInt(pool.size())).getName();
     }
 
+    /** The highest mana value of a creature or enchantment the enemies of New Game Plus start with in play. */
+    public static final int ADVANTAGE_MAX_MANA_VALUE = 4;
+
+    /**
+     * A card the enemy starts a fight with in play (New Game Plus): equipment as the enemies of the
+     * Adventure mode wear it, a creature, or an enchantment that is no Aura; colourless or of the enemy's colour.
+     * Creatures and enchantments cost at most ADVANTAGE_MAX_MANA_VALUE. Null if none is found.
+     */
+    public forge.item.IPaperCard advantageCard(final HexColor color, final Random rnd) {
+        final int kind = rnd.nextInt(3);
+        if (kind == 0) {
+            final List<String> equipment = new ArrayList<>();
+            for (final List<String> cards : itemStartCards.values()) {
+                for (final String name : cards) {
+                    final forge.item.IPaperCard card = findStartCard(name);
+                    final byte c = card == null ? 0 : card.getRules().getColor().getColor();
+                    // colourless, or of the enemy's colour; creatures and the like no dearer than the others
+                    if (card != null && !equipment.contains(name) && (c == MagicColor.COLORLESS || colorOf(card.getRules()) == color)
+                            && (card.getRules().getType().isArtifact() || card.getRules().getManaCost().getCMC() <= ADVANTAGE_MAX_MANA_VALUE)) {
+                        equipment.add(name);
+                    }
+                }
+            }
+            Collections.sort(equipment); // a stable order, so seeds are reproducible
+            if (!equipment.isEmpty()) {
+                final forge.item.IPaperCard card = findStartCard(equipment.get(rnd.nextInt(equipment.size())));
+                if (card != null) {
+                    return card;
+                }
+            }
+        }
+        final HexShopType shop = kind == 2 ? HexShopType.ENCHANTMENT : HexShopType.CREATURE;
+        final Map<HexColor, Map<CardRarity, List<PaperCard>>> shelves = cardsByShop.get(shop);
+        final Map<CardRarity, List<PaperCard>> shelf = shelves == null ? null : shelves.get(color);
+        final List<PaperCard> pool = new ArrayList<>();
+        if (shelf != null) {
+            for (final List<PaperCard> cards : shelf.values()) {
+                for (final PaperCard card : cards) {
+                    final CardRules rules = card.getRules();
+                    if (!rules.getType().hasSubtype("Aura") && rules.getManaCost().getCMC() <= ADVANTAGE_MAX_MANA_VALUE) {
+                        pool.add(card);
+                    }
+                }
+            }
+        }
+        pool.sort((a, b) -> a.getName().compareTo(b.getName()));
+        return pool.isEmpty() ? null : pool.get(rnd.nextInt(pool.size()));
+    }
+
     /** A random card from the enemy's deck that is not a basic land, or null. */
     public String randomAnteCard(final HexEncounter enc, final Random rnd) {
         final List<String> names = new ArrayList<>();
         for (final Map.Entry<PaperCard, Integer> entry : loadEnemyDeck(enc).getMain()) {
-            if (!entry.getKey().getRules().getType().isBasicLand()) {
+            if (!entry.getKey().getRules().getType().isBasicLand() && !needsCommander(entry.getKey().getRules())) {
                 for (int i = 0; i < entry.getValue(); i++) {
                     names.add(entry.getKey().getName());
                 }

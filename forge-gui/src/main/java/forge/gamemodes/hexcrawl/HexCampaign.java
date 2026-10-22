@@ -48,6 +48,12 @@ public class HexCampaign {
     public static final int EVENT_CHANCE = 12;
     /** What every head pays to travel to another town it has been to. */
     public static final int FAST_TRAVEL_GOLD = 10;
+    /** New Game Plus: the enemies' extra life per cycle after the first. */
+    public static final int LIFE_PER_CYCLE = 10;
+    /** New Game Plus: the advantages every new cycle rolls for the enemies. */
+    public static final int ADVANTAGES_PER_CYCLE = 2;
+    /** New Game Plus: more gold per cycle after the first, in percent. */
+    public static final int GOLD_PERCENT_PER_CYCLE = 25;
 
     public enum MoveResult { NOTHING, TOWN, ENCOUNTER, NOT_ADJACENT, LOCKED, BUSY }
 
@@ -68,6 +74,12 @@ public class HexCampaign {
     public int teamLife = 20;
     /** Multiplies the starting gold and all gold rewards (fights and bounties); 1 = normal. */
     public int goldMultiplier = 1;
+    /** New Game Plus: the run of the campaign, 1 for the first; every new one makes the enemies stronger. */
+    public int cycle = 1;
+    /** New Game Plus: the steps of every advantage the enemies have (HexAdvantage names). */
+    public Map<String, Integer> enemyAdvantages = new HashMap<>();
+    /** New Game Plus: what the start of the current cycle added (HexAdvantage names), for the screen. */
+    public List<String> newAdvantages = new ArrayList<>();
 
     // what events grant for the next fight (cleared when it is over)
     /** Extra life of the party. */
@@ -126,23 +138,8 @@ public class HexCampaign {
         c.name = name;
         c.goldMultiplier = Math.max(1, goldMultiplier);
         c.seed = seed;
-        c.map = HexMap.generate(seed, radius);
-        c.partyQ = c.prevQ = c.map.startQ;
-        c.partyR = c.prevR = c.map.startR;
+        c.newMap(seed, radius);
         final HexContent content = HexContent.get();
-        final Set<String> townNames = new java.util.HashSet<>();
-        for (final HexTile t : c.map.tiles.values()) {
-            if (t.poi == HexPoi.BOSS) {
-                t.name = content.getBossName(t.color);
-            } else if (t.poi == HexPoi.TOWN) {
-                String townName = townName(t, c.random());
-                for (int i = 0; i < 50 && !townNames.add(townName); i++) {
-                    townName = townName(t, c.random()); // every town its own name
-                }
-                t.name = townName;
-                t.theme = c.rollTheme(t, null).id; // every town is known for something
-            }
-        }
         for (final HexPlayer p : players) {
             p.gold = c.gold(START_GOLD);
             p.deck = content.starterDeck(c.random());
@@ -152,6 +149,117 @@ public class HexCampaign {
         c.scout();
         c.log(msg("lblHexJournalStart", c.tile().name));
         return c;
+    }
+
+    /** A new map with the party at its start: towns get names and themes, the strongholds their archmages. */
+    private void newMap(final long mapSeed, final int radius) {
+        map = HexMap.generate(mapSeed, radius);
+        partyQ = prevQ = map.startQ;
+        partyR = prevR = map.startR;
+        final HexContent content = HexContent.get();
+        final Set<String> townNames = new java.util.HashSet<>();
+        for (final HexTile t : map.tiles.values()) {
+            if (t.poi == HexPoi.BOSS) {
+                t.name = content.getBossName(t.color);
+            } else if (t.poi == HexPoi.TOWN) {
+                String townName = townName(t, random());
+                for (int i = 0; i < 50 && !townNames.add(townName); i++) {
+                    townName = townName(t, random()); // every town its own name
+                }
+                t.name = townName;
+                t.theme = rollTheme(t, null).id; // every town is known for something
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ New Game Plus
+
+    /** The steps of an advantage the enemies have in this cycle. */
+    public int advantage(final HexAdvantage a) {
+        final Integer n = enemyAdvantages.get(a.name());
+        return n == null ? 0 : Math.max(0, Math.min(a.getCap(), n));
+    }
+
+    /** The extra life the enemies have in this cycle. */
+    public int cycleLife() {
+        return LIFE_PER_CYCLE * Math.max(0, cycle - 1);
+    }
+
+    /** What the enemies of this cycle have, one line each; empty in the first run. */
+    public List<String> cycleAdvantages() {
+        final List<String> result = new ArrayList<>();
+        if (cycle <= 1) {
+            return result;
+        }
+        result.add(msg("lblHexAdvLife", String.valueOf(cycleLife())));
+        for (final HexAdvantage a : HexAdvantage.values()) {
+            if (advantage(a) > 0) {
+                result.add(msg(a.getLabelKey(), String.valueOf(advantage(a))));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * After the victory: the party starts again on a new map, with its decks, sideboards, gold,
+     * relics and perks. The archmages and the last enemy are back, and all enemies are stronger:
+     * more life, and two more advantages (rolled among those not at their cap).
+     */
+    public boolean startNewGamePlus() {
+        if (!won) {
+            return false;
+        }
+        cycle++;
+        final Random rnd = random();
+        newAdvantages.clear();
+        for (int i = 0; i < ADVANTAGES_PER_CYCLE; i++) {
+            final List<HexAdvantage> open = new ArrayList<>();
+            for (final HexAdvantage a : HexAdvantage.values()) {
+                if (cycle >= a.getFromCycle() && advantage(a) < a.getCap() && !newAdvantages.contains(a.name())) {
+                    open.add(a);
+                }
+            }
+            if (open.isEmpty()) {
+                break; // everything at its cap: from now on only the life grows
+            }
+            final HexAdvantage a = open.get(rnd.nextInt(open.size()));
+            enemyAdvantages.put(a.name(), advantage(a) + 1);
+            newAdvantages.add(a.name());
+        }
+
+        won = false;
+        defeatedBosses.clear();
+        pendingEncounter = null;
+        pendingRewards.clear();
+        shops.clear();
+        stockedAt.clear();
+        randomThemes.clear();
+        randomThemeAt.clear();
+        themeStockedAt.clear();
+        questOffers.clear();
+        quests.clear();
+        boostLife = 0;
+        boostHand = 0;
+        boostLand = false;
+        boostEnemyLife = 0;
+        boostDoubleGold = false;
+        lastEvent = null;
+        deckChecked.clear();
+        for (final HexPlayer p : players) {
+            p.themes = new String[PICKED_THEMES]; // the towns of the new map have other colours
+        }
+        newMap(seed * 31L + cycle * 7919L, map.radius);
+        tile().explored = true;
+        scout();
+        final List<String> added = new ArrayList<>();
+        for (final String name : newAdvantages) {
+            final HexAdvantage a = HexAdvantage.valueOf(name);
+            added.add(msg(a.getLabelKey(), String.valueOf(advantage(a))));
+        }
+        log(msg("lblHexJournalNewGamePlus", String.valueOf(cycle - 1), String.valueOf(cycleLife()),
+                added.isEmpty() ? "–" : String.join(", ", added)));
+        log(msg("lblHexJournalStart", tile().name));
+        return true;
     }
 
     private static final String[] TOWN_A = { "Alt", "Neu", "Hoch", "Nieder", "Grau", "Stein", "Wind", "Nebel", "Dorn", "Eichen", "Raben", "Silber" };
@@ -837,7 +945,7 @@ public class HexCampaign {
 
     /** A gold reward (starting gold, a fight's reward, a bounty) with the campaign's gold multiplier. */
     public int gold(final int base) {
-        return base * Math.max(1, goldMultiplier);
+        return base * Math.max(1, goldMultiplier) * (100 + GOLD_PERCENT_PER_CYCLE * Math.max(0, cycle - 1)) / 100;
     }
 
     // ------------------------------------------------------------------ shop themes
@@ -1117,7 +1225,7 @@ public class HexCampaign {
      * follower, and what the relics of the party do to it.
      */
     public int enemyLife(final HexEncounter enc) {
-        int life = enc.life + ENEMY_EXTRA_LIFE[Math.max(1, Math.min(ENEMY_EXTRA_LIFE.length, players.size())) - 1] + boostEnemyLife;
+        int life = enc.life + ENEMY_EXTRA_LIFE[Math.max(1, Math.min(ENEMY_EXTRA_LIFE.length, players.size())) - 1] + boostEnemyLife + cycleLife();
         for (final HexPlayer p : players) {
             for (final String name : p.relics) {
                 final HexRelic relic = HexContent.get().getRelic(name);

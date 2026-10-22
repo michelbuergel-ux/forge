@@ -68,6 +68,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     private final FTextArea txtParty = new FTextArea();
     private final FTextArea txtJournal = new FTextArea();
     private final FButton btnFight = new FButton();
+    private final FButton btnNewGamePlus = new FButton();
     private final FButton btnRewards = new FButton();
     private final FButton btnPerk = new FButton();
     private final FButton btnShop = new FButton();
@@ -120,6 +121,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         side.add(lblConnection, "h 20!");
         side.add(txtParty);
         side.add(btnFight, "h 34!");
+        side.add(btnNewGamePlus, "h 34!, hidemode 3");
         side.add(btnRewards, "h 34!");
         side.add(btnPerk, "h 34!");
         side.add(btnShop, "h 30!");
@@ -137,6 +139,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
         mapPanel.setOnTileClicked(this::onTileClicked);
         btnFight.addActionListener(e -> { if (session != null) { session.readyToFight(); } });
+        btnNewGamePlus.addActionListener(e -> newGamePlus());
         btnRewards.addActionListener(e -> promptReward());
         btnPerk.addActionListener(e -> promptPerk());
         btnShop.addActionListener(e -> openShop());
@@ -367,6 +370,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnLeave.setVisible(HexNet.isGuest());
         showConnection(guest);
         btnDecks.setVisible(has);
+        btnNewGamePlus.setVisible(has && !guest && getCampaign().won);
+        if (has) {
+            btnNewGamePlus.setText(t("lblHexNewGamePlus", String.valueOf(getCampaign().cycle)));
+        }
         if (!has) {
             btnFight.setVisible(false);
             btnRewards.setVisible(false);
@@ -406,7 +413,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnPerk.setVisible(mine != null && !mine.perkOffer.isEmpty() && campaign.pendingReward(me) == null);
         btnShop.setVisible(campaign.inTown());
 
-        lblTitle.setText(campaign.name);
+        lblTitle.setText(campaign.cycle > 1 ? campaign.name + "  –  " + t("lblHexCycle", String.valueOf(campaign.cycle - 1)) : campaign.name);
         final HexTile here = campaign.tile();
         String place = t(here.color.getLabelKey());
         if (here.poi == HexPoi.TOWN) {
@@ -466,6 +473,13 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         for (final HexQuest quest : campaign.quests) {
             party.append('\n').append(t("lblHexQuestLine", quest.enemyName, String.valueOf(campaign.gold(quest.gold))));
         }
+        final List<String> cycleAdvantages = campaign.cycleAdvantages();
+        if (!cycleAdvantages.isEmpty()) {
+            party.append("\n\n").append(t("lblHexCycleTitle", String.valueOf(campaign.cycle - 1)));
+            for (final String a : cycleAdvantages) {
+                party.append("\n  • ").append(a);
+            }
+        }
         final List<String> boosts = campaign.fightBoosts();
         if (!boosts.isEmpty()) {
             party.append("\n\n").append(t("lblHexBoostsTitle"));
@@ -475,6 +489,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         if (campaign.won) {
             party.append("\n\n").append(t("lblHexJournalVictory"));
+            party.append("\n").append(t(guest ? "lblHexNewGamePlusWait" : "lblHexNewGamePlusHint"));
         } else if (campaign.pendingEncounter != null) {
             party.append("\n\n").append(describe(campaign.pendingEncounter));
         } else if (humans > 1 && !campaign.isBusy()) {
@@ -683,6 +698,18 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         refresh();
     }
 
+    /** After the victory: the host starts the next cycle, with stronger enemies on a new map. */
+    private void newGamePlus() {
+        final HexCampaign campaign = getCampaign();
+        if (session == null || campaign == null || !campaign.won) {
+            return;
+        }
+        if (FOptionPane.showConfirmDialog(t("lblHexNewGamePlusConfirm", String.valueOf(campaign.cycle),
+                String.valueOf(HexCampaign.LIFE_PER_CYCLE), String.valueOf(HexCampaign.ADVANTAGES_PER_CYCLE)), campaign.name)) {
+            session.newGamePlus();
+        }
+    }
+
     public void openShop() {
         if (session == null || getCampaign() == null || !getCampaign().inTown()) {
             return;
@@ -701,6 +728,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         if (!enc.startCards.isEmpty()) {
             sb.append(' ').append(loc.getMessage("lblHexEnemyStarts", HexContent.get().startCardNames(enc)));
+        }
+        final List<String> cycleAdvantages = campaign.cycleAdvantages();
+        if (!cycleAdvantages.isEmpty()) {
+            sb.append(' ').append(loc.getMessage("lblHexEnemyCycle", String.valueOf(campaign.cycle - 1), String.join(", ", cycleAdvantages)));
         }
         return sb.toString();
     }

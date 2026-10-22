@@ -163,6 +163,11 @@ public class HexSession {
         buy(head, null, -1, card);
     }
 
+    /** After the victory the host starts the next New Game Plus cycle. */
+    public void newGamePlus() {
+        act(new HexActionEvent(HexActionEvent.NEW_GAME_PLUS, 0, 0, null, false, null));
+    }
+
     /** A head pays for a whole new stock of the town (every theme tab and the relics). */
     public void restock(final String head) {
         act(new HexActionEvent(HexActionEvent.RESTOCK, 0, 0, null, false, head));
@@ -254,6 +259,12 @@ public class HexSession {
                         action.getR(), action.getText());
             } else if (HexActionEvent.RESTOCK.equals(type)) {
                 campaign.restock(head);
+            } else if (HexActionEvent.NEW_GAME_PLUS.equals(type)) {
+                if (actor.equals(hostHead) && !fightRunning) {
+                    campaign.startNewGamePlus();
+                    votes.clear();
+                    fightReady.clear();
+                }
             } else if (HexActionEvent.THEME.equals(type)) {
                 if (!fightRunning) {
                     campaign.pickTheme(head, action.getQ(), action.getText());
