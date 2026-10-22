@@ -288,6 +288,8 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
 
     public void startServer(final int port) {
         this.port = port;
+        clearConnectionState(); // nobody can reconnect into a game of an earlier server
+
         String UPnPOption = FModel.getNetPreferences().getPref(ForgeNetPreferences.FNetPref.UPnP);
         boolean startUPnP;
         upnpResult = null;
@@ -374,12 +376,9 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
     public void stopServer() {
         stopServer(true);
     }
-    private synchronized void stopServer(final boolean removeShutdownHook) {
-        // The shutdown hook and the channel-close thread both stop the server; only the first does the work
-        if (!HostingServer.isHosting()) {
-            return;
-        }
-        // Cancel all reconnect timers
+
+    /** Forgets all connections, players waiting to reconnect, their timers and AI stand-ins. */
+    private void clearConnectionState() {
         for (final Timer timer : reconnectTimers.values()) {
             timer.cancel();
         }
@@ -388,6 +387,13 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
         standIns.clear();
         clients.clear();
         afkSlots.clear();
+    }
+    private synchronized void stopServer(final boolean removeShutdownHook) {
+        // The shutdown hook and the channel-close thread both stop the server; only the first does the work
+        if (!HostingServer.isHosting()) {
+            return;
+        }
+        clearConnectionState();
 
         try {
             if (bossGroup != null) {
@@ -397,6 +403,10 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+        // Once more now that the event loops are gone: a disconnect handled while the server was
+        // going down may have put its player back into disconnectedClients after the first clear,
+        // and the next server would then "reconnect" that player into this finished game.
+        clearConnectionState();
         if (upnpService != null) {
             try {
                 upnpService.shutdown();
