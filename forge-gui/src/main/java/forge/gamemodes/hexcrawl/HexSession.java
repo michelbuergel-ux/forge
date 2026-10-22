@@ -40,7 +40,12 @@ public class HexSession {
         public String hostHead;
         /** The build of the host (see {@link HexNet#BUILD_ID}). */
         public String buildId;
+        /** Seconds until the open vote ends (-1: no vote open). */
+        public int voteSecondsLeft = -1;
     }
+
+    /** A vote on where to go ends this long after its first vote; then the field with the most votes wins. */
+    public static final int VOTE_SECONDS = 15;
 
     private static final Gson GSON = new Gson();
 
@@ -52,6 +57,8 @@ public class HexSession {
     private final Set<String> fightReady = new LinkedHashSet<>();
     private final Set<String> present = new LinkedHashSet<>();
     private boolean fightRunning;
+    /** When the open vote ends (this computer's clock, ms), 0 if no vote is open. */
+    private long voteDeadline;
     private String hostBuild;
     private Listener listener;
 
@@ -90,6 +97,19 @@ public class HexSession {
     public synchronized Set<String> getFightReady() { return new LinkedHashSet<>(fightReady); }
     public synchronized Set<String> getPresent() { return new LinkedHashSet<>(present); }
     public boolean isFightRunning() { return fightRunning; }
+
+    /** Seconds until the open vote ends, or -1 if no vote is open. */
+    public synchronized int voteSecondsLeft(final long now) {
+        if (voteDeadline <= 0 || votes.isEmpty()) {
+            return -1;
+        }
+        return (int) Math.max(0, (voteDeadline - now + 999) / 1000);
+    }
+
+    private void clearVotes() {
+        votes.clear();
+        voteDeadline = 0;
+    }
     /** Guest: does the host run the same build as this program? */
     public boolean sameBuildAsHost() { return !guest || HexNet.BUILD_ID.equals(hostBuild); }
 
@@ -238,8 +258,19 @@ public class HexSession {
             final String type = action.getType();
             if (HexActionEvent.VOTE.equals(type)) {
                 final HexTile target = campaign.map.get(action.getQ(), action.getR());
-                if (!fightRunning && (campaign.canEnter(target) || campaign.canFastTravel(target))) {
-                    votes.put(actor, target.key());
+                if (!fightRunning && (campaign.canEnter(target) || campaign.canFastTravel(target) || campaign.canRoute(target))) {
+                    if (votes.isEmpty()) {
+                        voteDeadline = System.currentTimeMillis() + VOTE_SECONDS * 1000L; // the clock starts with the first vote
+                    }
+                    final String before = votes.put(actor, target.key());
+                    if (campaign.canFastTravel(target) && !target.key().equals(before)) {
+                        campaign.noteTravelVote(actor, target);
+                    }
+                }
+            } else if (HexActionEvent.LEADER.equals(type)) {
+                if (actor.equals(hostHead)) {
+                    final String leader = action.getText();
+                    campaign.leader = leader == null || campaign.player(leader) == null ? null : leader;
                 }
             } else if (HexActionEvent.FIGHT.equals(type)) {
                 if (campaign.pendingEncounter != null && !fightRunning) {
@@ -278,7 +309,7 @@ public class HexSession {
             } else if (HexActionEvent.NEW_GAME_PLUS.equals(type)) {
                 if (actor.equals(hostHead) && !fightRunning) {
                     campaign.startNewGamePlus();
-                    votes.clear();
+                    clearVotes();
                     fightReady.clear();
                 }
             } else if (HexActionEvent.THEME.equals(type)) {
@@ -339,8 +370,37 @@ public class HexSession {
             }
         }
 
-        // travelling: once everybody has voted, the field with the most votes wins
-        if (!voters.isEmpty() && votes.keySet().containsAll(voters) && !campaign.isBusy() && !fightRunning) {
+        // travelling: once everybody has voted (or the leader has), the field with the most votes wins
+        final boolean leaderVoted = campaign.leader != null && voters.contains(campaign.leader) && votes.containsKey(campaign.leader);
+        if (!voters.isEmpty() && (leaderVoted || votes.keySet().containsAll(voters)) && !campaign.isBusy() && !fightRunning) {
+            resolveVotes();
+        } else if (campaign.isBusy()) {
+            clearVotes();
+        }
+        return fightDue(voters);
+    }
+
+    /**
+     * A fight starts at once when the party steps onto an enemy (fleeing is possible in it). Only
+     * when a hunter caught the party does every human head first say it is ready, so that it can
+     * look at its deck.
+     */
+    private boolean fightDue(final List<String> voters) {
+        final HexEncounter enc = campaign.pendingEncounter;
+        if (enc == null || fightRunning) {
+            return false;
+        }
+        if (enc.ambush && (voters.isEmpty() || !fightReady.containsAll(voters))) {
+            return false;
+        }
+        fightRunning = true;
+        return true;
+    }
+
+    /** The vote ends: the leader's choice, or the field with the most votes (a tie is decided by lot). */
+    private void resolveVotes() {
+        String winner = campaign.leader == null ? null : votes.get(campaign.leader);
+        if (winner == null) {
             final Map<String, Integer> count = new LinkedHashMap<>();
             for (final String key : votes.values()) {
                 count.merge(key, 1, Integer::sum);
@@ -355,27 +415,59 @@ public class HexSession {
                     top.add(e.getKey());
                 }
             }
-            final Random rnd = campaign.random();
-            final String winner = top.get(top.size() == 1 ? 0 : rnd.nextInt(top.size())); // a tie is decided by lot
-            votes.clear();
-            fightReady.clear();
-            final String[] qr = winner.split(",");
-            final int q = Integer.parseInt(qr[0]);
-            final int r = Integer.parseInt(qr[1]);
-            if (!campaign.isAdjacent(campaign.map.get(q, r)) && campaign.canFastTravel(campaign.map.get(q, r))) {
-                campaign.fastTravel(q, r); // a town the party has been to, further away
-            } else {
-                campaign.moveTo(q, r);
+            if (top.isEmpty()) {
+                clearVotes();
+                return;
             }
-        } else if (campaign.isBusy()) {
-            votes.clear();
+            final Random rnd = campaign.random();
+            winner = top.get(top.size() == 1 ? 0 : rnd.nextInt(top.size()));
         }
+        clearVotes();
+        fightReady.clear();
+        final String[] qr = winner.split(",");
+        final HexTile target = campaign.map.get(Integer.parseInt(qr[0]), Integer.parseInt(qr[1]));
+        if (target == null) {
+            return;
+        }
+        if (!campaign.isAdjacent(target) && campaign.canFastTravel(target)) {
+            campaign.fastTravel(target.q, target.r); // a town the party has been to, further away
+        } else if (campaign.isAdjacent(target)) {
+            campaign.moveTo(target.q, target.r);
+        } else {
+            campaign.march(target); // a far field: step by step, stopping at whatever is on the way
+        }
+    }
 
-        if (campaign.pendingEncounter != null && !fightRunning && !voters.isEmpty() && fightReady.containsAll(voters)) {
-            fightRunning = true;
-            return true;
+    /**
+     * Host: the clock of the open vote (called every second or so). When it has run out, the votes
+     * cast so far decide. Returns true if something changed.
+     */
+    public boolean tick(final long now) {
+        if (guest || campaign == null) {
+            return false;
         }
-        return false;
+        boolean start = false;
+        synchronized (this) {
+            if (voteDeadline <= 0 || now < voteDeadline || votes.isEmpty() || fightRunning) {
+                return false;
+            }
+            if (campaign.isBusy()) {
+                clearVotes();
+            } else {
+                resolveVotes();
+                start = fightDue(voters());
+            }
+        }
+        changed();
+        if (start && listener != null) {
+            listener.startFight();
+        }
+        return true;
+    }
+
+    /** The host chooses the head whose vote decides where the party goes (null: everybody votes). */
+    public void setLeader(final String head) {
+        act(new HexActionEvent(HexActionEvent.LEADER, 0, 0, head, false, null));
     }
 
     /** Host: the fight is over. */
@@ -385,7 +477,7 @@ public class HexSession {
             campaign.resolveBattle(result);
             fightRunning = false;
             fightReady.clear();
-            votes.clear();
+            clearVotes();
             settle();
         }
         changed();
@@ -454,6 +546,7 @@ public class HexSession {
         s.fightRunning = fightRunning;
         s.hostHead = hostHead;
         s.buildId = HexNet.BUILD_ID;
+        s.voteSecondsLeft = voteSecondsLeft(System.currentTimeMillis());
         return GSON.toJson(s);
     }
 
@@ -477,6 +570,8 @@ public class HexSession {
             present.addAll(s.present);
             fightRunning = s.fightRunning;
             hostBuild = s.buildId;
+            // the host's clock, counted down on this computer from now on
+            voteDeadline = s.voteSecondsLeft < 0 ? 0 : System.currentTimeMillis() + s.voteSecondsLeft * 1000L;
         }
         changed();
     }

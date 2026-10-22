@@ -28,6 +28,8 @@ public final class HexActionEvent implements NetEvent {
     public static final String NEW_GAME_PLUS = "NEW_GAME_PLUS";
     /** A head's answer to a shrine or caravan: q 1 = leave it; else text = the card given, flag = from the sideboard. */
     public static final String EVENT_CHOICE = "EVENT_CHOICE";
+    /** The host names the head whose vote decides where to go (text; null = everybody votes). */
+    public static final String LEADER = "LEADER";
 
     private final String type;
     private final int q;

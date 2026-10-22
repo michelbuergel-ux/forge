@@ -19,6 +19,8 @@ public class HexEncounter {
     public java.util.List<String> startCards = new java.util.ArrayList<>();
     /** Hunts the party: steps one field toward it after each of its steps (shown with a red ring). */
     public boolean roaming;
+    /** A roaming enemy caught the party: the heads may look at their decks before the fight. */
+    public boolean ambush;
     /** A boss's own words before the fight and after beating the party (Adventure data), or null. */
     public String intro;
     public String insult;

@@ -79,6 +79,8 @@ public class HexCampaign {
     public int battlesLost;
     /** Fights the party fled from in the first turns. */
     public int battlesFled;
+    /** The head whose vote decides where the party goes (the others' votes are suggestions), or null. */
+    public String leader;
     /** What every head did in the last fight (shown once on every screen), or null. */
     public HexFightSummary lastFight;
     public int steps;
@@ -455,6 +457,7 @@ public class HexCampaign {
             to.scouted = true;
             if (to == party) {
                 caught = to.enemy;
+                caught.ambush = true; // no time to choose: but a moment to look at the decks
                 log(msg("lblHexJournalCaught", caught.enemyName));
             }
         }
@@ -472,6 +475,98 @@ public class HexCampaign {
             t.scouted = false;
         }
         scout();
+    }
+
+    // ------------------------------------------------------------------ marching
+
+    /**
+     * The shortest way from the party to a field (the fields to step on, the goal last), or null.
+     * Strongholds that are not cleared and the locked centre are only allowed as the goal.
+     */
+    public List<HexTile> route(final HexTile goal) {
+        if (goal == null || goal == tile()) {
+            return null;
+        }
+        final Map<HexTile, HexTile> from = new HashMap<>();
+        final java.util.ArrayDeque<HexTile> todo = new java.util.ArrayDeque<>();
+        from.put(tile(), tile());
+        todo.add(tile());
+        while (!todo.isEmpty()) {
+            final HexTile t = todo.poll();
+            if (t == goal) {
+                break;
+            }
+            final List<HexTile> next = new ArrayList<>(map.neighbors(t));
+            next.sort((a, b) -> a.key().compareTo(b.key())); // the same way on every computer
+            for (final HexTile n : next) {
+                if (from.containsKey(n)) {
+                    continue;
+                }
+                final boolean blocked = n.poi == HexPoi.BOSS && !n.cleared;
+                if (blocked && n != goal) {
+                    continue;
+                }
+                from.put(n, t);
+                todo.add(n);
+            }
+        }
+        if (!from.containsKey(goal)) {
+            return null;
+        }
+        final List<HexTile> path = new ArrayList<>();
+        for (HexTile t = goal; t != tile(); t = from.get(t)) {
+            path.add(0, t);
+        }
+        return path;
+    }
+
+    /** May the party set out for this far field (one it has seen, not next to it, not a fast-travel town)? */
+    public boolean canRoute(final HexTile goal) {
+        if (goal == null || isBusy() || won || goal == tile() || isAdjacent(goal) || !(goal.explored || goal.scouted)) {
+            return false;
+        }
+        if (canFastTravel(goal)) {
+            return false; // that is fast travel
+        }
+        if (goal.poi == HexPoi.BOSS && goal.color == HexColor.COLORLESS && !allArchmagesDefeated()) {
+            return false;
+        }
+        return route(goal) != null;
+    }
+
+    /**
+     * The party walks toward a far field, one step at a time, and stops on the way at the first
+     * town, enemy, event or hunter that catches it. Returns the result of the last step.
+     */
+    public MoveResult march(final HexTile goal) {
+        final List<HexTile> path = route(goal);
+        if (path == null) {
+            return MoveResult.NOT_ADJACENT;
+        }
+        MoveResult result = MoveResult.NOTHING;
+        int walked = 0;
+        for (final HexTile t : path) {
+            final int events = eventSerial;
+            result = moveTo(t.q, t.r);
+            if (result == MoveResult.BUSY || result == MoveResult.LOCKED || result == MoveResult.NOT_ADJACENT) {
+                break;
+            }
+            walked++;
+            if (result != MoveResult.NOTHING || eventSerial != events || pendingEncounter != null || isBusy()) {
+                break;
+            }
+        }
+        if (walked > 0) {
+            log(msg("lblHexJournalMarch", goal.name != null ? goal.name : msg(goal.color.getLabelKey()), String.valueOf(walked)));
+        }
+        return result;
+    }
+
+    /** The journal notes a vote for fast travel, so everybody sees where somebody wants to go. */
+    public void noteTravelVote(final String head, final HexTile town) {
+        if (town != null && town.name != null) {
+            log(msg("lblHexJournalVoteTravel", head, town.name, String.valueOf(FAST_TRAVEL_GOLD)));
+        }
     }
 
     /** Moves the party one field. */

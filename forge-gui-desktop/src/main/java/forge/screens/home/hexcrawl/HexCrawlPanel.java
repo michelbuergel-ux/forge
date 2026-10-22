@@ -102,6 +102,25 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     private int ticks;
     private final Timer hostTimer = new Timer(1500, e -> hostTick());
     /** Keeps the connection line up to date (a lost connection sends no message). */
+    /** While a vote is open: the countdown on the side panel, once a second. */
+    private final Timer voteTimer = new Timer(1000, e -> {
+        if (isShowing() && session != null && session.voteSecondsLeft(System.currentTimeMillis()) >= 0) {
+            refresh();
+        }
+    });
+    /** The host picks a leader whose vote decides where the party goes. */
+    private final forge.toolbox.FComboBox<String> cboLeader = new forge.toolbox.FComboBox<>();
+    private final List<String> leaderChoices = new ArrayList<>();
+    private boolean fillingLeader;
+
+    /** One colour per head (by seat), on the map's vote marks and in the party panel. */
+    private static final java.awt.Color[] HEAD_COLORS = {
+        new java.awt.Color(0x1E88E5), new java.awt.Color(0xE53935), new java.awt.Color(0x43A047), new java.awt.Color(0xFB8C00) };
+
+    static java.awt.Color headColor(final int seat) {
+        return HEAD_COLORS[Math.max(0, seat) % HEAD_COLORS.length];
+    }
+
     private final Timer connectionTimer = new Timer(2000, e -> {
         if (isShowing() && (HexNet.isGuest() || HostingServer.isHosting())) {
             showConnection(isGuest() || HexNet.isGuest());
@@ -128,6 +147,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         side.add(lblTitle, "h 26!");
         side.add(lblPlace, "h 22!");
         side.add(lblConnection, "h 20!");
+        side.add(cboLeader, "h 26!, hidemode 3");
         side.add(txtParty);
         side.add(btnFight, "h 34!");
         side.add(btnNewGamePlus, "h 34!, hidemode 3");
@@ -150,6 +170,12 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         mapPanel.setOnTileClicked(this::onTileClicked);
         btnFight.addActionListener(e -> { if (session != null) { session.readyToFight(); } });
         btnNewGamePlus.addActionListener(e -> newGamePlus());
+        cboLeader.addActionListener(e -> {
+            final int i = cboLeader.getSelectedIndex();
+            if (!fillingLeader && session != null && i >= 0) {
+                session.setLeader(i == 0 ? null : leaderChoices.get(i));
+            }
+        });
         btnRewards.addActionListener(e -> promptReward());
         btnPerk.addActionListener(e -> promptPerk());
         btnEvent.addActionListener(e -> promptEvent());
@@ -191,6 +217,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         });
         HexNet.setGuestListener(state -> SwingUtilities.invokeLater(() -> onStateFromHost(state)));
         connectionTimer.start();
+        voteTimer.start();
         HexNet.setFightHooks(
                 () -> fightOnScreen || (session != null && session.isGuest() && HexNet.isGuest() && session.getCampaign() != null),
                 () -> SwingUtilities.invokeLater(() -> {
@@ -428,6 +455,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
     /** Host: keeps the list of connected guests up to date and makes room for more of them. */
     private void hostTick() {
+        if (session != null && !session.isGuest()) {
+            session.tick(System.currentTimeMillis()); // a vote whose time is up
+        }
         if (!isHosting()) {
             return;
         }
@@ -530,7 +560,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         } else if (here.poi == HexPoi.BOSS) {
             place += " – " + here.name;
         }
-        lblPlace.setText(place);
+        final boolean myVoteMissing = !votes.isEmpty() && !votes.containsKey(me) && present.contains(me) && humans > 1;
+        lblPlace.setForeground(myVoteMissing ? new java.awt.Color(0xFB8C00) : FSkin.getColor(FSkin.Colors.CLR_TEXT).getColor());
+        lblPlace.setText(myVoteMissing ? t("lblHexYouHaveNotVoted", String.valueOf(Math.max(0, session.voteSecondsLeft(System.currentTimeMillis())))) : place);
+        fillLeader(campaign, humans, guest);
 
         final StringBuilder party = new StringBuilder();
         for (final HexPlayer p : campaign.players) {
@@ -547,7 +580,12 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 party.append(", ").append(t("lblHexRelicCount", String.valueOf(p.relics.size())));
             }
             if (votes.containsKey(p.name)) {
-                party.append("  ✓ ").append(t("lblHexVoted"));
+                party.append("  \u2192 ").append(describeVote(campaign, votes.get(p.name)));
+                if (p.name.equals(campaign.leader)) {
+                    party.append(" (").append(t("lblHexLeaderDecides")).append(')');
+                }
+            } else if (!votes.isEmpty() && !p.ai && present.contains(p.name)) {
+                party.append("  \u2026 ").append(t("lblHexNotVoted"));
             }
             if (campaign.pendingEncounter == null && campaign.pendingReward(p.name) != null) {
                 party.append("  … ").append(t("lblHexChoosing"));
@@ -602,7 +640,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         } else if (campaign.pendingEncounter != null) {
             party.append("\n\n").append(describe(campaign.pendingEncounter));
         } else if (humans > 1 && !campaign.isBusy()) {
-            party.append("\n\n").append(t("lblHexVoteHint", String.valueOf(votes.size()), String.valueOf(humans)));
+            final int secs = session.voteSecondsLeft(System.currentTimeMillis());
+            party.append("\n\n").append(secs >= 0
+                    ? t("lblHexVoteCountdown", String.valueOf(votes.size()), String.valueOf(humans), String.valueOf(secs))
+                    : t("lblHexVoteHint", String.valueOf(votes.size()), String.valueOf(humans)));
         }
         txtParty.setText(party.toString());
 
@@ -656,12 +697,58 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
     // ------------------------------------------------------------------ travelling
 
+    /** What a vote is for, for the party panel: a field next to the party, a far field, or fast travel. */
+    private String describeVote(final HexCampaign campaign, final String key) {
+        final HexTile t = key == null ? null : campaign.map.tiles.get(key);
+        if (t == null) {
+            return "?";
+        }
+        final String where = t.name != null ? (t.poi == HexPoi.TOWN ? t("lblHexTown") + " " + t.name : t.name) : t(t.color.getLabelKey());
+        if (campaign.isAdjacent(t)) {
+            return where;
+        }
+        if (campaign.canFastTravel(t)) {
+            return t("lblHexVoteFastTravel", where, String.valueOf(HexCampaign.FAST_TRAVEL_GOLD));
+        }
+        final List<HexTile> route = campaign.route(t);
+        return t("lblHexVoteMarch", where, String.valueOf(route == null ? 0 : route.size()));
+    }
+
+    /** The host's leader choice; only with more than one person at the table. */
+    private void fillLeader(final HexCampaign campaign, final int humans, final boolean guest) {
+        cboLeader.setVisible(!guest && humans > 1);
+        if (!cboLeader.isVisible()) {
+            return;
+        }
+        final List<String> names = new ArrayList<>();
+        names.add(null);
+        for (final HexPlayer p : campaign.players) {
+            if (!p.ai) {
+                names.add(p.name);
+            }
+        }
+        fillingLeader = true;
+        try {
+            if (!names.equals(leaderChoices)) {
+                leaderChoices.clear();
+                leaderChoices.addAll(names);
+                cboLeader.removeAllItems();
+                for (final String name : names) {
+                    cboLeader.addItem(name == null ? t("lblHexLeaderNobody") : t("lblHexLeaderIs", name));
+                }
+            }
+            cboLeader.setSelectedIndex(Math.max(0, leaderChoices.indexOf(campaign.leader)));
+        } finally {
+            fillingLeader = false;
+        }
+    }
+
     private void onTileClicked(final HexTile target) {
         final HexCampaign campaign = getCampaign();
         if (campaign == null || session.isFightRunning() || target == campaign.tile()) {
             return;
         }
-        if (!campaign.isAdjacent(target) && target.poi == HexPoi.TOWN && target.explored) {
+        if (!campaign.isAdjacent(target) && target.poi == HexPoi.TOWN && target.explored && !campaign.canRoute(target)) {
             if (campaign.canFastTravel(target)) {
                 final boolean go = FOptionPane.showConfirmDialog(
                         t("lblHexFastTravelConfirm", target.name, String.valueOf(HexCampaign.FAST_TRAVEL_GOLD)), t("lblHexFastTravel"));
@@ -676,6 +763,11 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             }
             return;
         }
+        if (!campaign.isAdjacent(target) && campaign.canRoute(target)) {
+            session.vote(target.q, target.r); // a far field: the party marches there step by step
+            refresh();
+            return;
+        }
         if (!campaign.canEnter(target)) {
             if (campaign.isAdjacent(target)) {
                 final String why = campaign.won ? "lblHexJournalVictory" : campaign.isBusy() ? "lblHexBusy" : "lblHexCenterLocked";
@@ -685,13 +777,17 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         final boolean alone = session.getPresent().size() == 1 && !session.isGuest();
         session.vote(target.q, target.r);
-        // playing alone the step happens at once: offer the fight right away
-        if (alone && campaign.pendingEncounter != null && !session.isFightRunning()) {
+        // playing alone the step happens at once, and so does a fight; only a hunter that caught
+        // the party leaves time to look at the deck first
+        if (alone && campaign.pendingEncounter != null && campaign.pendingEncounter.ambush && !session.isFightRunning()) {
             refresh();
-            final int choice = FOptionPane.showOptionDialog(describe(campaign.pendingEncounter), campaign.name,
-                    FOptionPane.INFORMATION_ICON, Arrays.asList(t("lblHexFight"), t("lblHexLater")), 0);
+            final int choice = FOptionPane.showOptionDialog(t("lblHexAmbush", campaign.pendingEncounter.enemyName) + "\n\n"
+                    + describe(campaign.pendingEncounter), campaign.name,
+                    FOptionPane.INFORMATION_ICON, Arrays.asList(t("lblHexFight"), t("lblHexDeckFirst")), 0);
             if (choice == 0) {
                 session.readyToFight();
+            } else {
+                showDeck();
             }
         }
     }

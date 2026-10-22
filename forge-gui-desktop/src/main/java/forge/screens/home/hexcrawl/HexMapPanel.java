@@ -67,6 +67,16 @@ public class HexMapPanel extends JPanel {
     }
 
     /** Who wants to go where: head name to field key. */
+    /** The seat of a head in the party (for its colour). */
+    private int seat(final String head) {
+        for (int i = 0; i < campaign.players.size(); i++) {
+            if (campaign.players.get(i).name.equals(head)) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
     public void setVotes(final java.util.Map<String, String> votes0) {
         votes = votes0;
         repaint();
@@ -343,27 +353,54 @@ public class HexMapPanel extends JPanel {
 
         // votes: a badge with the number of heads that want to go to a field
         if (votes != null && !votes.isEmpty()) {
-            final java.util.Map<String, Integer> count = new java.util.HashMap<>();
-            for (final String key : votes.values()) {
-                count.merge(key, 1, Integer::sum);
+            // one coloured mark per voter (the head's colour and initial); a far target gets a dashed way to it
+            final java.util.Map<String, java.util.List<String>> byField = new java.util.LinkedHashMap<>();
+            for (final java.util.Map.Entry<String, String> v : votes.entrySet()) {
+                byField.computeIfAbsent(v.getValue(), k -> new java.util.ArrayList<>()).add(v.getKey());
             }
-            g.setFont(getFont().deriveFont(Font.BOLD, (float) Math.max(10, size * 0.5)));
-            for (final java.util.Map.Entry<String, Integer> e : count.entrySet()) {
+            g.setFont(getFont().deriveFont(Font.BOLD, (float) Math.max(9, size * 0.34)));
+            for (final java.util.Map.Entry<String, java.util.List<String>> e : byField.entrySet()) {
                 final HexTile t = campaign.map.tiles.get(e.getKey());
                 if (t == null) {
                     continue;
                 }
                 final int cx = (int) Math.round(centerX(t, size));
                 final int cy = (int) Math.round(centerY(t, size));
-                final int br = (int) Math.round(size * 0.38);
-                g.setColor(new Color(255, 255, 255, 235));
-                g.fillOval(cx - br, cy - br, br * 2, br * 2);
-                g.setColor(Color.BLACK);
-                g.setStroke(new BasicStroke(1.5f));
-                g.drawOval(cx - br, cy - br, br * 2, br * 2);
-                final String txt = String.valueOf(e.getValue());
-                final FontMetrics fm = g.getFontMetrics();
-                g.drawString(txt, cx - fm.stringWidth(txt) / 2, cy + fm.getAscent() / 2 - 1);
+                final java.util.List<String> voters = e.getValue();
+                if (!campaign.isAdjacent(t)) {
+                    final java.util.List<HexTile> way = campaign.canFastTravel(t) ? null : campaign.route(t);
+                    g.setColor(HexCrawlPanel.headColor(seat(voters.get(0))));
+                    g.setStroke(new BasicStroke(Math.max(2f, (float) size / 10), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+                            1f, new float[] { (float) size / 3, (float) size / 4 }, 0f));
+                    int px = (int) Math.round(centerX(here, size));
+                    int py = (int) Math.round(centerY(here, size));
+                    if (way == null) {
+                        g.drawLine(px, py, cx, cy);
+                    } else {
+                        for (final HexTile step : way) {
+                            final int sx = (int) Math.round(centerX(step, size));
+                            final int sy = (int) Math.round(centerY(step, size));
+                            g.drawLine(px, py, sx, sy);
+                            px = sx;
+                            py = sy;
+                        }
+                    }
+                }
+                final int br = (int) Math.round(Math.max(6, size * 0.24));
+                final double spread = voters.size() == 1 ? 0 : size * 0.32;
+                for (int i = 0; i < voters.size(); i++) {
+                    final double angle = Math.PI * 2 * i / voters.size() - Math.PI / 2;
+                    final int vx = (int) Math.round(cx + Math.cos(angle) * spread);
+                    final int vy = (int) Math.round(cy + Math.sin(angle) * spread);
+                    g.setColor(HexCrawlPanel.headColor(seat(voters.get(i))));
+                    g.fillOval(vx - br, vy - br, br * 2, br * 2);
+                    g.setColor(Color.WHITE);
+                    g.setStroke(new BasicStroke(1.5f));
+                    g.drawOval(vx - br, vy - br, br * 2, br * 2);
+                    final String txt = voters.get(i).isEmpty() ? "?" : voters.get(i).substring(0, 1).toUpperCase();
+                    final FontMetrics fm = g.getFontMetrics();
+                    g.drawString(txt, vx - fm.stringWidth(txt) / 2, vy + fm.getAscent() / 2 - 1);
+                }
             }
         }
 
