@@ -750,10 +750,13 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                     if (!game.getUndoManager().isOwner(declarer)) {
                         game.getUndoManager().barrier("Opponent declared attackers");
                     }
-                    declarer.getController().declareAttackers(attackingPlayer, combat);
-                    if (game.isGameOver()) {
-                        return;
-                    }
+                }
+                // shared team turns: the heads at their own screens declare at the same time
+                declareTogether(attackingPlayers,
+                        p -> Objects.requireNonNullElse(p.getDeclaresAttackers(), p),
+                        p -> Objects.requireNonNullElse(p.getDeclaresAttackers(), p).getController().declareAttackers(p, combat));
+                if (game.isGameOver()) {
+                    return;
                 }
                 combat.removeAbsentCombatants();
 
@@ -920,91 +923,109 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         game.fireEvent(new GameEventCombatChanged());
     }
 
+    /**
+     * Lets each of the players declare (attackers or blockers). With shared team turns the heads
+     * that sit at screens of their own (the host's and network guests') are asked at the same
+     * time; the others (AI heads, heads sharing one screen) first, one after another. Returns
+     * once all of them are done.
+     */
+    private void declareTogether(final List<Player> players, final java.util.function.Function<Player, Player> declarerOf,
+            final java.util.function.Consumer<Player> declare) {
+        final List<Player> together = Lists.newArrayList();
+        if (isSharedTeamTurns() && players.size() > 1) {
+            final Set<Object> keys = new HashSet<>();
+            for (final Player p : players) {
+                final Player declarer = declarerOf.apply(p);
+                if (declarer.getController().canChooseSpellAbilityConcurrently() && keys.add(declarer.getController().getConcurrentChoiceKey())) {
+                    together.add(p);
+                }
+            }
+            if (together.size() < 2) {
+                together.clear(); // nothing to gain: one by one as usual
+            }
+        }
+        for (final Player p : players) {
+            if (!together.contains(p) && !game.isGameOver()) {
+                declare.accept(p);
+            }
+        }
+        if (together.isEmpty() || game.isGameOver()) {
+            return;
+        }
+        final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(together.size());
+        final Throwable[] error = new Throwable[1];
+        for (final Player p : together) {
+            forge.util.ThreadUtil.invokeInGameThread(() -> {
+                try {
+                    declare.accept(p);
+                } catch (final Throwable t) {
+                    synchronized (error) {
+                        if (error[0] == null) {
+                            error[0] = t;
+                        }
+                    }
+                } finally {
+                    done.countDown();
+                }
+            });
+        }
+        try {
+            done.await();
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+        if (error[0] instanceof RuntimeException re) {
+            throw re;
+        } else if (error[0] instanceof Error e) {
+            throw e;
+        } else if (error[0] != null) {
+            throw new RuntimeException(error[0]);
+        }
+    }
+
     private void declareBlockersTurnBasedAction() {
-        Player p = playerTurn;
-
+        // who is attacked, in turn order
+        final List<Player> defending = Lists.newArrayList();
+        Player next = playerTurn;
         do {
-            p = game.getNextPlayerAfter(p);
-            // Apply Odric's effect here
-            Player whoDeclaresBlockers = Objects.requireNonNullElse(p.getDeclaresBlockers(), p);
-            if (combat.isPlayerAttacked(p)) {
-                if (CombatUtil.canBlock(p, combat)) {
-                    // Replacement effects (for Camouflage)
-                    final Map<AbilityKey, Object> repRunParams = AbilityKey.mapFromAffected(p);
-                    repRunParams.put(AbilityKey.Player, whoDeclaresBlockers);
-                    ReplacementResult repres = game.getReplacementHandler().run(ReplacementType.DeclareBlocker, repRunParams);
-                    if (repres == ReplacementResult.NotReplaced) {
-                        if (!game.getUndoManager().isOwner(whoDeclaresBlockers)) {
-                            game.getUndoManager().barrier("Opponent declared blockers");
-                        }
-                        // If not replaced, run normal declare blockers
-                        whoDeclaresBlockers.getController().declareBlockers(p, combat);
-                    }
+            next = game.getNextPlayerAfter(next);
+            if (next != null && combat.isPlayerAttacked(next)) {
+                defending.add(next);
+            }
+        } while (next != playerTurn && next != null);
+
+        if (isSharedTeamTurns()) {
+            // team mates at their own screens block at the same time; then each one's blocks are checked
+            final List<Player> declaring = Lists.newArrayList();
+            for (final Player p : defending) {
+                if (mayDeclareBlockers(p)) {
+                    declaring.add(p);
+                }
+                if (game.isGameOver()) {
+                    return;
                 }
             }
-            else { continue; }
-
-            if (game.isGameOver()) { // they just like to close window at any moment
-                return;
-            }
-
-            // Handles removing cards like Mogg Flunkies from combat if group block didn't occur
-            for (Card blocker : CardLists.filterControlledBy(combat.getAllBlockers(), p)) {
-                final List<Card> attackers = combat.getAttackersBlockedBy(blocker);
-                for (Card attacker : attackers) {
-                    boolean hasPaid = CombatUtil.payRequiredBlockCosts(game, blocker, attacker);
-
-                    if (!hasPaid) {
-                        combat.removeBlockAssignment(attacker, blocker);
-                    }
+            declareTogether(declaring, d -> Objects.requireNonNullElse(d.getDeclaresBlockers(), d),
+                    d -> Objects.requireNonNullElse(d.getDeclaresBlockers(), d).getController().declareBlockers(d, combat));
+            for (final Player p : defending) {
+                if (game.isGameOver()) { // they just like to close window at any moment
+                    return;
                 }
+                finishBlockers(p);
             }
-
-            // We may need to do multiple iterations removing blockers, since removing one may invalidate
-            // others. The loop below is structured so that if no blockers were removed, no extra passes
-            // are needed.
-            boolean reachedSteadyState;
-            do {
-                reachedSteadyState = true;
-                List<Card> remainingBlockers = CardLists.filterControlledBy(combat.getAllBlockers(), p);
-                for (Card c : remainingBlockers) {
-                    boolean removeBlocker = false;
-                    boolean cantBlockAlone = c.hasKeyword("CARDNAME can't attack or block alone.") || c.hasKeyword("CARDNAME can't block alone.");
-                    if (remainingBlockers.size() < 2 && cantBlockAlone) {
-                        removeBlocker = true;
-                    } else if (remainingBlockers.size() < 3 && c.hasKeyword("CARDNAME can't block unless at least two other creatures block.")) {
-                        removeBlocker = true;
-                    } else if (c.hasKeyword("CARDNAME can't block unless a creature with greater power also blocks.")) {
-                        removeBlocker = true;
-                        int power = c.getNetPower();
-                        // Note: This is O(n^2), but there shouldn't generally be many creatures with the above keyword.
-                        for (Card c2 : remainingBlockers) {
-                            if (c2.getNetPower() > power) {
-                                removeBlocker = false;
-                                break;
-                            }
-                        }
-                    }
-                    if (removeBlocker) {
-                        combat.undoBlockingAssignment(c);
-                        reachedSteadyState = false;
-                    }
+        } else {
+            for (final Player p : defending) {
+                if (mayDeclareBlockers(p)) {
+                    // If not replaced, run normal declare blockers
+                    Objects.requireNonNullElse(p.getDeclaresBlockers(), p).getController().declareBlockers(p, combat);
                 }
-            } while (!reachedSteadyState);
-
-            // Player is done declaring blockers - redraw UI at this point
-
-            // map: defender => (many) attacker => (many) blocker
-            Map<GameEntity, Multimap<Card, Card>> blockers = Maps.newHashMap();
-            for (GameEntity ge : combat.getDefendersControlledBy(p)) {
-                Multimap<Card, Card> protectThisDefender = MultimapBuilder.hashKeys().arrayListValues().build();
-                for (Card att : combat.getAttackersOf(ge)) {
-                    protectThisDefender.putAll(att, combat.getBlockers(att).isEmpty() ? List.of(att) : combat.getBlockers(att));
+                if (game.isGameOver()) { // they just like to close window at any moment
+                    return;
                 }
-                blockers.put(ge, protectThisDefender);
+                finishBlockers(p);
             }
-            game.fireEvent(new GameEventBlockersDeclared(p, blockers));
-        } while (p != playerTurn && p != null);
+        }
 
         // CR 509.2
         combat.orderBlockersForDamageAssignment();
@@ -1097,6 +1118,88 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         extraPhases.clear();
         extraTurns.clear();
         turn = 0;
+    }
+
+
+    /** May the player declare blockers (it can block, and no replacement effect such as Camouflage does it)? */
+    private boolean mayDeclareBlockers(final Player p) {
+        // Apply Odric's effect here
+        final Player whoDeclaresBlockers = Objects.requireNonNullElse(p.getDeclaresBlockers(), p);
+        if (!CombatUtil.canBlock(p, combat)) {
+            return false;
+        }
+        // Replacement effects (for Camouflage)
+        final Map<AbilityKey, Object> repRunParams = AbilityKey.mapFromAffected(p);
+        repRunParams.put(AbilityKey.Player, whoDeclaresBlockers);
+        final ReplacementResult repres = game.getReplacementHandler().run(ReplacementType.DeclareBlocker, repRunParams);
+        if (repres != ReplacementResult.NotReplaced) {
+            return false;
+        }
+        if (!game.getUndoManager().isOwner(whoDeclaresBlockers)) {
+            game.getUndoManager().barrier("Opponent declared blockers");
+        }
+        return true;
+    }
+
+    /** After a player declared blockers: block costs, blockers that can't block alone, and the event. */
+    private void finishBlockers(final Player p) {
+
+        // Handles removing cards like Mogg Flunkies from combat if group block didn't occur
+        for (Card blocker : CardLists.filterControlledBy(combat.getAllBlockers(), p)) {
+            final List<Card> attackers = combat.getAttackersBlockedBy(blocker);
+            for (Card attacker : attackers) {
+                boolean hasPaid = CombatUtil.payRequiredBlockCosts(game, blocker, attacker);
+
+                if (!hasPaid) {
+                    combat.removeBlockAssignment(attacker, blocker);
+                }
+            }
+        }
+
+        // We may need to do multiple iterations removing blockers, since removing one may invalidate
+        // others. The loop below is structured so that if no blockers were removed, no extra passes
+        // are needed.
+        boolean reachedSteadyState;
+        do {
+            reachedSteadyState = true;
+            List<Card> remainingBlockers = CardLists.filterControlledBy(combat.getAllBlockers(), p);
+            for (Card c : remainingBlockers) {
+                boolean removeBlocker = false;
+                boolean cantBlockAlone = c.hasKeyword("CARDNAME can't attack or block alone.") || c.hasKeyword("CARDNAME can't block alone.");
+                if (remainingBlockers.size() < 2 && cantBlockAlone) {
+                    removeBlocker = true;
+                } else if (remainingBlockers.size() < 3 && c.hasKeyword("CARDNAME can't block unless at least two other creatures block.")) {
+                    removeBlocker = true;
+                } else if (c.hasKeyword("CARDNAME can't block unless a creature with greater power also blocks.")) {
+                    removeBlocker = true;
+                    int power = c.getNetPower();
+                    // Note: This is O(n^2), but there shouldn't generally be many creatures with the above keyword.
+                    for (Card c2 : remainingBlockers) {
+                        if (c2.getNetPower() > power) {
+                            removeBlocker = false;
+                            break;
+                        }
+                    }
+                }
+                if (removeBlocker) {
+                    combat.undoBlockingAssignment(c);
+                    reachedSteadyState = false;
+                }
+            }
+        } while (!reachedSteadyState);
+
+        // Player is done declaring blockers - redraw UI at this point
+
+        // map: defender => (many) attacker => (many) blocker
+        Map<GameEntity, Multimap<Card, Card>> blockers = Maps.newHashMap();
+        for (GameEntity ge : combat.getDefendersControlledBy(p)) {
+            Multimap<Card, Card> protectThisDefender = MultimapBuilder.hashKeys().arrayListValues().build();
+            for (Card att : combat.getAttackersOf(ge)) {
+                protectThisDefender.putAll(att, combat.getBlockers(att).isEmpty() ? List.of(att) : combat.getBlockers(att));
+            }
+            blockers.put(ge, protectThisDefender);
+        }
+        game.fireEvent(new GameEventBlockersDeclared(p, blockers));
     }
 
     private Player handleNextTurn() {
