@@ -1297,27 +1297,78 @@ public class AiController {
         return saSideEffects(spell.getHostCard(), abilityToCheck);
     }
 
+    /**
+     * Shared team turns: which AI head planned the attack (or the blocks) of its team for a combat.
+     * The first AI head of a team to declare plans for all of them; the others then have nothing to do.
+     */
+    private static final Map<Combat, Player> TEAM_ATTACK_PLANNER = new java.util.WeakHashMap<>();
+    private static final Map<Combat, Player> TEAM_BLOCK_PLANNER = new java.util.WeakHashMap<>();
+
+    /** The AI-controlled heads among the given team mates of p (p first), if the game has shared team turns. */
+    private static List<Player> aiTeamHeads(final Player p, final Iterable<Player> candidates) {
+        final List<Player> result = new ArrayList<>();
+        if (!p.getGame().getRules().hasSharedTeamTurns()) {
+            return result;
+        }
+        result.add(p);
+        for (final Player other : candidates) {
+            if (other != p && other.sameTeam(p) && !other.hasLost() && other.getController().isAI() && !result.contains(other)) {
+                result.add(other);
+            }
+        }
+        return result;
+    }
+
+    /** Has a team mate planned for this head already (then it returns at once)? Marks the plan otherwise. */
+    private static boolean plannedByMate(final Map<Combat, Player> plans, final Combat combat, final Player head, final List<Player> team) {
+        synchronized (plans) {
+            final Player planner = plans.get(combat);
+            if (planner != null && planner != head && team.contains(planner)) {
+                return true;
+            }
+            plans.put(combat, head); // the planner plans again when asked again (an invalid declaration)
+            return false;
+        }
+    }
+
     // declares blockers for given defender in a given combat
     public void declareBlockersFor(Player defender, Combat combat) {
-        AiBlockController block = new AiBlockController(defender, defender != player);
+        final List<Player> team = aiTeamHeads(defender, defender.getTeamMates(true));
+        if (team.size() > 1 && plannedByMate(TEAM_BLOCK_PLANNER, combat, defender, team)) {
+            return; // a team mate blocked for both
+        }
+        AiBlockController block = new AiBlockController(defender, defender != player, team);
         // When player != defender, AI should declare blockers for its benefit.
         block.assignBlockersForCombat(combat);
     }
 
     public void declareAttackers(Player attacker, Combat combat) {
+        final List<Player> team = aiTeamHeads(attacker, game.getPhaseHandler().getActivePlayers());
+        if (team.size() > 1 && plannedByMate(TEAM_ATTACK_PLANNER, combat, attacker, team)) {
+            return; // a team mate attacked for both
+        }
         // 12/2/10(sol) the decision making here has moved to getAttackers()
-        AiAttackController aiAtk = new AiAttackController(attacker);
+        AiAttackController aiAtk = team.size() > 1 ? new AiAttackController(attacker, team) : new AiAttackController(attacker);
         lastAttackAggression = aiAtk.declareAttackers(combat);
 
         aiAtk.reinforceWithBanding(combat);
 
         // Per CR 508.1d, the decision to pay attack costs (e.g. Propaganda)
         // is made at declaration time. Remove attackers the AI can't pay for.
-        removeUnpayableAttackers(combat);
+        removeUnpayableAttackers(combat, team.size() > 1 ? team : java.util.Collections.singletonList(attacker));
 
         // if invalid: just try an attack declaration that we know to be legal
         if (!CombatUtil.validateAttackers(combat)) {
-            combat.clearAttackers();
+            if (team.size() > 1) {
+                // only this plan's attackers: a human team mate may have declared already
+                for (final Card c : combat.getAttackers()) {
+                    if (team.contains(c.getController())) {
+                        combat.removeFromCombat(c);
+                    }
+                }
+            } else {
+                combat.clearAttackers();
+            }
             final Map<Card, GameEntity> legal = combat.getAttackConstraints().getLegalAttackers().getLeft();
             System.err.println("AI Attack declaration invalid, defaulting to: " + legal);
             for (final Map.Entry<Card, GameEntity> mandatoryAttacker : legal.entrySet()) {
@@ -1329,8 +1380,11 @@ public class AiController {
         }
     }
 
-    private void removeUnpayableAttackers(Combat combat) {
+    private void removeUnpayableAttackers(Combat combat, List<Player> heads) {
         for (Card attacker : combat.getAttackers().threadSafeIterable()) {
+            if (!heads.contains(attacker.getController())) {
+                continue; // another head's attackers are its own business
+            }
             Cost attackCost = CombatUtil.getAttackCost(game, attacker, combat.getDefenderByAttacker(attacker));
             if (attackCost == null) {
                 continue;
@@ -1339,7 +1393,7 @@ public class AiController {
             fakeSA.setCardState(attacker.getCurrentState());
             fakeSA.setPayCosts(attackCost);
             fakeSA.setSVar("X", "0");
-            if (!ComputerUtilCost.canPayCost(attackCost, fakeSA, player, true)) {
+            if (!ComputerUtilCost.canPayCost(attackCost, fakeSA, attacker.getController(), true)) {
                 combat.removeFromCombat(attacker);
             }
         }

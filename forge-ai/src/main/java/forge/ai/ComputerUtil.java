@@ -3221,15 +3221,37 @@ public class ComputerUtil {
             return remainingLife;
         }
 
-        // TODO should also consider them as teams (with increased likelihood to be attacked by multiple if ai is biggest threat)
+        // shared team turns: a whole enemy team attacks at once, and ai's team blocks together
+        final boolean teams = ai.getGame().getRules().hasSharedTeamTurns();
+        final List<Player> attackingSides = new ArrayList<>();
+        for (Player opp : opps) {
+            boolean known = false;
+            for (Player side : attackingSides) {
+                known |= teams && side.sameTeam(opp);
+            }
+            if (!known) {
+                attackingSides.add(opp);
+            }
+        }
+        // TODO (without teams) with increased likelihood to be attacked by multiple if ai is biggest threat
         // TODO worth it to sort by creature amount for chance to terminate earlier?
-        for (Player opp: opps) {
+        for (Player opp: attackingSides) {
             Combat combat = new Combat(opp);
             boolean containsAttacker = false;
             boolean thisCombat = ai.getGame().getPhaseHandler().isPlayerTurn(opp) && ai.getGame().getPhaseHandler().getPhase().isBefore(PhaseType.COMBAT_BEGIN);
 
+            final List<Card> enemyCreatures = new ArrayList<>();
+            if (teams) {
+                for (Player member : opp.getTeamMates(true)) {
+                    if (opps.contains(member)) {
+                        enemyCreatures.addAll(member.getCreaturesInPlay());
+                    }
+                }
+            } else {
+                enemyCreatures.addAll(opp.getCreaturesInPlay());
+            }
             // TODO !thisCombat should include cards that will phase in
-            for (Card att : opp.getCreaturesInPlay()) {
+            for (Card att : enemyCreatures) {
                 // TODO should be limited based on how much getAttackCost the opp can pay
                 if ((thisCombat && CombatUtil.canAttack(att, ai)) || (!thisCombat && ComputerUtilCombat.canAttackNextTurn(att, ai))) {
                     // TODO need to copy the card
@@ -3242,7 +3264,7 @@ public class ComputerUtil {
                 continue;
             }
             // TODO if it's next turn ignore mustBlockCards
-            AiBlockController block = new AiBlockController(ai, false);
+            AiBlockController block = teams ? new AiBlockController(ai, false, ai.getTeamMates(true)) : new AiBlockController(ai, false);
             // TODO for performance skip ahead to safer blocking approach (though probably only when not in checkDiff mode as that could lead to inflated prediction)
             block.assignBlockersForCombat(combat, excludedBlockers);
 

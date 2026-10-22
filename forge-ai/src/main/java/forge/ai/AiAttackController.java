@@ -78,6 +78,8 @@ public class AiAttackController {
 
     private int aiAggression = 0; // how aggressive the ai is attack will be depending on circumstances
     private final boolean nextTurn; // include creature that can only attack/block next turn
+    /** Shared team turns: the AI heads this attack is planned for (ai among them), or null for ai alone. */
+    private List<Player> heads;
 
     /**
      * <p>
@@ -96,6 +98,22 @@ public class AiAttackController {
         this.nextTurn = nextTurn;
         refreshCombatants(defendingOpponent);
     } // overloaded constructor to evaluate attackers that should attack next turn
+
+    /**
+     * Shared team turns: one attack for all AI heads of a team, with all their creatures, against
+     * the defending team's blockers and shared life (each head alone could look too weak to attack).
+     */
+    public AiAttackController(final Player ai, final List<Player> teamHeads) {
+        this.ai = ai;
+        this.heads = new ArrayList<>(teamHeads);
+        defendingOpponent = choosePreferredDefenderPlayer(ai, true);
+        myList = new ArrayList<>();
+        for (final Player head : heads) {
+            myList.addAll(head.getCreaturesInPlay());
+        }
+        this.nextTurn = false;
+        refreshCombatants(defendingOpponent);
+    }
 
     public AiAttackController(final Player ai, Card attacker) {
         this.ai = ai;
@@ -652,7 +670,14 @@ public class AiAttackController {
         int myFreeMana = 0;
         if (!attackCosts.isEmpty()) {
             // TODO might want to factor in isManaSourceReserved
-            myFreeMana = ComputerUtilMana.getAvailableManaEstimate(ai, !nextTurn);
+            if (heads == null) {
+                myFreeMana = ComputerUtilMana.getAvailableManaEstimate(ai, !nextTurn);
+            } else {
+                // every head pays the taxes of its own creatures
+                for (final Player head : heads) {
+                    myFreeMana += ComputerUtilMana.getAvailableManaEstimate(head, !nextTurn);
+                }
+            }
             if (Aggregates.sum(attackCosts.values()) <= myFreeMana) {
                 // can afford everything
                 attackCosts.clear();
@@ -1016,7 +1041,8 @@ public class AiAttackController {
         if (ai.getController().isAI()) {
             // Only do this if |ai| is actually an AI - as we could be trying to predict how the human will attack.
             for (Card attacker : this.attackers) {
-                if (AiCardMemory.isRememberedCard(ai, attacker, AiCardMemory.MemorySet.TRICK_ATTACKERS)) {
+                final Player owner = heads == null || !attacker.getController().getController().isAI() ? ai : attacker.getController();
+                if (AiCardMemory.isRememberedCard(owner, attacker, AiCardMemory.MemorySet.TRICK_ATTACKERS)) {
                     combat.addAttacker(attacker, defender);
                     attackersLeft.remove(attacker);
                 }
