@@ -13,6 +13,9 @@ public class HexPlayer {
     public List<String> deck = new ArrayList<>();
     /** Cards the head owns but does not play, one entry per copy. Not touched by losses. */
     public List<String> sideboard = new ArrayList<>();
+    /** An event that waits for this head's choice (HexEvent name), or null; and the colour of its field. */
+    public String eventOffer;
+    public HexColor eventColor;
     /** Names of the relics the head carries, at most one per slot. */
     public List<String> relics = new ArrayList<>();
     /** The two shop themes the head picked (HexTheme ids, null if none yet). */

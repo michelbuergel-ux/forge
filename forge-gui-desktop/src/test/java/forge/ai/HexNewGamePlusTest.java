@@ -70,7 +70,8 @@ public class HexNewGamePlusTest extends AITest {
         AssertJUnit.assertEquals(Arrays.asList("Grizzly Bears"), ann.sideboard);
         AssertJUnit.assertEquals(Arrays.asList("some relic"), ann.relics);
 
-        AssertJUnit.assertEquals("more life", life + HexCampaign.LIFE_PER_CYCLE, c.enemyLife(enc));
+        final forge.gamemodes.hexcrawl.HexBiomeRule rule = forge.gamemodes.hexcrawl.HexBiomeRule.forFight(c, enc); // the region's rule, now on
+        AssertJUnit.assertEquals("more life", life + HexCampaign.LIFE_PER_CYCLE + (rule == null ? 0 : rule.enemyLife), c.enemyLife(enc));
         AssertJUnit.assertEquals("more gold", gold * (100 + HexCampaign.GOLD_PERCENT_PER_CYCLE) / 100, c.gold(100));
         AssertJUnit.assertEquals(HexCampaign.ADVANTAGES_PER_CYCLE, c.newAdvantages.size());
         AssertJUnit.assertFalse("two different ones", c.newAdvantages.get(0).equals(c.newAdvantages.get(1)));

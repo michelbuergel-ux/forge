@@ -142,6 +142,7 @@ public class HexMapPanel extends JPanel {
         }
         final Localizer loc = Localizer.getInstance();
         final StringBuilder sb = new StringBuilder(loc.getMessage(t.color.getLabelKey()));
+        final forge.gamemodes.hexcrawl.HexBiomeRule rule = forge.gamemodes.hexcrawl.HexBiomeRule.forField(campaign, t);
         if (t.poi == HexPoi.TOWN) {
             sb.append(" – ").append(loc.getMessage("lblHexTown")).append(' ').append(t.name);
         } else if (t.poi == HexPoi.BOSS) {
@@ -161,12 +162,18 @@ public class HexMapPanel extends JPanel {
             } else {
                 sb.append(" – ").append(loc.getMessage("lblHexEnemyMarker", enemy.enemyName, life));
             }
+            if (enemy.roaming) {
+                sb.append('\n').append(loc.getMessage("lblHexRoamer"));
+            }
             sb.append(HexCrawlPanel.enemyExtras(campaign, enemy));
             // scouting: what the party knows of the enemy's deck before the fight
             sb.append(HexCrawlPanel.scoutReport(campaign, enemy));
         } else if (forge.gamemodes.hexcrawl.HexEvent.of(t.event) != null) {
             final forge.gamemodes.hexcrawl.HexEvent event = forge.gamemodes.hexcrawl.HexEvent.of(t.event);
             sb.append(" – ").append(event.getLabel()).append('\n').append(event.getDescription());
+        }
+        if (rule != null && t.poi != HexPoi.TOWN) {
+            sb.append('\n').append(loc.getMessage(rule.getLabelKey()));
         }
         if (t.poi == HexPoi.TOWN && t.explored && t != campaign.tile() && !campaign.isAdjacent(t)) {
             sb.append('\n').append(loc.getMessage("lblHexFastTravelHint", String.valueOf(forge.gamemodes.hexcrawl.HexCampaign.FAST_TRAVEL_GOLD)));
@@ -266,6 +273,13 @@ public class HexMapPanel extends JPanel {
             final HexQuest quest = campaign.questAt(t.q, t.r);
             if (t.poi != HexPoi.BOSS) {
                 final BufferedImage sprite = HexSprites.get(enemy.enemyName);
+                if (enemy.roaming) {
+                    // a hunter: a red ring under it
+                    final int ring = (int) Math.round(size * 0.66);
+                    g.setColor(new Color(0xC81E2D));
+                    g.setStroke(new BasicStroke(Math.max(2.5f, (float) size / 8)));
+                    g.drawOval(cx - ring, cy - ring, 2 * ring, 2 * ring);
+                }
                 if (quest != null) {
                     // a wanted enemy stands on a yellow diamond
                     final int s = (int) Math.round(size * 0.62);

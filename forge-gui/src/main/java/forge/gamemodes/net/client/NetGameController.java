@@ -139,6 +139,16 @@ public class NetGameController implements IGameController {
     }
 
     @Override
+    public void sendTeamSignal(final forge.gamemodes.match.TeamSignal signal) {
+        send(ProtocolMethod.sendTeamSignal, signal);
+    }
+
+    @Override
+    public void voteFlee(final boolean flee) {
+        send(ProtocolMethod.voteFlee, flee);
+    }
+
+    @Override
     public void requestResync() {
         send(ProtocolMethod.requestResync);
     }

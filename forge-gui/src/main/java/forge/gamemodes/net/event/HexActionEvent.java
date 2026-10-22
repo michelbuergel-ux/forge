@@ -26,6 +26,8 @@ public final class HexActionEvent implements NetEvent {
     public static final String RESTOCK = "RESTOCK";
     /** After the victory: the host starts the next New Game Plus cycle. */
     public static final String NEW_GAME_PLUS = "NEW_GAME_PLUS";
+    /** A head's answer to a shrine or caravan: q 1 = leave it; else text = the card given, flag = from the sideboard. */
+    public static final String EVENT_CHOICE = "EVENT_CHOICE";
 
     private final String type;
     private final int q;

@@ -76,6 +76,7 @@ public enum ProtocolMethod implements IHasForgeLog {
     /** Server→client push of authoritative yield-state changes. */
     applyYieldUpdate    (Mode.SERVER, Void.TYPE, YieldUpdate.class),
     showPing            (Mode.SERVER, Void.TYPE, PlayerView.class, CardView.class),
+    showTeamSignal      (Mode.SERVER, Void.TYPE, PlayerView.class, forge.gamemodes.match.TeamSignal.class, String.class),
 
     // Client -> Server
     // Note: these should all return void, to avoid awkward situations in
@@ -96,7 +97,9 @@ public enum ProtocolMethod implements IHasForgeLog {
     reorderHand               (Mode.CLIENT, Void.TYPE, CardView.class, Integer.TYPE),
     requestResync             (Mode.CLIENT, Void.TYPE),
     sendYieldUpdate           (Mode.CLIENT, Void.TYPE, YieldUpdate.class),
-    pingCard                  (Mode.CLIENT, Void.TYPE, CardView.class);
+    pingCard                  (Mode.CLIENT, Void.TYPE, CardView.class),
+    sendTeamSignal            (Mode.CLIENT, Void.TYPE, forge.gamemodes.match.TeamSignal.class),
+    voteFlee                  (Mode.CLIENT, Void.TYPE, Boolean.TYPE);
 
     private enum Mode {
         SERVER(IGuiGame.class),

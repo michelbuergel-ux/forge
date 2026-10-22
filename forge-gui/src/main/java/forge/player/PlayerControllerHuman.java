@@ -148,6 +148,25 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
             }
         }
     }
+    @Override
+    public void sendTeamSignal(final forge.gamemodes.match.TeamSignal signal) {
+        if (signal == null || signal == forge.gamemodes.match.TeamSignal.FLEE_VOTE) {
+            return; // the flee vote is announced by the fight itself
+        }
+        // like a ping: to every screen of the team, the own one too (as feedback)
+        final Set<IGuiGame> guis = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (final Player mate : player.getTeamMates(true)) {
+            if (mate.getController() instanceof PlayerControllerHuman pch && pch.getGui() != null && guis.add(pch.getGui())) {
+                pch.getGui().showTeamSignal(player.getView(), signal, null);
+            }
+        }
+    }
+
+    @Override
+    public void voteFlee(final boolean flee) {
+        forge.gamemodes.hexcrawl.HexBattle.voteFlee(player, flee);
+    }
+
     protected final InputProxy inputProxy;
 
     private final Localizer localizer = Localizer.getInstance();

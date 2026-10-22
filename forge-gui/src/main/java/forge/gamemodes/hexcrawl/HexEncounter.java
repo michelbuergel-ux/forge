@@ -17,6 +17,11 @@ public class HexEncounter {
     public int questId;
     /** Cards and tokens the enemy starts the fight with on the battlefield (its equipment). */
     public java.util.List<String> startCards = new java.util.ArrayList<>();
+    /** Hunts the party: steps one field toward it after each of its steps (shown with a red ring). */
+    public boolean roaming;
+    /** A boss's own words before the fight and after beating the party (Adventure data), or null. */
+    public String intro;
+    public String insult;
 
     /**
      * Bosses and the enemies of tasks fight with copies of themselves as their other heads (the

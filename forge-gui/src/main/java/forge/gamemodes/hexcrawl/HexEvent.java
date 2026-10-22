@@ -19,7 +19,11 @@ public enum HexEvent {
     /** A ley line: every head starts the next fight with a basic land in play. */
     LEY_LINE,
     /** A dark altar: the next enemy is stronger, but its gold reward is doubled. */
-    ALTAR;
+    ALTAR,
+    /** A ruined shrine: every head may give up a card for a relic (a choice of each head). */
+    RUINED_SHRINE,
+    /** A merchant caravan: every head may trade a card for two cards of the field's colour (a choice of each head). */
+    CARAVAN;
 
     public static final int SHRINE_LIFE = 5;
     public static final int CHEST_GOLD = 25;
@@ -31,6 +35,11 @@ public enum HexEvent {
 
     public String getDescription() {
         return Localizer.getInstance().getMessage("lblHexEventDesc_" + name());
+    }
+
+    /** Does every head decide for itself (give a card, or leave it)? */
+    public boolean isChoice() {
+        return this == RUINED_SHRINE || this == CARAVAN;
     }
 
     public static HexEvent of(final String name) {

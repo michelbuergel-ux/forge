@@ -42,6 +42,9 @@ public final class HexContent {
         String sprite;
         /** Items of the Adventure mode the enemy is equipped with. */
         List<String> equipment = new ArrayList<>();
+        /** What a boss says before the fight and after winning it (Adventure data), or null. */
+        String bossIntro;
+        String bossInsult;
     }
 
     public static final int CARDS_PER_SHOP = 5;
@@ -57,6 +60,30 @@ public final class HexContent {
         BOSS_NAMES.put(HexColor.GREEN, "Ghalta");
         BOSS_NAMES.put(HexColor.COLORLESS, "Emrakul");
     }
+
+    /** What each archmage brings to its fight in the command zone, as in its Adventure castle. */
+    private static final Map<HexColor, String> BOSS_PRESENCE = new EnumMap<>(HexColor.class);
+    /** What each archmage does once its life is down to half (the campaign's own cards). */
+    private static final Map<HexColor, String> BOSS_PHASE_TWO = new EnumMap<>(HexColor.class);
+    static {
+        BOSS_PRESENCE.put(HexColor.WHITE, "Akroma's Presence");
+        BOSS_PRESENCE.put(HexColor.BLUE, "Lorthos' Presence");
+        BOSS_PRESENCE.put(HexColor.BLACK, "Griselbrand's Presence");
+        BOSS_PRESENCE.put(HexColor.RED, "Lathliss' Presence");
+        BOSS_PRESENCE.put(HexColor.GREEN, "Ghalta's Presence");
+        BOSS_PRESENCE.put(HexColor.COLORLESS, "Emrakul's Awakening");
+        BOSS_PHASE_TWO.put(HexColor.WHITE, "Akroma Awakened");
+        BOSS_PHASE_TWO.put(HexColor.BLUE, "Lorthos Awakened");
+        BOSS_PHASE_TWO.put(HexColor.BLACK, "Griselbrand Awakened");
+        BOSS_PHASE_TWO.put(HexColor.RED, "Lathliss Awakened");
+        BOSS_PHASE_TWO.put(HexColor.GREEN, "Ghalta Awakened");
+        BOSS_PHASE_TWO.put(HexColor.COLORLESS, "Emrakul Unbound");
+    }
+    /** Emrakul in New Game Plus: the presence of the harder Adventure difficulties. */
+    private static final String EMRAKUL_HARD_PRESENCE = "Emrakul's Presence";
+    /** Number of the Adventure mode's general boss intro lines (AdvBossIntro1..n) and insults. */
+    private static final int BOSS_INTRO_LINES = 35;
+    private static final int BOSS_INSULT_LINES = 44;
 
     private static HexContent instance;
 
@@ -78,6 +105,7 @@ public final class HexContent {
     }
 
     private HexContent() {
+        HexCustomCards.loadOnce(); // the bosses' presence and phase cards
         loadEnemies();
         loadCards();
         loadPrices();
@@ -109,6 +137,8 @@ public final class HexContent {
                 e.life = o.has("life") ? o.get("life").getAsInt() : 20;
                 e.colors = o.has("colors") && o.get("colors").isJsonPrimitive() ? o.get("colors").getAsString() : "";
                 e.sprite = o.has("sprite") && o.get("sprite").isJsonPrimitive() ? o.get("sprite").getAsString() : null;
+                e.bossIntro = o.has("bossIntro") && o.get("bossIntro").isJsonPrimitive() ? cleanLine(o.get("bossIntro").getAsString()) : null;
+                e.bossInsult = o.has("bossInsult") && o.get("bossInsult").isJsonPrimitive() ? cleanLine(o.get("bossInsult").getAsString()) : null;
                 if (o.has("equipment") && o.get("equipment").isJsonArray()) {
                     for (final JsonElement item : o.getAsJsonArray("equipment")) {
                         e.equipment.add(item.getAsString());
@@ -358,7 +388,52 @@ public final class HexContent {
         final HexEncounter enc = toEncounter(e, color);
         enc.boss = true;
         enc.gold = color == HexColor.COLORLESS ? 500 : 200;
+        enc.intro = e.bossIntro;
+        enc.insult = e.bossInsult;
         return enc;
+    }
+
+    /** A boss's words before the fight: its own line, or one of the Adventure mode's general ones. */
+    public String bossIntro(final HexEncounter enc, final Random rnd) {
+        if (enc.intro != null && !enc.intro.isEmpty()) {
+            return enc.intro;
+        }
+        return forge.util.Localizer.getInstance().getMessage("AdvBossIntro" + (1 + rnd.nextInt(BOSS_INTRO_LINES)));
+    }
+
+    /** What a boss says after beating the party. */
+    public String bossInsult(final HexEncounter enc, final Random rnd) {
+        if (enc.insult != null && !enc.insult.isEmpty()) {
+            return enc.insult;
+        }
+        return forge.util.Localizer.getInstance().getMessage("AdvBossInsult" + (1 + rnd.nextInt(BOSS_INSULT_LINES)));
+    }
+
+    /**
+     * The cards an archmage (or Emrakul) has in the command zone: its presence from the Adventure
+     * castle and the card that awakens it at half life. Empty for other enemies.
+     */
+    public List<forge.item.IPaperCard> bossCommandCards(final HexEncounter enc, final int cycle) {
+        final List<forge.item.IPaperCard> result = new ArrayList<>();
+        if (!enc.boss || enc.color == null) {
+            return result;
+        }
+        String presence = BOSS_PRESENCE.get(enc.color);
+        if (enc.color == HexColor.COLORLESS && cycle > 1) {
+            presence = EMRAKUL_HARD_PRESENCE;
+        }
+        for (final String name : new String[] { presence, BOSS_PHASE_TWO.get(enc.color) }) {
+            final PaperCard card = name == null ? null : FModel.getMagicDb().getCommonCards().getCard(name);
+            if (card != null) {
+                result.add(card);
+            }
+        }
+        return result;
+    }
+
+    /** Adventure texts sometimes carry markup (italics) that a plain dialog would show as it is. */
+    private static String cleanLine(final String s) {
+        return s.replaceAll("<[^>]*>", "").trim();
     }
 
     /** The names of the cards an enemy starts with, for display. */
@@ -825,6 +900,13 @@ public final class HexContent {
     }
 
     // ------------------------------------------------------------------ relics
+
+    /** All relics, in a stable order. */
+    public List<HexRelic> allRelics() {
+        final List<HexRelic> result = new ArrayList<>(relics.values());
+        result.sort((a, b) -> a.name.compareTo(b.name));
+        return result;
+    }
 
     public HexRelic getRelic(final String name) {
         return relics.get(name);

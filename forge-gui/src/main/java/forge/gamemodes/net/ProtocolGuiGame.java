@@ -466,6 +466,11 @@ public class ProtocolGuiGame extends NetworkGuiGame implements IHasForgeLog {
         send(ProtocolMethod.showPing, from, card);
     }
 
+    @Override
+    public void showTeamSignal(final PlayerView from, final forge.gamemodes.match.TeamSignal signal, final String detail) {
+        send(ProtocolMethod.showTeamSignal, from, signal, detail);
+    }
+
     public void setHighlighted(final Iterable<GameEntityView> entities, final boolean value) {
         super.setHighlighted(entities, value);
         syncAndSend(ProtocolMethod.setHighlighted, entities, value);

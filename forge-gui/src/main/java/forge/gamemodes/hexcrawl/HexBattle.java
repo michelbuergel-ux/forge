@@ -5,7 +5,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import forge.LobbyPlayer;
 import forge.deck.Deck;
@@ -27,6 +26,29 @@ import forge.player.GamePlayerUtil;
 public final class HexBattle {
     public static final int PARTY_TEAM = 0;
     public static final int ENEMY_TEAM = 1;
+
+    /** How a fight ended for the party. */
+    public enum Result { WON, LOST, FLED }
+
+    /** Told (on the game thread) how a fight ended and what every head did in it. */
+    public interface FightEnd {
+        void finished(Result result, HexFightSummary summary);
+    }
+
+    private static Result resultOf(final HexFight fight, final forge.game.Game game) {
+        if (fight.hasFled()) {
+            return Result.FLED;
+        }
+        return partyWon(game) ? Result.WON : Result.LOST;
+    }
+
+    /** A head of the party votes to flee from the fight running on this computer (or to fight on). */
+    public static void voteFlee(final forge.game.player.Player voter, final boolean flee) {
+        final HexFight fight = HexFight.current();
+        if (fight != null) {
+            fight.vote(voter, flee);
+        }
+    }
 
     private HexBattle() { }
 
@@ -72,6 +94,12 @@ public final class HexBattle {
         enemy.setTeamNumber(ENEMY_TEAM);
         enemy.setStartingLife(life);
         addEquipment(enemy, enc);
+        // an archmage brings its presence and the card that awakens it at half life (the lead head only:
+        // the life total is shared, and one awakening is enough)
+        final List<forge.item.IPaperCard> bossCards = content.bossCommandCards(enc, campaign.cycle);
+        if (!bossCards.isEmpty()) {
+            enemy.addExtraCardsInCommandZone(bossCards);
+        }
         applyEnemyRelics(campaign, enemy);
         applyCycle(campaign, enc, enemy, 1);
         players.add(enemy);
@@ -109,6 +137,14 @@ public final class HexBattle {
             rp.setStartingHand(rp.getStartingHand() + hand);
         }
         final List<forge.item.IPaperCard> inPlay = new ArrayList<>();
+        // New Game Plus: the region's rule (swamp: a Zombie, plains: a Soldier, mountain: a Goblin)
+        final HexBiomeRule biome = HexBiomeRule.forFight(campaign, enc);
+        if (biome != null && biome.enemyToken != null) {
+            final forge.item.IPaperCard token = content.findStartCard(biome.enemyToken);
+            if (token != null) {
+                inPlay.add(token);
+            }
+        }
         final forge.item.PaperCard land = content.getCard(enc.color.getBasicLand());
         for (int i = 0; land != null && i < campaign.advantage(HexAdvantage.LANDS); i++) {
             inPlay.add(land);
@@ -159,11 +195,13 @@ public final class HexBattle {
 
     /** Perks of the head and events of the campaign: more cards in the opening hand, a land in play. */
     private static void applyPerksAndEvents(final HexCampaign campaign, final HexPlayer p, final RegisteredPlayer rp) {
-        final int hand = HexPerk.EXTRA_CARD.count(p) + campaign.boostHand;
+        // New Game Plus: the region's rule (forest: a land, island: a card)
+        final HexBiomeRule biome = HexBiomeRule.forFight(campaign, campaign.pendingEncounter);
+        final int hand = HexPerk.EXTRA_CARD.count(p) + campaign.boostHand + (biome == null ? 0 : biome.partyHand);
         if (hand != 0) {
             rp.setStartingHand(Math.max(1, rp.getStartingHand() + hand));
         }
-        int lands = HexPerk.START_LAND.count(p) + (campaign.boostLand ? 1 : 0);
+        int lands = HexPerk.START_LAND.count(p) + (campaign.boostLand ? 1 : 0) + (biome == null ? 0 : biome.partyLands);
         if (lands > 0) {
             // the basic land the deck has most of
             final Map<String, Integer> basics = new HashMap<>();
@@ -249,7 +287,7 @@ public final class HexBattle {
      * own head on their own computer, all other heads are played by the AI.
      * @param onFinished called (on the game thread) with true if the party won, once the game is over
      */
-    public static HostedMatch startHosted(final HexSession session, final forge.gamemodes.match.GameLobby lobby, final Consumer<Boolean> onFinished) {
+    public static HostedMatch startHosted(final HexSession session, final forge.gamemodes.match.GameLobby lobby, final FightEnd onFinished) {
         final HexCampaign campaign = session.getCampaign();
         final HexEncounter enc = campaign.pendingEncounter;
         if (enc == null) {
@@ -290,14 +328,17 @@ public final class HexBattle {
         addEnemies(campaign, enc, players, avatar);
 
         final HostedMatch[] holder = new HostedMatch[1];
+        final HexFight fight = new HexFight(campaign, enc);
         // a guest who drops out is played by the AI until they are back
         forge.gamemodes.net.server.FServerManager.getInstance().setAiStandInWhileDisconnected(true);
         final Runnable hook = () -> {
             forge.gamemodes.net.server.FServerManager.getInstance().setAiStandInWhileDisconnected(false);
             final HostedMatch match = holder[0];
-            onFinished.accept(partyWon(match == null ? null : match.getGame()));
+            final Result result = resultOf(fight, match == null ? null : match.getGame());
+            onFinished.finished(result, fight.end(result));
         };
-        holder[0] = lobby.startPreparedMatch(createRules(), players, humanSeats, hook);
+        holder[0] = lobby.startPreparedMatch(createRules(), players, humanSeats, hook, HexMusic.fightPlaylist(campaign, enc));
+        fight.begin(holder[0].getGame());
         return holder[0];
     }
 
@@ -305,7 +346,7 @@ public final class HexBattle {
      * Starts the pending fight of the campaign with the local player at the table.
      * @param onFinished called (on the game thread) with true if the party won, once the game is over
      */
-    public static HostedMatch start(final HexCampaign campaign, final Consumer<Boolean> onFinished) {
+    public static HostedMatch start(final HexCampaign campaign, final FightEnd onFinished) {
         final HexEncounter enc = campaign.pendingEncounter;
         if (enc == null) {
             throw new IllegalStateException("No fight pending");
@@ -318,10 +359,13 @@ public final class HexBattle {
             }
         }
         final HostedMatch match = GuiBase.getInterface().hostMatch();
+        final HexFight fight = new HexFight(campaign, enc);
         match.setEndGameHook(() -> {
-            onFinished.accept(partyWon(match.getGame()));
+            final Result result = resultOf(fight, match.getGame());
+            onFinished.finished(result, fight.end(result));
         });
-        match.startMatch(createRules(), null, players, guis, null);
+        match.startMatch(createRules(), null, players, guis, HexMusic.fightPlaylist(campaign, enc));
+        fight.begin(match.getGame());
         return match;
     }
 }

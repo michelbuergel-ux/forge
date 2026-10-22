@@ -990,8 +990,25 @@ public final class CMatchUI
         }
     }
 
+    /** Team signal buttons in team games; Flee in the first turns of a Hex Campaign fight. */
+    private void updateTeamControls() {
+        final GameView gv = getGameView();
+        final boolean team = teamPlayers != null && teamPlayers.size() > 1 && hasLocalPlayers();
+        final boolean mayFlee = gv != null && hasLocalPlayers() && forge.gamemodes.hexcrawl.HexNet.isCampaignFight()
+                && gv.getTurn() <= forge.gamemodes.hexcrawl.HexFight.FLEE_MAX_TURN && !gv.isGameOver();
+        getCPrompt().showTeamControls(team, mayFlee);
+    }
+
+    @Override
+    public void showTeamSignal(final PlayerView from, final forge.gamemodes.match.TeamSignal signal, final String detail) {
+        final String what = detail != null ? detail : Localizer.getInstance().getMessage(signal.getLabelKey());
+        final String text = signal == forge.gamemodes.match.TeamSignal.FLEE_VOTE || from == null ? what : from.getName() + ": " + what;
+        FThreads.invokeInEdtNowOrLater(() -> getCPrompt().showSignal(text, signal == forge.gamemodes.match.TeamSignal.FLEE_VOTE ? 10000 : 4000));
+    }
+
     @Override
     public void updateTurn(final PlayerView player) {
+        FThreads.invokeInEdtNowOrLater(this::updateTeamControls);
         final VField nextField = getFieldViewFor(player);
         SDisplayUtil.showTab(nextField);
         cPrompt.updateText();
@@ -1506,8 +1523,14 @@ public final class CMatchUI
     private void actuateMatchPreferences() {
         // Hex Campaign fights: auto-pass, no delays and lean phase stops, just for this game
         StreamlinedPriority.applyFor(getGameView());
+        if (isNetGame() && forge.gamemodes.hexcrawl.HexNet.isGuest() && forge.gamemodes.hexcrawl.HexNet.isCampaignFight()
+                && forge.gamemodes.hexcrawl.HexNet.getFightMusic() != null) {
+            // a guest's match has no music of its own (the host's HostedMatch sets it there)
+            forge.sound.SoundSystem.instance.setBackgroundMusic(forge.gamemodes.hexcrawl.HexNet.getFightMusic());
+        }
         getCPrompt().showPartnerOption(getGameView() != null && getGameView().isStreamlinedPriority()
                 && teamPlayers != null && teamPlayers.size() > 1);
+        updateTeamControls();
         final ForgePreferences prefs = FModel.getPreferences();
         final List<VField> fieldViews = getFieldViews();
         final PhaseType[] phases = PhaseType.values();

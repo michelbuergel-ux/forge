@@ -71,6 +71,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     private final FButton btnNewGamePlus = new FButton();
     private final FButton btnRewards = new FButton();
     private final FButton btnPerk = new FButton();
+    private final FButton btnEvent = new FButton();
     private final FButton btnShop = new FButton();
     private final FButton btnDecks = new FButton();
     private final FButton btnInvite = new FButton();
@@ -84,11 +85,16 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
     private HexSession session;
     private boolean rewardPromptOpen;
+    /** The fight whose boss intro this screen has shown already. */
+    private String bossIntroShown;
     /** The cycle whose victory this screen has asked about New Game Plus already. */
     private int newGamePlusPromptedCycle;
     private boolean perkPromptOpen;
+    private boolean eventPromptOpen;
     /** The last event (see HexCampaign.eventSerial) already shown on this screen. */
     private int shownEventSerial = -1;
+    /** The last fight summary this screen has shown (-1: none yet, take the campaign's as seen). */
+    private int shownSummarySerial = -1;
     /** Host or single player: a fight of the campaign is on the match screen (until its result is closed). */
     private volatile boolean fightOnScreen;
     private Runnable shopRefresher;
@@ -111,6 +117,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         side.setOpaque(false);
         btnRewards.setText(t("lblHexRewards"));
         btnPerk.setText(t("lblHexChoosePerk"));
+        btnEvent.setText(t("lblHexEventChooseButton"));
         btnShop.setText(t("lblHexShop"));
         btnDecks.setText(t("lblHexDecks"));
         btnInvite.setText(t("lblHexInvite"));
@@ -126,6 +133,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         side.add(btnNewGamePlus, "h 34!, hidemode 3");
         side.add(btnRewards, "h 34!");
         side.add(btnPerk, "h 34!");
+        side.add(btnEvent, "h 34!, hidemode 3");
         side.add(btnShop, "h 30!");
         side.add(btnDecks, "h 30!");
         side.add(btnInvite, "h 28!");
@@ -144,6 +152,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnNewGamePlus.addActionListener(e -> newGamePlus());
         btnRewards.addActionListener(e -> promptReward());
         btnPerk.addActionListener(e -> promptPerk());
+        btnEvent.addActionListener(e -> promptEvent());
         btnShop.addActionListener(e -> openShop());
         btnDecks.addActionListener(e -> showDeck());
         btnInvite.addActionListener(e -> invite());
@@ -156,7 +165,14 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
         // a reward waiting for us is offered as soon as this screen is visible again after a fight
         addHierarchyListener(e -> {
+            if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && !isShowing()
+                    && !fightOnScreen && !HexNet.isCampaignFight()) {
+                forge.gamemodes.hexcrawl.HexMusic.leave(); // another part of Forge: its own music again
+            }
             if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && isShowing()) {
+                forge.gamemodes.hexcrawl.HexMusic.enter();
+                forge.gamemodes.hexcrawl.HexMusic.forget(); // whatever played before (a fight, the menus) is over
+                forge.gamemodes.hexcrawl.HexMusic.playMap(getCampaign());
                 if (fightOnScreen) {
                     // the match was closed from elsewhere (a guest left the result screen first):
                     // take our own result screen away as well, it would cover the map
@@ -237,6 +253,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         // events that happened before this screen knew the campaign are not shown again
         shownEventSerial = session == null || session.getCampaign() == null ? -1 : session.getCampaign().eventSerial;
+        shownSummarySerial = session == null || session.getCampaign() == null || session.getCampaign().lastFight == null
+                ? -1 : session.getCampaign().lastFight.serial;
         refresh();
     }
 
@@ -258,10 +276,58 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             showEventIfNew();
             promptRewardIfWaiting();
             promptPerkIfWaiting();
+            promptEventIfWaiting();
         });
     }
 
     /** The party came across an event: everybody sees what happened, once. */
+    /**
+     * After a fight, once this screen is back: what every head did in it, one column each with the
+     * card that dealt the most damage, and the best of them marked. Once per fight.
+     */
+    private void showSummaryIfNew() {
+        final HexCampaign campaign = getCampaign();
+        if (campaign == null || !isShowing() || campaign.lastFight == null) {
+            return;
+        }
+        final forge.gamemodes.hexcrawl.HexFightSummary s = campaign.lastFight;
+        if (shownSummarySerial < 0 && isGuest()) {
+            shownSummarySerial = s.serial; // a guest's first state: nothing to repeat
+            return;
+        }
+        if (s.serial <= shownSummarySerial) {
+            return;
+        }
+        shownSummarySerial = s.serial;
+        final JPanel panel = new JPanel(new net.miginfocom.swing.MigLayout("insets 0, gap 16", "", "[top]"));
+        panel.setOpaque(false);
+        for (final forge.gamemodes.hexcrawl.HexFightSummary.Head h : s.heads) {
+            final JPanel col = new JPanel(new net.miginfocom.swing.MigLayout("insets 0, gap 2, wrap 1", "[160!, fill]"));
+            col.setOpaque(false);
+            final boolean mvp = h.name.equals(s.mvp) && s.heads.size() > 1;
+            col.add(new FLabel.Builder().text((mvp ? "\u2605 " : "") + h.name).fontSize(14).fontStyle(java.awt.Font.BOLD)
+                    .fontAlign(SwingConstants.LEFT).build(), "h 22!");
+            if (mvp) {
+                col.add(new FLabel.Builder().text(t("lblHexSummaryMvp")).fontSize(12).fontAlign(SwingConstants.LEFT).build(), "h 18!");
+            }
+            col.add(new FLabel.Builder().text(t("lblHexSummaryDamage", String.valueOf(h.damage))).fontSize(12).fontAlign(SwingConstants.LEFT).build(), "h 18!");
+            col.add(new FLabel.Builder().text(t("lblHexSummarySpells", String.valueOf(h.spells), String.valueOf(h.lands))).fontSize(12)
+                    .fontAlign(SwingConstants.LEFT).build(), "h 18!");
+            final PaperCard top = h.topCard == null ? null : HexContent.get().getCard(h.topCard);
+            if (top != null) {
+                col.add(new FLabel.Builder().text(t("lblHexSummaryTopCard", String.valueOf(h.topCardDamage))).fontSize(12)
+                        .fontAlign(SwingConstants.LEFT).build(), "h 18!");
+                final CardPicturePanel pic = new CardPicturePanel();
+                pic.setOpaque(false);
+                pic.setItem(top);
+                col.add(pic, "h 224!, w 160!");
+            }
+            panel.add(col);
+        }
+        final String title = t("lblHexSummary_" + s.result, s.enemyName, String.valueOf(s.turns));
+        FOptionPane.showOptionDialog(null, title, null, panel, Arrays.asList(t("lblHexClose")), 0);
+    }
+
     private void showEventIfNew() {
         final HexCampaign campaign = getCampaign();
         if (campaign == null || !isShowing()) {
@@ -300,6 +366,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         SwingUtilities.invokeLater(() -> {
             try {
+                showBossIntroIfNew(); // the archmage speaks before the fight begins
                 fightOnScreen = true;
                 if (isHosting()) {
                     HexBattle.startHosted(s, FServerManager.getInstance().getLobby(), s::fightFinished);
@@ -318,11 +385,41 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         });
     }
 
+    /**
+     * Before a fight against an archmage or Emrakul: a short scene with the boss, its life and
+     * its words (the same line for everybody, chosen when the fight came up). Once per fight.
+     */
+    private void showBossIntroIfNew() {
+        final HexCampaign campaign = getCampaign();
+        final HexEncounter enc = campaign == null ? null : campaign.pendingEncounter;
+        if (enc == null || !enc.boss) {
+            return;
+        }
+        final String key = enc.q + "," + enc.r + "," + campaign.fights() + "," + campaign.cycle;
+        if (key.equals(bossIntroShown)) {
+            return;
+        }
+        bossIntroShown = key;
+        final javax.swing.JLabel picture = new javax.swing.JLabel();
+        final java.awt.image.BufferedImage sprite = HexSprites.get(enc.enemyName);
+        if (sprite != null) {
+            final int size = 160;
+            picture.setIcon(new javax.swing.ImageIcon(sprite.getScaledInstance(size, size * sprite.getHeight() / Math.max(1, sprite.getWidth()),
+                    java.awt.Image.SCALE_FAST)));
+        }
+        final String words = enc.intro == null ? "" : "„" + enc.intro + "“\n\n";
+        FOptionPane.showOptionDialog(words + t("lblHexBossIntro", enc.enemyName, String.valueOf(campaign.enemyLife(enc))) + enemyExtras(campaign, enc),
+                enc.enemyName, null, picture, Arrays.asList(t("lblHexBossIntroFight")), 0);
+    }
+
     private void onStateFromHost(final HexStateEvent state) {
         if (session == null || !session.isGuest()) {
             setSession(HexSession.forGuest());
         }
         session.applyState(state.getStateJson(), state.getYourHead());
+        if (session.isFightRunning()) {
+            SwingUtilities.invokeLater(this::showBossIntroIfNew); // the host's fight is starting
+        }
         // bring the campaign to the front while we are on the home screen (not in the middle of a match)
         if (Singletons.getControl().getCurrentScreen() == FScreen.HOME_SCREEN && !isShowing()) {
             CHomeUI.SINGLETON_INSTANCE.itemClick(EDocID.HOME_HEXCRAWL);
@@ -361,6 +458,15 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
     public void refresh() {
         final HexCampaign campaign = getCampaign();
+        if (campaign != null) {
+            HexNet.setFleePrice(campaign.gold(forge.gamemodes.hexcrawl.HexFight.FLEE_GOLD));
+            if (isShowing()) {
+                forge.gamemodes.hexcrawl.HexMusic.playMap(campaign); // a new region, a town
+            }
+            if (campaign.pendingEncounter != null) {
+                HexNet.setFightMusic(forge.gamemodes.hexcrawl.HexMusic.fightPlaylist(campaign, campaign.pendingEncounter));
+            }
+        }
         mapPanel.setCampaign(campaign);
         mapPanel.setVotes(session == null ? null : session.getVotes());
         final boolean has = campaign != null;
@@ -413,6 +519,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnRewards.setVisible(campaign.pendingEncounter == null && campaign.pendingReward(me) != null);
         final HexPlayer mine = campaign.player(me);
         btnPerk.setVisible(mine != null && !mine.perkOffer.isEmpty() && campaign.pendingReward(me) == null);
+        btnEvent.setVisible(mine != null && mine.eventOffer != null);
         btnShop.setVisible(campaign.inTown());
 
         lblTitle.setText(campaign.cycle > 1 ? campaign.name + "  –  " + t("lblHexCycle", String.valueOf(campaign.cycle - 1)) : campaign.name);
@@ -592,6 +699,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     // ------------------------------------------------------------------ rewards
 
     private void promptRewardIfWaiting() {
+        showSummaryIfNew(); // first what happened in the fight, then the reward
         final HexCampaign campaign = getCampaign();
         if (campaign == null || rewardPromptOpen || !isShowing() || session.isFightRunning()
                 || campaign.pendingEncounter != null || campaign.pendingReward(session.getMyHead()) == null) {
@@ -669,6 +777,80 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     }
 
     // ------------------------------------------------------------------ perks
+
+    private void promptEventIfWaiting() {
+        final HexCampaign campaign = getCampaign();
+        final HexPlayer mine = campaign == null ? null : campaign.player(session.getMyHead());
+        if (mine == null || mine.eventOffer == null || eventPromptOpen || perkPromptOpen || rewardPromptOpen || !isShowing()
+                || session.isFightRunning() || campaign.pendingEncounter != null) {
+            return;
+        }
+        promptEvent();
+    }
+
+    /** A ruined shrine or a caravan: this person picks a card of their own to give, or leaves it. */
+    private void promptEvent() {
+        final HexCampaign campaign = getCampaign();
+        final HexPlayer mine = campaign == null ? null : campaign.player(session.getMyHead());
+        final forge.gamemodes.hexcrawl.HexEvent event = mine == null ? null : forge.gamemodes.hexcrawl.HexEvent.of(mine.eventOffer);
+        if (event == null || eventPromptOpen) {
+            return;
+        }
+        eventPromptOpen = true;
+        try {
+            // the cards that may be given: no basic lands; deck cards only while the deck is above its minimum
+            final List<String> names = new ArrayList<>();
+            final List<Boolean> fromSideboard = new ArrayList<>();
+            final List<String> lines = new ArrayList<>();
+            final boolean deckOk = mine.deck.size() > HexCampaign.MIN_DECK_SIZE;
+            for (final boolean side : new boolean[] { false, true }) {
+                if (!side && !deckOk) {
+                    continue;
+                }
+                for (final String card : new java.util.TreeSet<>(side ? mine.sideboard : mine.deck)) {
+                    if (!HexContent.get().isBasicLand(card)) {
+                        names.add(card);
+                        fromSideboard.add(side);
+                        lines.add((side ? t("lblHexSideboardMark") + " " : "") + card);
+                    }
+                }
+            }
+            final javax.swing.DefaultListModel<String> model = new javax.swing.DefaultListModel<>();
+            lines.forEach(model::addElement);
+            final forge.toolbox.FList<String> list = new forge.toolbox.FList<>(model);
+            list.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
+            final CardPicturePanel pic = new CardPicturePanel();
+            pic.setOpaque(false);
+            list.addListSelectionListener(e -> {
+                final int i = list.getSelectedIndex();
+                final PaperCard card = i >= 0 && i < names.size() ? HexContent.get().getCard(names.get(i)) : null;
+                if (card != null) {
+                    pic.setItem(card);
+                }
+            });
+            if (!names.isEmpty()) {
+                list.setSelectedIndex(0);
+            }
+            final JPanel panel = new JPanel(new net.miginfocom.swing.MigLayout("insets 0, gap 12", "[300!, fill][200!, fill]", "[top]"));
+            panel.setOpaque(false);
+            panel.add(new forge.toolbox.FScrollPane(list, true), "h 280!");
+            panel.add(pic, "h 280!");
+            final List<String> options = new ArrayList<>();
+            options.add(t("lblHexEventGive_" + event.name()));
+            options.add(t("lblHexEventLeave"));
+            options.add(t("lblHexLater"));
+            final int choice = FOptionPane.showOptionDialog(event.getLabel() + ": " + event.getDescription(), campaign.name,
+                    FOptionPane.QUESTION_ICON, panel, options, 0);
+            final int i = list.getSelectedIndex();
+            if (choice == 0 && i >= 0 && i < names.size()) {
+                session.chooseEvent(mine.name, names.get(i), fromSideboard.get(i));
+            } else if (choice == 1) {
+                session.skipEvent(mine.name);
+            }
+        } finally {
+            eventPromptOpen = false;
+        }
+    }
 
     private void promptPerkIfWaiting() {
         final HexCampaign campaign = getCampaign();
@@ -766,6 +948,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         final List<String> cycleAdvantages = campaign.cycleAdvantages();
         if (!cycleAdvantages.isEmpty()) {
             sb.append(' ').append(loc.getMessage("lblHexEnemyCycle", String.valueOf(campaign.cycle - 1), String.join(", ", cycleAdvantages)));
+        }
+        final forge.gamemodes.hexcrawl.HexBiomeRule biome = forge.gamemodes.hexcrawl.HexBiomeRule.forFight(campaign, enc);
+        if (biome != null) {
+            sb.append(' ').append(loc.getMessage(biome.getLabelKey()));
         }
         return sb.toString();
     }

@@ -1,0 +1,11 @@
+Name:Ghalta Awakened
+ManaCost:no cost
+Colors:green
+Types:Enchantment
+T:Mode$ Always | TriggerZones$ Command | CheckSVar$ X | SVarCompare$ LEY | IsPresent$ Card.Self+counters_EQ0_AWAKENING | PresentZone$ Command | Execute$ TrigAwake | TriggerDescription$ When your life total is half your starting life or less for the first time, create a 4/4 green Beast creature token. From then on, creatures you control get +2/+2 and have trample.
+SVar:TrigAwake:DB$ PutCounter | Defined$ Self | CounterType$ AWAKENING | CounterNum$ 1 | SubAbility$ DBEffect
+SVar:DBEffect:DB$ Token | TokenScript$ g_4_4_beast | TokenAmount$ 1
+S:Mode$ Continuous | EffectZone$ Command | Affected$ Creature.YouCtrl | AddPower$ 2 | AddToughness$ 2 | AddKeyword$ Trample | IsPresent$ Card.Self+counters_GE1_AWAKENING | PresentZone$ Command | Description$ As long as CARDNAME has an awakening counter on it, creatures you control get +2/+2 and have trample.
+SVar:X:Count$YourLifeTotal
+SVar:Y:Count$YourStartingLife/HalfDown
+Oracle:When your life total is half your starting life or less for the first time, create a 4/4 green Beast creature token. From then on, creatures you control get +2/+2 and have trample.

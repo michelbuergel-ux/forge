@@ -46,6 +46,14 @@ public class HexCampaign {
     public static final int REWARD_CHOICES = 3;
     /** Chance in percent that an empty field holds an event when the party sees it for the first time. */
     public static final int EVENT_CHANCE = 12;
+    /** Chance in percent that a new enemy far enough from the start roams toward the party. */
+    public static final int ROAMING_CHANCE = 15;
+    /** At most this many roaming enemies on the map. */
+    public static final int MAX_ROAMERS = 3;
+    /** Roaming enemies only hunt a party this close. */
+    public static final int ROAM_RANGE = 4;
+    /** Only the tougher enemies roam: those on fields at least this dangerous (0 to 1). */
+    public static final double ROAMING_DANGER = 0.35;
     /** What every head pays to travel to another town it has been to. */
     public static final int FAST_TRAVEL_GOLD = 10;
     /** New Game Plus: the enemies' extra life per cycle after the first. */
@@ -69,6 +77,10 @@ public class HexCampaign {
     public boolean won;
     public int battlesWon;
     public int battlesLost;
+    /** Fights the party fled from in the first turns. */
+    public int battlesFled;
+    /** What every head did in the last fight (shown once on every screen), or null. */
+    public HexFightSummary lastFight;
     public int steps;
     /** Shared life total of the party at the start of a fight. */
     public int teamLife = 20;
@@ -384,10 +396,69 @@ public class HexCampaign {
                 t.enemy = HexContent.get().randomEncounter(t.color, danger(t), rnd);
                 t.enemy.q = t.q;
                 t.enemy.r = t.r;
+                // a few of the tougher ones hunt the party
+                if (danger(t) >= ROAMING_DANGER && roamers().size() < MAX_ROAMERS && rnd.nextInt(100) < ROAMING_CHANCE) {
+                    t.enemy.roaming = true;
+                }
             } else if (first && rnd.nextInt(100) < EVENT_CHANCE) {
                 t.event = HexEvent.values()[rnd.nextInt(HexEvent.values().length)].name();
             }
         }
+    }
+
+    /** The fields with an enemy that hunts the party, in a stable order. */
+    public List<HexTile> roamers() {
+        final List<HexTile> result = new ArrayList<>();
+        for (final HexTile t : map.tiles.values()) {
+            if (t.enemy != null && t.enemy.roaming) {
+                result.add(t);
+            }
+        }
+        result.sort((a, b) -> a.key().compareTo(b.key()));
+        return result;
+    }
+
+    /**
+     * After every step of the party: each roaming enemy close enough steps one field toward it,
+     * never onto a town, a stronghold, a task's field, an event or another enemy. Returns the one
+     * that reached the party's field (it catches the party), or null.
+     */
+    HexEncounter moveRoamers() {
+        final HexTile party = tile();
+        if (party.poi != HexPoi.NONE) {
+            return null; // towns and strongholds are safe from them
+        }
+        HexEncounter caught = null;
+        for (final HexTile from : roamers()) {
+            final int far = HexMap.distance(from.q, from.r, partyQ, partyR);
+            if (far == 0 || far > ROAM_RANGE || from.enemy == null) {
+                continue;
+            }
+            HexTile to = null;
+            final List<HexTile> next = new ArrayList<>(map.neighbors(from));
+            next.sort((a, b) -> a.key().compareTo(b.key()));
+            for (final HexTile t : next) {
+                final boolean isParty = t == party;
+                final boolean free = t.poi == HexPoi.NONE && t.enemy == null && t.event == null && questAt(t.q, t.r) == null;
+                if (HexMap.distance(t.q, t.r, partyQ, partyR) == far - 1 && (isParty ? caught == null && party.enemy == null : free)) {
+                    to = t;
+                    break;
+                }
+            }
+            if (to == null) {
+                continue; // nowhere to go this time
+            }
+            to.enemy = from.enemy;
+            from.enemy = null;
+            to.enemy.q = to.q;
+            to.enemy.r = to.r;
+            to.scouted = true;
+            if (to == party) {
+                caught = to.enemy;
+                log(msg("lblHexJournalCaught", caught.enemyName));
+            }
+        }
+        return caught;
     }
 
     /**
@@ -426,6 +497,7 @@ public class HexCampaign {
             reshuffleEnemies(); // while the party rests in town, the land around changes
         } else {
             scout();
+            moveRoamers(); // the hunters close in (one that reaches the party fights it below)
         }
 
         if (target.poi == HexPoi.TOWN) {
@@ -435,7 +507,7 @@ public class HexCampaign {
         }
         final HexContent content = HexContent.get();
         final HexQuest quest = questAt(q, r);
-        if (target.event != null && quest == null && target.poi == HexPoi.NONE) {
+        if (target.event != null && quest == null && target.poi == HexPoi.NONE && target.enemy == null) {
             triggerEvent(target);
             return MoveResult.NOTHING;
         }
@@ -452,22 +524,56 @@ public class HexCampaign {
         }
         pendingEncounter.q = q;
         pendingEncounter.r = r;
+        if (pendingEncounter.boss) {
+            // one line for everybody, chosen now (a guest shows the host's choice)
+            pendingEncounter.intro = HexContent.get().bossIntro(pendingEncounter, random());
+        }
         log(msg(pendingEncounter.boss ? "lblHexJournalBoss" : "lblHexJournalEncounter", pendingEncounter.enemyName));
         return MoveResult.ENCOUNTER;
     }
 
+    /** Applies a won or lost fight (see {@link #resolveBattle(HexBattle.Result)}). */
+    public void resolveBattle(final boolean partyWon) {
+        resolveBattle(partyWon ? HexBattle.Result.WON : HexBattle.Result.LOST);
+    }
+
+    /** Keeps what every head did in the fight, and names the best of them in the journal. */
+    public void recordFight(final HexFightSummary summary) {
+        if (summary == null) {
+            return;
+        }
+        summary.serial = lastFight == null ? 1 : lastFight.serial + 1;
+        lastFight = summary;
+        if (summary.mvp != null && players.size() > 1) {
+            final HexFightSummary.Head h = summary.head(summary.mvp);
+            log(h.topCard == null
+                    ? msg("lblHexJournalMvp", h.name, String.valueOf(h.damage))
+                    : msg("lblHexJournalMvpCard", h.name, String.valueOf(h.damage), h.topCard));
+        }
+    }
+
     /**
      * Applies the outcome of the pending fight. A win offers every head gold or a card of the
-     * enemy's deck; a loss costs every head a random card and sends the party back.
+     * enemy's deck; a loss costs every head a random card and sends the party back; fleeing in the
+     * first turns costs every head a little gold and sends the party back as well.
      */
-    public void resolveBattle(final boolean partyWon) {
+    public void resolveBattle(final HexBattle.Result result) {
         final HexEncounter enc = pendingEncounter;
         if (enc == null) {
             return;
         }
         pendingEncounter = null;
         final HexContent content = HexContent.get();
-        if (partyWon) {
+        if (result == HexBattle.Result.FLED) {
+            battlesFled++;
+            final int price = gold(HexFight.FLEE_GOLD);
+            for (final HexPlayer p : players) {
+                p.gold -= Math.min(p.gold, price);
+            }
+            log(msg("lblHexJournalFled", enc.enemyName, String.valueOf(price)));
+            partyQ = prevQ;
+            partyR = prevR;
+        } else if (result == HexBattle.Result.WON) {
             battlesWon++;
             log(msg("lblHexJournalWon", enc.enemyName));
             for (final HexPlayer p : players) {
@@ -511,6 +617,9 @@ public class HexCampaign {
         } else {
             battlesLost++;
             log(msg("lblHexJournalLost", enc.enemyName));
+            if (enc.boss) {
+                log(msg("lblHexJournalBossInsult", enc.enemyName, HexContent.get().bossInsult(enc, random())));
+            }
             for (final HexPlayer p : players) {
                 final String lost = loseRandomCard(p);
                 if (lost != null) {
@@ -708,12 +817,80 @@ public class HexCampaign {
                 boostEnemyLife += HexEvent.ALTAR_ENEMY_LIFE;
                 boostDoubleGold = true;
                 break;
+            case RUINED_SHRINE:
+            case CARAVAN:
+                // every head decides for itself; companions leave it
+                for (final HexPlayer p : players) {
+                    if (!p.ai) {
+                        p.eventOffer = event.name();
+                        p.eventColor = t.color;
+                    }
+                }
+                text.append('\n').append(msg("lblHexEventChoose"));
+                break;
             default:
                 break;
         }
         lastEvent = text.toString();
         eventSerial++;
         log(msg("lblHexJournalEvent", event.getLabel()));
+    }
+
+    /**
+     * A head takes up the offer of a ruined shrine (a relic for a free slot, or gold if all are
+     * taken) or a caravan (two cards of the field's colour, into the sideboard) for one of its
+     * cards that is not a basic land. A deck may not fall below the minimum size.
+     */
+    public boolean chooseEvent(final String playerName, final String card, final boolean fromSideboard) {
+        final HexPlayer p = player(playerName);
+        final HexEvent event = p == null ? null : HexEvent.of(p.eventOffer);
+        final HexContent content = HexContent.get();
+        if (event == null || card == null || content.isBasicLand(card)) {
+            return false;
+        }
+        if (fromSideboard ? !p.sideboard.contains(card) : p.deck.size() <= MIN_DECK_SIZE || !p.deck.contains(card)) {
+            return false;
+        }
+        (fromSideboard ? p.sideboard : p.deck).remove(card);
+        final Random rnd = random();
+        if (event == HexEvent.RUINED_SHRINE) {
+            final List<HexRelic> free = new ArrayList<>();
+            for (final HexRelic relic : content.allRelics()) {
+                if (!p.relics.contains(relic.name) && relicInSlot(p, relic.slot) == null) {
+                    free.add(relic);
+                }
+            }
+            if (free.isEmpty()) {
+                p.gold += gold(HexEvent.CHEST_GOLD);
+                log(msg("lblHexJournalShrineGold", p.name, card, String.valueOf(gold(HexEvent.CHEST_GOLD))));
+            } else {
+                final HexRelic relic = free.get(rnd.nextInt(free.size()));
+                p.relics.add(relic.name);
+                log(msg("lblHexJournalShrine", p.name, card, relic.name));
+            }
+        } else {
+            final List<String> got = new ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                final String c = content.randomCardOfColor(p.eventColor == null ? tile().color : p.eventColor, rnd);
+                if (c != null) {
+                    p.sideboard.add(c);
+                    got.add(c);
+                }
+            }
+            log(msg("lblHexJournalCaravan", p.name, card, String.join(", ", got)));
+        }
+        p.eventOffer = null;
+        p.eventColor = null;
+        return true;
+    }
+
+    /** A head leaves the shrine or caravan alone. */
+    public void skipEvent(final String playerName) {
+        final HexPlayer p = player(playerName);
+        if (p != null) {
+            p.eventOffer = null;
+            p.eventColor = null;
+        }
     }
 
     /** What the next fight brings thanks to events, for the party panel; empty if nothing. */
@@ -952,7 +1129,7 @@ public class HexCampaign {
 
     /** All fights fought so far, won or lost. */
     public int fights() {
-        return battlesWon + battlesLost;
+        return battlesWon + battlesLost + battlesFled;
     }
 
     /** A theme that suits the town's colour, other than the given one. */
@@ -1226,6 +1403,10 @@ public class HexCampaign {
      */
     public int enemyLife(final HexEncounter enc) {
         int life = enc.life + ENEMY_EXTRA_LIFE[Math.max(1, Math.min(ENEMY_EXTRA_LIFE.length, players.size())) - 1] + boostEnemyLife + cycleLife();
+        final HexBiomeRule biome = HexBiomeRule.forFight(this, enc);
+        if (biome != null) {
+            life += biome.enemyLife; // New Game Plus: the wastes
+        }
         for (final HexPlayer p : players) {
             for (final String name : p.relics) {
                 final HexRelic relic = HexContent.get().getRelic(name);

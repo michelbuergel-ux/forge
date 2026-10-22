@@ -30,7 +30,19 @@ public final class HexNet {
      * Changes whenever the campaign's network messages change; host and guests have to use
      * the same build. Shown as a warning when they differ.
      */
-    public static final String BUILD_ID = "hex-2026-10-12";
+    public static final String BUILD_ID = "hex-2026-10-23";
+
+    /** What fleeing from the current fight costs every head (gold multiplier included), for the match screen. */
+    private static volatile int fleePrice = HexFight.FLEE_GOLD;
+
+    public static int getFleePrice() { return fleePrice; }
+
+    /** The music of the coming campaign fight; a guest's match screen plays it (the host's match does it itself). */
+    private static volatile forge.sound.MusicPlaylist fightMusic;
+
+    public static forge.sound.MusicPlaylist getFightMusic() { return fightMusic; }
+    public static void setFightMusic(final forge.sound.MusicPlaylist playlist) { fightMusic = playlist; }
+    public static void setFleePrice(final int price) { fleePrice = price; }
 
     private HexNet() { }
 

@@ -63,6 +63,13 @@ public class VPrompt implements IVDoc<CPrompt> {
     private final FButton btnCancel = new FButton(localizer.getMessage("lblCancel"));
     /** Team games with streamlined priority (Hex Campaign fights): OK the team mates' spells at once. */
     private final forge.toolbox.FCheckBox chkAlwaysOkPartner = new forge.toolbox.FCheckBox(localizer.getMessage("lblAlwaysOkPartner"));
+    /** Team games: what a team mate just signalled ("Hold!"), on a coloured strip for a few seconds. */
+    private final FLabel lblSignal = new FLabel.Builder().fontSize(13).fontStyle(Font.BOLD).fontAlign(SwingConstants.CENTER).opaque().build();
+    /** Team games: quick signals to the team mates; Hex Campaign fights also Flee / Fight on. */
+    private final JPanel pnlTeam = new JPanel(new MigLayout("insets 0, gap 2px!, fillx"));
+    private final java.util.Map<forge.gamemodes.match.TeamSignal, FButton> signalButtons = new java.util.EnumMap<>(forge.gamemodes.match.TeamSignal.class);
+    private final FButton btnFlee = new FButton(localizer.getMessage("lblFlee"));
+    private final FButton btnFightOn = new FButton(localizer.getMessage("lblFightOn"));
     private final FHtmlViewer tarMessage = new FHtmlViewer();
     private final FScrollPane messageScroller = new FScrollPane(tarMessage, false,
     		ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
@@ -134,6 +141,10 @@ public class VPrompt implements IVDoc<CPrompt> {
         }
         lblGames.setText(localizer.getMessage("lblGameSetup"));
 
+        lblSignal.setVisible(false);
+        lblSignal.setBackground(new java.awt.Color(0x1F6F43));
+        lblSignal.setForeground(java.awt.Color.WHITE);
+        container.add(lblSignal, "span 2, w 10:100%, h 26px!, hidemode 3");
         container.add(messageScroller, "span 2, w 10:100%, h 0:100%");
 
         boolean largerButtons = prefs.getPrefBoolean(FPref.UI_TOUCHSCREEN_OPTIMIZE);
@@ -144,6 +155,21 @@ public class VPrompt implements IVDoc<CPrompt> {
         container.add(btnCancel, constraints);
         chkAlwaysOkPartner.setVisible(false);
         container.add(chkAlwaysOkPartner, "span 2, w 10:100%, h 22px!, gaptop 2px!, hidemode 3");
+        if (pnlTeam.getComponentCount() == 0) {
+            pnlTeam.setOpaque(false);
+            for (final forge.gamemodes.match.TeamSignal signal : forge.gamemodes.match.TeamSignal.BUTTONS) {
+                final FButton b = new FButton(localizer.getMessage(signal.getLabelKey()));
+                b.setFont(FSkin.getFont(11));
+                signalButtons.put(signal, b);
+                pnlTeam.add(b, "h 22px!, growx, sg signal");
+            }
+            btnFlee.setFont(FSkin.getFont(11));
+            btnFightOn.setFont(FSkin.getFont(11));
+            pnlTeam.add(btnFlee, "newline, h 22px!, growx, span 2, hidemode 3");
+            pnlTeam.add(btnFightOn, "h 22px!, growx, hidemode 3");
+            pnlTeam.setVisible(false);
+        }
+        container.add(pnlTeam, "span 2, w 10:100%, gaptop 2px!, hidemode 3");
     }
 
     /* (non-Javadoc)
@@ -199,6 +225,26 @@ public class VPrompt implements IVDoc<CPrompt> {
 
     public forge.toolbox.FCheckBox getChkAlwaysOkPartner() {
         return this.chkAlwaysOkPartner;
+    }
+
+    public FLabel getLblSignal() {
+        return this.lblSignal;
+    }
+
+    public JPanel getPnlTeam() {
+        return this.pnlTeam;
+    }
+
+    public java.util.Map<forge.gamemodes.match.TeamSignal, FButton> getSignalButtons() {
+        return this.signalButtons;
+    }
+
+    public FButton getBtnFlee() {
+        return this.btnFlee;
+    }
+
+    public FButton getBtnFightOn() {
+        return this.btnFightOn;
     }
 
     /** @return {@link javax.swing.JTextArea} */

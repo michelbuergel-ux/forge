@@ -163,6 +163,16 @@ public class HexSession {
         buy(head, null, -1, card);
     }
 
+    /** A head gives a card to a ruined shrine or a caravan. */
+    public void chooseEvent(final String head, final String card, final boolean fromSideboard) {
+        act(new HexActionEvent(HexActionEvent.EVENT_CHOICE, 0, 0, card, fromSideboard, head));
+    }
+
+    /** A head leaves the shrine or caravan alone. */
+    public void skipEvent(final String head) {
+        act(new HexActionEvent(HexActionEvent.EVENT_CHOICE, 1, 0, null, false, head));
+    }
+
     /** After the victory the host starts the next New Game Plus cycle. */
     public void newGamePlus() {
         act(new HexActionEvent(HexActionEvent.NEW_GAME_PLUS, 0, 0, null, false, null));
@@ -257,6 +267,12 @@ public class HexSession {
                 final int shop = action.getQ();
                 campaign.buy(head, shop >= 0 && shop < HexShopType.values().length ? HexShopType.values()[shop] : null,
                         action.getR(), action.getText());
+            } else if (HexActionEvent.EVENT_CHOICE.equals(type)) {
+                if (action.getQ() == 1) {
+                    campaign.skipEvent(head);
+                } else {
+                    campaign.chooseEvent(head, action.getText(), action.getFlag());
+                }
             } else if (HexActionEvent.RESTOCK.equals(type)) {
                 campaign.restock(head);
             } else if (HexActionEvent.NEW_GAME_PLUS.equals(type)) {
@@ -363,9 +379,10 @@ public class HexSession {
     }
 
     /** Host: the fight is over. */
-    public void fightFinished(final boolean partyWon) {
+    public void fightFinished(final HexBattle.Result result, final HexFightSummary summary) {
         synchronized (this) {
-            campaign.resolveBattle(partyWon);
+            campaign.recordFight(summary);
+            campaign.resolveBattle(result);
             fightRunning = false;
             fightReady.clear();
             votes.clear();

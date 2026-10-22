@@ -124,6 +124,65 @@ public class CPrompt implements ICDoc {
         _initButton(view.getBtnOK(), actOK);
         view.getChkAlwaysOkPartner().removeActionListener(actAlwaysOkPartner);
         view.getChkAlwaysOkPartner().addActionListener(actAlwaysOkPartner);
+        for (final java.util.Map.Entry<forge.gamemodes.match.TeamSignal, forge.toolbox.FButton> e : view.getSignalButtons().entrySet()) {
+            final forge.gamemodes.match.TeamSignal signal = e.getKey();
+            for (final ActionListener l : e.getValue().getActionListeners()) {
+                e.getValue().removeActionListener(l);
+            }
+            e.getValue().addActionListener(evt -> {
+                if (matchUI.getGameController() != null) {
+                    matchUI.getGameController().sendTeamSignal(signal);
+                }
+            });
+        }
+        view.getBtnFlee().removeActionListener(actFlee);
+        view.getBtnFlee().addActionListener(actFlee);
+        view.getBtnFightOn().removeActionListener(actFightOn);
+        view.getBtnFightOn().addActionListener(actFightOn);
+    }
+
+    private final ActionListener actFlee = evt -> onFlee();
+    private final ActionListener actFightOn = evt -> onFightOn();
+
+    private void onFlee() {
+        if (matchUI.getGameController() != null && forge.toolbox.FOptionPane.showConfirmDialog(
+                forge.util.Localizer.getInstance().getMessage("lblFleeConfirm",
+                        String.valueOf(forge.gamemodes.hexcrawl.HexNet.getFleePrice()), String.valueOf(forge.gamemodes.hexcrawl.HexFight.FLEE_MAX_TURN)),
+                forge.util.Localizer.getInstance().getMessage("lblFlee"))) {
+            matchUI.getGameController().voteFlee(true);
+        }
+    }
+
+    private void onFightOn() {
+        if (matchUI.getGameController() != null) {
+            matchUI.getGameController().voteFlee(false);
+        }
+    }
+
+    /** Team games show the signal buttons; Hex Campaign fights in their first turns also Flee and Fight on. */
+    public void showTeamControls(final boolean team, final boolean mayFlee) {
+        view.getPnlTeam().setVisible(team || mayFlee);
+        for (final forge.toolbox.FButton b : view.getSignalButtons().values()) {
+            b.setVisible(team);
+        }
+        view.getBtnFlee().setVisible(mayFlee);
+        view.getBtnFightOn().setVisible(mayFlee && team);
+        view.getPnlTeam().revalidate();
+    }
+
+    private javax.swing.Timer signalTimer;
+
+    /** What a team mate signalled, on a coloured strip above the prompt for a few seconds. */
+    public void showSignal(final String text, final int millis) {
+        view.getLblSignal().setText(text);
+        view.getLblSignal().setVisible(true);
+        if (signalTimer != null) {
+            signalTimer.stop();
+        }
+        signalTimer = new javax.swing.Timer(millis, e -> view.getLblSignal().setVisible(false));
+        signalTimer.setRepeats(false);
+        signalTimer.start();
+        remind();
     }
 
     /**

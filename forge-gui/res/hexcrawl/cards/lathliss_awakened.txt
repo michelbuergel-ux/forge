@@ -1,0 +1,11 @@
+Name:Lathliss Awakened
+ManaCost:no cost
+Colors:red
+Types:Enchantment
+T:Mode$ Always | TriggerZones$ Command | CheckSVar$ X | SVarCompare$ LEY | IsPresent$ Card.Self+counters_EQ0_AWAKENING | PresentZone$ Command | Execute$ TrigAwake | TriggerDescription$ When your life total is half your starting life or less for the first time, create a 5/5 red Dragon creature token with flying. From then on, creatures you control have haste.
+SVar:TrigAwake:DB$ PutCounter | Defined$ Self | CounterType$ AWAKENING | CounterNum$ 1 | SubAbility$ DBEffect
+SVar:DBEffect:DB$ Token | TokenScript$ r_5_5_dragon_flying | TokenAmount$ 1
+S:Mode$ Continuous | EffectZone$ Command | Affected$ Creature.YouCtrl | AddKeyword$ Haste | IsPresent$ Card.Self+counters_GE1_AWAKENING | PresentZone$ Command | Description$ As long as CARDNAME has an awakening counter on it, creatures you control have haste.
+SVar:X:Count$YourLifeTotal
+SVar:Y:Count$YourStartingLife/HalfDown
+Oracle:When your life total is half your starting life or less for the first time, create a 5/5 red Dragon creature token with flying. From then on, creatures you control have haste.

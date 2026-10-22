@@ -1,0 +1,11 @@
+Name:Lorthos Awakened
+ManaCost:no cost
+Colors:blue
+Types:Enchantment
+T:Mode$ Always | TriggerZones$ Command | CheckSVar$ X | SVarCompare$ LEY | IsPresent$ Card.Self+counters_EQ0_AWAKENING | PresentZone$ Command | Execute$ TrigAwake | TriggerDescription$ When your life total is half your starting life or less for the first time, draw three cards. From then on, spells you cast cost {1} less to cast.
+SVar:TrigAwake:DB$ PutCounter | Defined$ Self | CounterType$ AWAKENING | CounterNum$ 1 | SubAbility$ DBEffect
+SVar:DBEffect:DB$ Draw | Defined$ You | NumCards$ 3
+S:Mode$ ReduceCost | EffectZone$ Command | ValidCard$ Card | Type$ Spell | Activator$ You | Amount$ 1 | IsPresent$ Card.Self+counters_GE1_AWAKENING | PresentZone$ Command | Description$ As long as CARDNAME has an awakening counter on it, spells you cast cost {1} less to cast.
+SVar:X:Count$YourLifeTotal
+SVar:Y:Count$YourStartingLife/HalfDown
+Oracle:When your life total is half your starting life or less for the first time, draw three cards. From then on, spells you cast cost {1} less to cast.

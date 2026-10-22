@@ -585,6 +585,12 @@ public abstract class GameLobby implements IHasGameType {
      */
     public HostedMatch startPreparedMatch(final forge.game.GameRules rules, final List<RegisteredPlayer> players,
             final Map<RegisteredPlayer, Integer> humanSeats, final Runnable endGameHook) {
+        return startPreparedMatch(rules, players, humanSeats, endGameHook, null);
+    }
+
+    /** @param playlist the music of the match (null: the usual match music) */
+    public HostedMatch startPreparedMatch(final forge.game.GameRules rules, final List<RegisteredPlayer> players,
+            final Map<RegisteredPlayer, Integer> humanSeats, final Runnable endGameHook, final forge.sound.MusicPlaylist playlist) {
         final Map<RegisteredPlayer, IGuiGame> guis = Maps.newHashMap();
         final Map<RegisteredPlayer, LobbySlot> playerToSlot = Maps.newHashMap();
         for (final Map.Entry<RegisteredPlayer, Integer> seat : humanSeats.entrySet()) {
@@ -598,7 +604,7 @@ public abstract class GameLobby implements IHasGameType {
         hostedMatch = GuiBase.getInterface().hostMatch();
         hostedMatch.setOnMatchOver(this::onMatchOver);
         hostedMatch.setEndGameHook(endGameHook);
-        hostedMatch.startMatch(rules, null, players, guis, null);
+        hostedMatch.startMatch(rules, null, players, guis, playlist);
 
         for (final Player p : hostedMatch.getGame().getPlayers()) {
             final LobbySlot slot = playerToSlot.get(p.getRegisteredPlayer());
