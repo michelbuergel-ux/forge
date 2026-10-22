@@ -60,7 +60,8 @@ public final class HexBattle {
 
     /**
      * The enemy side: the enemy itself with its equipment in play and, against a party of
-     * several heads, its followers. They are one team with shared turns and a shared life total.
+     * several heads, more heads: copies of a boss or task enemy, the followers of any other enemy.
+     * They are one team with shared turns and a shared life total.
      */
     private static void addEnemies(final HexCampaign campaign, final HexEncounter enc, final List<RegisteredPlayer> players, final int firstAvatar) {
         final HexContent content = HexContent.get();
@@ -70,19 +71,35 @@ public final class HexBattle {
         enemy.setPlayer(GamePlayerUtil.createAiPlayer(enc.enemyName, avatar++));
         enemy.setTeamNumber(ENEMY_TEAM);
         enemy.setStartingLife(life);
-        final List<forge.item.IPaperCard> equipment = new ArrayList<>();
-        addStartCards(equipment, enc.startCards);
-        if (!equipment.isEmpty()) {
-            enemy.addExtraCardsOnBattlefield(equipment);
-        }
+        addEquipment(enemy, enc);
         applyEnemyRelics(campaign, enemy);
         players.add(enemy);
+        if (enc.headsAlike()) {
+            for (int n = 2; n <= campaign.enemyHeads(); n++) {
+                final RegisteredPlayer rp = new RegisteredPlayer(content.loadEnemyDeck(enc));
+                rp.setPlayer(GamePlayerUtil.createAiPlayer(enc.enemyName + " " + n, avatar++)); // every player needs a name of its own
+                rp.setTeamNumber(ENEMY_TEAM);
+                rp.setStartingLife(life);
+                addEquipment(rp, enc);
+                players.add(rp);
+            }
+            return;
+        }
         for (final HexEncounter follower : content.followers(enc, campaign.enemyHeads() - 1)) {
             final RegisteredPlayer rp = new RegisteredPlayer(content.loadEnemyDeck(follower));
             rp.setPlayer(GamePlayerUtil.createAiPlayer(follower.enemyName, avatar++));
             rp.setTeamNumber(ENEMY_TEAM);
             rp.setStartingLife(life);
             players.add(rp);
+        }
+    }
+
+    /** The cards and tokens the enemy starts the fight with (its equipment). */
+    private static void addEquipment(final RegisteredPlayer rp, final HexEncounter enc) {
+        final List<forge.item.IPaperCard> equipment = new ArrayList<>();
+        addStartCards(equipment, enc.startCards);
+        if (!equipment.isEmpty()) {
+            rp.addExtraCardsOnBattlefield(equipment);
         }
     }
 

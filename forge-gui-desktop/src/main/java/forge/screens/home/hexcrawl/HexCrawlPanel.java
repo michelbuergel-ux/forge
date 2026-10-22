@@ -697,7 +697,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         final StringBuilder sb = new StringBuilder();
         final int followers = campaign.enemyHeads() - 1;
         if (followers > 0) {
-            sb.append(' ').append(loc.getMessage("lblHexEnemyFollowers", String.valueOf(followers)));
+            sb.append(' ').append(loc.getMessage(enc.headsAlike() ? "lblHexEnemyCopies" : "lblHexEnemyFollowers", String.valueOf(followers)));
         }
         if (!enc.startCards.isEmpty()) {
             sb.append(' ').append(loc.getMessage("lblHexEnemyStarts", HexContent.get().startCardNames(enc)));

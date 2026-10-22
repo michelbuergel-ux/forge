@@ -60,9 +60,9 @@ public class HexShopThemesTest extends AITest {
         final HexTheme random = c.randomTheme();
         AssertJUnit.assertNotNull(c.tile().theme);
         AssertJUnit.assertFalse("the random theme differs from the town's", town.equals(random));
-        AssertJUnit.assertFalse(c.shop(HexShopType.CREATURE, town.id).isEmpty());
-        AssertJUnit.assertFalse(c.shop(HexShopType.CREATURE, random.id).isEmpty());
-        AssertJUnit.assertFalse(c.shop(HexShopType.RELIC, null).isEmpty() && stock.isEmpty());
+        AssertJUnit.assertFalse(c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_TOWN).isEmpty());
+        AssertJUnit.assertFalse(c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_RANDOM).isEmpty());
+        AssertJUnit.assertFalse(c.shop(HexShopType.RELIC, "Ann", HexCampaign.TAB_TOWN).isEmpty() && stock.isEmpty());
 
         // pick a theme: its shelves are stocked, and it is locked until the next fight
         HexTheme pick = null;
@@ -76,19 +76,19 @@ public class HexShopThemesTest extends AITest {
         AssertJUnit.assertTrue(c.mayPickTheme("Ann", 0));
         AssertJUnit.assertTrue(c.pickTheme("Ann", 0, pick.id));
         AssertJUnit.assertEquals(pick.id, c.player("Ann").themes[0]);
-        AssertJUnit.assertFalse(c.shop(HexShopType.CREATURE, pick.id).isEmpty());
+        AssertJUnit.assertFalse(c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_PICKED).isEmpty());
         AssertJUnit.assertFalse("one change per fight", c.pickTheme("Ann", 0, town.id));
         AssertJUnit.assertTrue("the other slot is still free", c.mayPickTheme("Ann", 1));
 
         // buying in the theme tab
         HexShopOffer cheapest = null;
-        for (final HexShopOffer o : c.shop(HexShopType.CREATURE, pick.id)) {
+        for (final HexShopOffer o : c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_PICKED)) {
             if (cheapest == null || o.price < cheapest.price) {
                 cheapest = o;
             }
         }
         final int gold = c.player("Ann").gold;
-        AssertJUnit.assertTrue(c.buy("Ann", HexShopType.CREATURE, pick.id, cheapest.card));
+        AssertJUnit.assertTrue(c.buy("Ann", HexShopType.CREATURE, HexCampaign.TAB_PICKED, cheapest.card));
         AssertJUnit.assertEquals(gold - cheapest.price, c.player("Ann").gold);
         AssertJUnit.assertTrue(c.player("Ann").deck.contains(cheapest.card));
 
@@ -98,6 +98,60 @@ public class HexShopThemesTest extends AITest {
         c.shop();
         AssertJUnit.assertEquals(Integer.valueOf(c.fights()), c.randomThemeAt.get(c.tile().key()));
         AssertJUnit.assertEquals("the town keeps its theme", town, c.townTheme());
+    }
+
+    @Test
+    public void testPickedTabHasShelvesOfItsOwn() {
+        final HexCampaign c = newCampaign();
+        c.player("Ann").gold = 10000;
+        c.shop();
+        final HexTheme town = c.townTheme();
+        AssertJUnit.assertTrue(c.pickTheme("Ann", 0, town.id));
+        final List<HexShopOffer> townTab = c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_TOWN);
+        final List<HexShopOffer> picked = c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_PICKED);
+        AssertJUnit.assertFalse(picked.isEmpty());
+        for (final HexShopOffer o : picked) {
+            AssertJUnit.assertEquals(town.id, o.theme);
+            AssertJUnit.assertFalse("the same theme, but shelves of its own", townTab.contains(o));
+        }
+
+        // buying in the picked tab leaves the town's tab alone
+        final int before = townTab.size();
+        final HexShopOffer bought = picked.get(0);
+        AssertJUnit.assertTrue(c.buy("Ann", HexShopType.CREATURE, HexCampaign.TAB_PICKED, bought.card));
+        AssertJUnit.assertEquals(before, c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_TOWN).size());
+        AssertJUnit.assertEquals(picked.size() - 1, c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_PICKED).size());
+    }
+
+    @Test
+    public void testRestockRenewsEveryTabForGold() {
+        final HexCampaign c = newCampaign();
+        c.shop();
+        AssertJUnit.assertTrue(c.pickTheme("Ann", 0, c.themeChoices().get(0).id));
+        final List<HexShopOffer> townBefore = c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_TOWN);
+        final List<HexShopOffer> pickedBefore = c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_PICKED);
+        final List<HexShopOffer> relicsBefore = c.shop(HexShopType.RELIC, "Ann", HexCampaign.TAB_TOWN);
+
+        c.player("Ann").gold = HexCampaign.RESTOCK_PRICE - 1;
+        AssertJUnit.assertFalse("not enough gold", c.restock("Ann"));
+        c.player("Ann").gold = HexCampaign.RESTOCK_PRICE;
+        AssertJUnit.assertTrue(c.restock("Ann"));
+        AssertJUnit.assertEquals(0, c.player("Ann").gold);
+
+        final List<HexShopOffer> townAfter = c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_TOWN);
+        final List<HexShopOffer> pickedAfter = c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_PICKED);
+        AssertJUnit.assertFalse(townAfter.isEmpty());
+        AssertJUnit.assertFalse(pickedAfter.isEmpty());
+        for (final HexShopOffer o : townAfter) {
+            AssertJUnit.assertFalse("the town's tab was restocked", townBefore.contains(o));
+        }
+        for (final HexShopOffer o : pickedAfter) {
+            AssertJUnit.assertFalse("the picked tab was restocked", pickedBefore.contains(o));
+        }
+        for (final HexShopOffer o : c.shop(HexShopType.RELIC, "Ann", HexCampaign.TAB_TOWN)) {
+            AssertJUnit.assertFalse("the relic dealer was restocked", relicsBefore.contains(o));
+        }
+        AssertJUnit.assertEquals("the town keeps its theme", c.townTheme().id, townAfter.get(0).theme);
     }
 
     @Test
@@ -111,6 +165,17 @@ public class HexShopThemesTest extends AITest {
         AssertJUnit.assertNotNull("the town got a theme", c.tile().theme);
         for (final HexShopOffer o : c.shop()) {
             AssertJUnit.assertTrue(o.shop == HexShopType.RELIC || o.theme != null);
+        }
+    }
+
+    @Test
+    public void testSaveFromBeforeTabsGetsShelvesPerTab() {
+        final HexCampaign c = newCampaign();
+        for (final HexShopOffer o : c.shop()) {
+            o.tab = null;
+        }
+        for (final HexShopOffer o : c.shop()) {
+            AssertJUnit.assertTrue(o.shop == HexShopType.RELIC || o.tab != null);
         }
     }
 }

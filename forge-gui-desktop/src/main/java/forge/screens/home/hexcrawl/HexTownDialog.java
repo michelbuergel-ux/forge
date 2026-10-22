@@ -68,14 +68,17 @@ final class HexTownDialog {
     private String tab = HexShopType.CREATURE.name();
 
     // theme tabs: the town's theme, the random one and the two the head picked
-    private final JPanel pnlThemes = new JPanel(new MigLayout("insets 0, gap 4, fillx"));
+    private final JPanel pnlThemes = new JPanel(new MigLayout("insets 0, gap 4, fillx, wrap 1", "[grow, fill]"));
+    private final FButton btnRestock = new FButton();
     private final FButton btnTownTheme = new FButton();
     private final FButton btnRandomTheme = new FButton();
     private final FButton[] btnPicked = { new FButton(), new FButton() };
     private final List<FComboBox<String>> cboPicked = new ArrayList<>();
     private final List<HexTheme> themeChoices = new ArrayList<>();
-    /** The theme tab shown (a HexTheme id). */
-    private String themeTab;
+    /** The theme tab shown: HexCampaign.TAB_TOWN, TAB_RANDOM or TAB_PICKED + slot. */
+    private int themeTab = HexCampaign.TAB_TOWN;
+    /** A picked tab whose new theme a guest has asked for, until the host's answer arrives. */
+    private int pendingPickTab = -1;
     private boolean fillingThemes;
 
     // card shops
@@ -168,17 +171,21 @@ final class HexTownDialog {
 
         panel.add(buildThemeTabs(), "hidemode 3");
 
-        final JPanel tabs = new JPanel(new MigLayout("insets 0, gap 4, fillx"));
-        tabs.setOpaque(false);
+        // two rows, so that all tabs fit the window: the shops, then the rest of the town
+        final JPanel shopTabs = new JPanel(new MigLayout("insets 0, gap 4, fillx"));
+        shopTabs.setOpaque(false);
         for (final HexShopType type : HexShopType.values()) {
-            addTab(tabs, type.name(), t(type.getLabelKey()));
+            addTab(shopTabs, type.name(), t(type.getLabelKey()));
         }
-        addTab(tabs, TAB_QUESTS, t("lblHexTabQuests"));
-        addTab(tabs, TAB_SELL, t("lblHexTabSell"));
+        panel.add(shopTabs);
+        final JPanel townTabs = new JPanel(new MigLayout("insets 0, gap 4, fillx"));
+        townTabs.setOpaque(false);
+        addTab(townTabs, TAB_QUESTS, t("lblHexTabQuests"));
+        addTab(townTabs, TAB_SELL, t("lblHexTabSell"));
         if (campaign().players.size() > 1) {
-            addTab(tabs, TAB_TRADE, t("lblHexTabTrade"));
+            addTab(townTabs, TAB_TRADE, t("lblHexTabTrade"));
         }
-        panel.add(tabs);
+        panel.add(townTabs);
 
         body.setOpaque(false);
         body.add(buildCardsPage(), PAGE_CARDS);
@@ -213,7 +220,7 @@ final class HexTownDialog {
             fill();
         });
         tabButtons.put(key, b);
-        tabs.add(b, "h 28!, growx, sg tab");
+        tabs.add(b, "h 28!, growx, wmin 60, sg tab");
     }
 
     private boolean isCardShop() {
@@ -224,13 +231,15 @@ final class HexTownDialog {
     private List<HexShopOffer> offers(final HexShopType type) {
         final List<HexShopOffer> result = new ArrayList<>();
         final HexCampaign c = campaign();
-        if (c == null || c.tile().poi != HexPoi.TOWN) {
+        final HexPlayer p = head();
+        if (c == null || p == null || c.tile().poi != HexPoi.TOWN) {
             return result;
         }
+        final String tabKey = HexCampaign.tabKey(p.name, themeTab);
         final List<HexShopOffer> stock = c.shops.get(c.tile().key());
         if (stock != null) {
             for (final HexShopOffer o : stock) {
-                if (o.shop == type && (type == HexShopType.RELIC || java.util.Objects.equals(o.theme, themeTab))) {
+                if (o.shop == type && (type == HexShopType.RELIC || tabKey.equals(o.tab))) {
                     result.add(o);
                 }
             }
@@ -252,21 +261,48 @@ final class HexTownDialog {
         for (final FButton b : new FButton[] { btnTownTheme, btnRandomTheme, btnPicked[0], btnPicked[1] }) {
             b.setFont(FSkin.getFont(12));
         }
-        btnTownTheme.addActionListener(e -> selectTheme(themeId(0)));
-        btnRandomTheme.addActionListener(e -> selectTheme(themeId(1)));
-        pnlThemes.add(btnTownTheme, "h 28!, growx, sg theme");
-        pnlThemes.add(btnRandomTheme, "h 28!, growx, sg theme");
+        btnTownTheme.addActionListener(e -> selectTheme(HexCampaign.TAB_TOWN));
+        btnRandomTheme.addActionListener(e -> selectTheme(HexCampaign.TAB_RANDOM));
+        btnRestock.setFont(FSkin.getFont(12));
+        btnRestock.setText(t("lblHexRestock", String.valueOf(HexCampaign.RESTOCK_PRICE)));
+        btnRestock.setToolTipText(t("lblHexRestockHint"));
+        btnRestock.addActionListener(e -> onRestock());
+        // two rows, so that everything fits the window: the town's tabs, then the two the head picks
+        final JPanel townRow = new JPanel(new MigLayout("insets 0, gap 4, fillx"));
+        townRow.setOpaque(false);
+        townRow.add(btnTownTheme, "h 28!, growx, wmin 60, sg theme");
+        townRow.add(btnRandomTheme, "h 28!, growx, wmin 60, sg theme");
+        townRow.add(btnRestock, "h 28!, w 220!");
+        pnlThemes.add(townRow);
+        final JPanel pickedRow = new JPanel(new MigLayout("insets 0, gap 4, fillx"));
+        pickedRow.setOpaque(false);
         for (int slot = 0; slot < HexCampaign.PICKED_THEMES; slot++) {
             final int s = slot;
-            btnPicked[slot].addActionListener(e -> selectTheme(themeId(2 + s)));
+            btnPicked[slot].addActionListener(e -> selectTheme(HexCampaign.TAB_PICKED + s));
             final FComboBox<String> cbo = new FComboBox<>(labels);
             cbo.setFont(FSkin.getFont(12));
             cbo.addActionListener(e -> onThemePicked(s, cbo.getSelectedIndex()));
             cboPicked.add(cbo);
-            pnlThemes.add(btnPicked[slot], "h 28!, growx, sg theme");
-            pnlThemes.add(cbo, "h 28!, w 150!");
+            pickedRow.add(btnPicked[slot], "h 28!, growx, wmin 60, sg picked");
+            pickedRow.add(cbo, "h 28!, w 190!");
         }
+        pnlThemes.add(pickedRow);
         return pnlThemes;
+    }
+
+    /** A head pays for new shelves in every tab of the town (and new relics). */
+    private void onRestock() {
+        final HexPlayer p = head();
+        if (p == null) {
+            return;
+        }
+        if (p.gold < HexCampaign.RESTOCK_PRICE) {
+            lblMessage.setText(t("lblHexNotEnoughGold"));
+        } else if (FOptionPane.showConfirmDialog(t("lblHexRestockConfirm", p.name, String.valueOf(HexCampaign.RESTOCK_PRICE)), t("lblHexTown"))) {
+            lblMessage.setText("");
+            session.restock(p.name);
+        }
+        fill();
     }
 
     /** The theme of a tab: 0 the town's, 1 the random one, 2 and 3 the ones the head picked; null if none. */
@@ -283,9 +319,9 @@ final class HexTownDialog {
         }
     }
 
-    private void selectTheme(final String id) {
-        if (id != null) {
-            themeTab = id;
+    private void selectTheme(final int tabIndex) {
+        if (themeId(tabIndex) != null) {
+            themeTab = tabIndex;
             lblMessage.setText("");
             fill();
         }
@@ -304,7 +340,8 @@ final class HexTownDialog {
             lblMessage.setText(t("lblHexThemeLocked"));
         } else {
             lblMessage.setText("");
-            themeTab = theme.id;
+            themeTab = HexCampaign.TAB_PICKED + slot;
+            pendingPickTab = themeTab;
             session.pickTheme(p.name, slot, theme.id);
         }
         fill();
@@ -314,17 +351,17 @@ final class HexTownDialog {
         fillingThemes = true;
         try {
             final String[] ids = { themeId(0), themeId(1), themeId(2), themeId(3) };
-            boolean shown = false;
-            for (final String id : ids) {
-                shown |= id != null && id.equals(themeTab);
+            if (pendingPickTab >= 0 && pendingPickTab < ids.length && ids[pendingPickTab] != null) {
+                pendingPickTab = -1;
             }
-            if (!shown) {
-                themeTab = ids[0]; // the tab shown is gone (a new random theme, another head): back to the town's
+            if (themeTab < 0 || themeTab >= ids.length || (ids[themeTab] == null && themeTab != pendingPickTab)) {
+                themeTab = HexCampaign.TAB_TOWN; // the tab shown has no theme (another head, a save from before): back to the town's
             }
-            setThemeButton(btnTownTheme, "lblHexThemeTown", ids[0]);
-            setThemeButton(btnRandomTheme, "lblHexThemeRandom", ids[1]);
+            setThemeButton(btnTownTheme, "lblHexThemeTown", ids[0], HexCampaign.TAB_TOWN);
+            setThemeButton(btnRandomTheme, "lblHexThemeRandom", ids[1], HexCampaign.TAB_RANDOM);
+            btnRestock.setEnabled(!session.isFightRunning());
             for (int slot = 0; slot < HexCampaign.PICKED_THEMES; slot++) {
-                setThemeButton(btnPicked[slot], "lblHexThemePicked", ids[2 + slot]);
+                setThemeButton(btnPicked[slot], "lblHexThemePicked", ids[2 + slot], HexCampaign.TAB_PICKED + slot);
                 final HexTheme picked = HexTheme.get(p.themes[slot]);
                 final int index = picked == null ? 0 : themeChoices.indexOf(picked) + 1;
                 cboPicked.get(slot).setSelectedIndex(Math.max(0, index));
@@ -337,11 +374,11 @@ final class HexTownDialog {
         }
     }
 
-    private void setThemeButton(final FButton b, final String key, final String id) {
+    private void setThemeButton(final FButton b, final String key, final String id, final int tabIndex) {
         final HexTheme theme = HexTheme.get(id);
         b.setText(t(key, theme == null ? "–" : theme.getLabel()));
         b.setEnabled(theme != null);
-        b.setToggled(theme != null && theme.id.equals(themeTab));
+        b.setToggled(theme != null && tabIndex == themeTab);
     }
 
     // ------------------------------------------------------------------ refresh
@@ -506,7 +543,7 @@ final class HexTownDialog {
                 lblMessage.setText(t("lblHexNotEnoughGold"));
             } else {
                 lblMessage.setText("");
-                session.buy(p.name, HexShopType.RELIC, null, relic.name);
+                session.buy(p.name, HexShopType.RELIC, -1, relic.name);
             }
             fill();
         });

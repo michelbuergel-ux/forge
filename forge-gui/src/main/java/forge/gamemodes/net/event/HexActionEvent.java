@@ -22,6 +22,8 @@ public final class HexActionEvent implements NetEvent {
     public static final String GIVE = "GIVE";
     /** A head looked at its deck before a fight (ready check). */
     public static final String DECK_SEEN = "DECK_SEEN";
+    /** A head pays for a whole new stock of the town. */
+    public static final String RESTOCK = "RESTOCK";
 
     private final String type;
     private final int q;

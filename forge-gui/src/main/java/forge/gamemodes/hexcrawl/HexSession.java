@@ -155,12 +155,17 @@ public class HexSession {
     }
 
     /** Buys a card or a relic; the shop may be null if it does not matter which shop sells it. */
-    public void buy(final String head, final HexShopType shop, final String theme, final String card) {
-        act(new HexActionEvent(HexActionEvent.BUY, shop == null ? -1 : shop.ordinal(), HexTheme.indexOf(theme), card, false, head));
+    public void buy(final String head, final HexShopType shop, final int tab, final String card) {
+        act(new HexActionEvent(HexActionEvent.BUY, shop == null ? -1 : shop.ordinal(), tab, card, false, head));
     }
 
     public void buy(final String head, final String card) {
-        buy(head, null, null, card);
+        buy(head, null, -1, card);
+    }
+
+    /** A head pays for a whole new stock of the town (every theme tab and the relics). */
+    public void restock(final String head) {
+        act(new HexActionEvent(HexActionEvent.RESTOCK, 0, 0, null, false, head));
     }
 
     /** A head picks the theme of one of its two theme tabs (slot 0 or 1). */
@@ -245,9 +250,10 @@ public class HexSession {
                 campaign.markDeckChecked(head);
             } else if (HexActionEvent.BUY.equals(type)) {
                 final int shop = action.getQ();
-                final HexTheme theme = HexTheme.byIndex(action.getR());
                 campaign.buy(head, shop >= 0 && shop < HexShopType.values().length ? HexShopType.values()[shop] : null,
-                        theme == null ? null : theme.id, action.getText());
+                        action.getR(), action.getText());
+            } else if (HexActionEvent.RESTOCK.equals(type)) {
+                campaign.restock(head);
             } else if (HexActionEvent.THEME.equals(type)) {
                 if (!fightRunning) {
                     campaign.pickTheme(head, action.getQ(), action.getText());

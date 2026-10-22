@@ -99,6 +99,50 @@ public class HexCampaignFeaturesTest extends AITest {
         AssertJUnit.assertEquals(players.get(1).getStartingHand() + 1, players.get(0).getStartingHand());
     }
 
+    /** The enemy side of a fight, in seat order. */
+    private static List<RegisteredPlayer> enemySide(final HexCampaign c, final HexEncounter enc) {
+        final List<RegisteredPlayer> enemies = new java.util.ArrayList<>();
+        for (final RegisteredPlayer rp : HexBattle.createPlayers(c, enc, true)) {
+            if (rp.getTeamNumber() == HexBattle.ENEMY_TEAM) {
+                enemies.add(rp);
+            }
+        }
+        return enemies;
+    }
+
+    private static String cardsOnBattlefield(final RegisteredPlayer rp) {
+        final List<String> names = new java.util.ArrayList<>();
+        for (final forge.item.IPaperCard card : rp.getCardsOnBattlefield()) {
+            names.add(card.getName());
+        }
+        java.util.Collections.sort(names);
+        return names.toString();
+    }
+
+    @Test
+    public void testBossAndTaskEnemiesFightWithCopiesOfThemselves() {
+        final HexCampaign c = newCampaign();
+        AssertJUnit.assertTrue("two heads meet more than one enemy head", c.enemyHeads() > 1);
+        final HexEncounter boss = HexContent.get().bossEncounter(HexColor.RED);
+        final HexEncounter task = enemy();
+        task.questId = 7;
+        for (final HexEncounter enc : Arrays.asList(boss, task)) {
+            final List<RegisteredPlayer> enemies = enemySide(c, enc);
+            AssertJUnit.assertEquals(c.enemyHeads(), enemies.size());
+            final RegisteredPlayer first = enemies.get(0);
+            for (final RegisteredPlayer rp : enemies) {
+                AssertJUnit.assertTrue(rp.getPlayer().getName().startsWith(enc.enemyName));
+                AssertJUnit.assertEquals("the same deck", first.getDeck().getMain().toCardList(", "), rp.getDeck().getMain().toCardList(", "));
+                AssertJUnit.assertEquals("the same equipment", cardsOnBattlefield(first), cardsOnBattlefield(rp));
+                AssertJUnit.assertEquals(first.getStartingLife(), rp.getStartingLife());
+            }
+        }
+
+        // any other enemy brings followers
+        final List<RegisteredPlayer> enemies = enemySide(c, enemy());
+        AssertJUnit.assertFalse(enemies.get(1).getPlayer().getName().startsWith(enemy().enemyName));
+    }
+
     @Test
     public void testEventsGiveAnEdgeForTheNextFight() {
         final HexCampaign c = newCampaign();

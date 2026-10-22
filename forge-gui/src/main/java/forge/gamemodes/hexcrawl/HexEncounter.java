@@ -17,4 +17,12 @@ public class HexEncounter {
     public int questId;
     /** Cards and tokens the enemy starts the fight with on the battlefield (its equipment). */
     public java.util.List<String> startCards = new java.util.ArrayList<>();
+
+    /**
+     * Bosses and the enemies of tasks fight with copies of themselves as their other heads (the
+     * same deck and equipment); every other enemy brings followers of its colour.
+     */
+    public boolean headsAlike() {
+        return boss || questId != 0;
+    }
 }
