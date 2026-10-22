@@ -54,6 +54,11 @@ public class HexNewGamePlusTest extends AITest {
         final int gold = c.gold(100);
 
         AssertJUnit.assertFalse("only after the victory", HexCampaign.create("X", 1L, 4, Arrays.asList(new HexPlayer("Ann", false))).startNewGamePlus());
+        final forge.gamemodes.hexcrawl.HexReward reward = new forge.gamemodes.hexcrawl.HexReward();
+        reward.playerName = "Bob";
+        c.pendingRewards.add(reward);
+        AssertJUnit.assertFalse("not before everybody has taken the reward of the last fight", c.startNewGamePlus());
+        c.pendingRewards.clear();
         AssertJUnit.assertTrue(c.startNewGamePlus());
         AssertJUnit.assertEquals(2, c.cycle);
         AssertJUnit.assertFalse(c.won);

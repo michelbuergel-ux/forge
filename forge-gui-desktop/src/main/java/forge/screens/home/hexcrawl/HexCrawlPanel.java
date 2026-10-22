@@ -84,6 +84,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
     private HexSession session;
     private boolean rewardPromptOpen;
+    /** The cycle whose victory this screen has asked about New Game Plus already. */
+    private int newGamePlusPromptedCycle;
     private boolean perkPromptOpen;
     /** The last event (see HexCampaign.eventSerial) already shown on this screen. */
     private int shownEventSerial = -1;
@@ -593,9 +595,37 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         final HexCampaign campaign = getCampaign();
         if (campaign == null || rewardPromptOpen || !isShowing() || session.isFightRunning()
                 || campaign.pendingEncounter != null || campaign.pendingReward(session.getMyHead()) == null) {
+            promptNewGamePlusIfWon();
             return;
         }
         promptReward();
+        promptNewGamePlusIfWon();
+    }
+
+    /**
+     * Once the last enemy (Emrakul) of the current cycle is beaten and everybody has taken their
+     * reward, the host is asked whether to start New Game Plus right away; a guest is told that the
+     * host can. Asked once per cycle; the button stays for later.
+     */
+    private void promptNewGamePlusIfWon() {
+        final HexCampaign campaign = getCampaign();
+        if (campaign == null || session == null || !campaign.won || campaign.isBusy() || session.isFightRunning()
+                || !isShowing() || rewardPromptOpen || newGamePlusPromptedCycle == campaign.cycle) {
+            return;
+        }
+        newGamePlusPromptedCycle = campaign.cycle;
+        if (isGuest() || HexNet.isGuest()) {
+            FOptionPane.showMessageDialog(t("lblHexVictoryGuest", HexContent.get().getBossName(HexColor.COLORLESS)), campaign.name);
+            return;
+        }
+        final int choice = FOptionPane.showOptionDialog(
+                t("lblHexVictoryNewGamePlus", HexContent.get().getBossName(HexColor.COLORLESS), String.valueOf(campaign.cycle),
+                        String.valueOf(HexCampaign.LIFE_PER_CYCLE), String.valueOf(HexCampaign.ADVANTAGES_PER_CYCLE)),
+                campaign.name, FOptionPane.INFORMATION_ICON,
+                Arrays.asList(t("lblHexNewGamePlus", String.valueOf(campaign.cycle)), t("lblHexLater")), 0);
+        if (choice == 0) {
+            session.newGamePlus();
+        }
     }
 
     /** Lets this person choose the reward of their own head. */
@@ -702,6 +732,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     private void newGamePlus() {
         final HexCampaign campaign = getCampaign();
         if (session == null || campaign == null || !campaign.won) {
+            return;
+        }
+        if (campaign.isBusy()) {
+            FOptionPane.showMessageDialog(t("lblHexNewGamePlusBusy"), campaign.name);
             return;
         }
         if (FOptionPane.showConfirmDialog(t("lblHexNewGamePlusConfirm", String.valueOf(campaign.cycle),

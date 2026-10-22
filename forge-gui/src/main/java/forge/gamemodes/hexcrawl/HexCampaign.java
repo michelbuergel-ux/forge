@@ -206,8 +206,8 @@ public class HexCampaign {
      * more life, and two more advantages (rolled among those not at their cap).
      */
     public boolean startNewGamePlus() {
-        if (!won) {
-            return false;
+        if (!won || isBusy()) {
+            return false; // not before everybody has taken the reward of the last fight
         }
         cycle++;
         final Random rnd = random();
