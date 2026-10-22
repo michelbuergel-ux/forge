@@ -4054,11 +4054,18 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
                         && u.pref() == FPref.YIELD_AUTO_PASS_NO_ACTIONS && Boolean.parseBoolean(u.value()))) {
             refreshAvailableActionsForPrompt();
         }
+        if (update instanceof YieldUpdate.SetYieldPref u && u.pref() == FPref.YIELD_AUTO_OK_PARTNER) {
+            onAlwaysOkPartnerChanged();
+        }
         tryAutoPassNow();
     }
 
     @Override
     public void setYieldPref(final FPref pref, final String value) {
+        if (pref == FPref.YIELD_AUTO_OK_PARTNER) {
+            onAlwaysOkPartnerChanged();
+            return;
+        }
         // Dialog already wrote to FModel; switching APINA on is the only change that can flip mayAutoPass
         // for a sitting prompt, and the budget field saves on every keystroke, so sweeping else is waste
         if (pref != FPref.YIELD_AUTO_PASS_NO_ACTIONS || !Boolean.parseBoolean(value)) return;
@@ -4068,6 +4075,13 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
 
     /** Holds the input it tested so a replacement cannot be answered in its place. isFinished narrows that
      *  window but does not close it: the flag is set on the EDT, after the input has already been removed. */
+    /** "Always OK my partner" changed (this screen, or a network guest's): a waiting team mate's item is OK'd now. */
+    private void onAlwaysOkPartnerChanged() {
+        if (inputProxy.getInput() instanceof InputPassPriority inp) {
+            inp.onAlwaysOkPartnerChanged();
+        }
+    }
+
     private void tryAutoPassNow() {
         if (inputProxy.getInput() instanceof InputPassPriority inp
                 && (mayAutoPass() || skipsPromptForStackOrPhase())) {

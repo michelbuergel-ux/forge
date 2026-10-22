@@ -66,6 +66,7 @@ public class CPrompt implements ICDoc {
 
     private final ActionListener actCancel = evt -> selectButtonCancel();
     private final ActionListener actOK = evt -> selectButtonOk();
+    private final ActionListener actAlwaysOkPartner = evt -> setAlwaysOkPartner(((javax.swing.AbstractButton) evt.getSource()).isSelected());
 
     private final WindowAdapter focusOKButtonOnDialogClose = new WindowAdapter() {
         @Override
@@ -121,6 +122,26 @@ public class CPrompt implements ICDoc {
     public void initialize() {
         _initButton(view.getBtnCancel(), actCancel);
         _initButton(view.getBtnOK(), actOK);
+        view.getChkAlwaysOkPartner().removeActionListener(actAlwaysOkPartner);
+        view.getChkAlwaysOkPartner().addActionListener(actAlwaysOkPartner);
+    }
+
+    /**
+     * Team games with streamlined priority (Hex Campaign fights): shows "Always OK my partner",
+     * unticked at the start of every fight.
+     */
+    public void showPartnerOption(final boolean show) {
+        view.getChkAlwaysOkPartner().setSelected(false);
+        view.getChkAlwaysOkPartner().setVisible(show);
+        view.getChkAlwaysOkPartner().setToolTipText(forge.util.Localizer.getInstance().getMessage("lblAlwaysOkPartnerHint"));
+    }
+
+    /** Just for this fight; the host (or this screen's own game) is told at once. */
+    private void setAlwaysOkPartner(final boolean on) {
+        FModel.getPreferences().setTemporaryPref(ForgePreferences.FPref.YIELD_AUTO_OK_PARTNER, String.valueOf(on));
+        if (matchUI.getGameController() != null) {
+            matchUI.getGameController().setYieldPref(ForgePreferences.FPref.YIELD_AUTO_OK_PARTNER, String.valueOf(on));
+        }
     }
 
     private static Dialog getActiveDialog(boolean modalOnly)

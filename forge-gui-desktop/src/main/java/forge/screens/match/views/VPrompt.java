@@ -61,6 +61,8 @@ public class VPrompt implements IVDoc<CPrompt> {
     // Various components
     private final FButton btnOK = new FButton(localizer.getMessage("lblOK"));
     private final FButton btnCancel = new FButton(localizer.getMessage("lblCancel"));
+    /** Team games with streamlined priority (Hex Campaign fights): OK the team mates' spells at once. */
+    private final forge.toolbox.FCheckBox chkAlwaysOkPartner = new forge.toolbox.FCheckBox(localizer.getMessage("lblAlwaysOkPartner"));
     private final FHtmlViewer tarMessage = new FHtmlViewer();
     private final FScrollPane messageScroller = new FScrollPane(tarMessage, false,
     		ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
@@ -140,6 +142,8 @@ public class VPrompt implements IVDoc<CPrompt> {
 
         container.add(btnOK, constraints);
         container.add(btnCancel, constraints);
+        chkAlwaysOkPartner.setVisible(false);
+        container.add(chkAlwaysOkPartner, "span 2, w 10:100%, h 22px!, gaptop 2px!, hidemode 3");
     }
 
     /* (non-Javadoc)
@@ -191,6 +195,10 @@ public class VPrompt implements IVDoc<CPrompt> {
     /** @return {@link javax.swing.JButton} */
     public FButton getBtnCancel() {
         return this.btnCancel;
+    }
+
+    public forge.toolbox.FCheckBox getChkAlwaysOkPartner() {
+        return this.chkAlwaysOkPartner;
     }
 
     /** @return {@link javax.swing.JTextArea} */

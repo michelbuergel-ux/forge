@@ -53,6 +53,7 @@ public class YieldController {
             FPref.YIELD_INTERRUPT_ON_REVEAL,
             FPref.YIELD_INTERRUPT_ON_MASS_REMOVAL,
             FPref.YIELD_AUTO_PASS_NO_ACTIONS,
+            FPref.YIELD_AUTO_OK_PARTNER,
             FPref.YIELD_AUTO_PASS_RESPECTS_INTERRUPTS,
             FPref.YIELD_SKIP_PHASE_DELAY,
             FPref.YIELD_SKIP_RESOLVE_DELAY,

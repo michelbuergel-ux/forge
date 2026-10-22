@@ -1506,6 +1506,8 @@ public final class CMatchUI
     private void actuateMatchPreferences() {
         // Hex Campaign fights: auto-pass, no delays and lean phase stops, just for this game
         StreamlinedPriority.applyFor(getGameView());
+        getCPrompt().showPartnerOption(getGameView() != null && getGameView().isStreamlinedPriority()
+                && teamPlayers != null && teamPlayers.size() > 1);
         final ForgePreferences prefs = FModel.getPreferences();
         final List<VField> fieldViews = getFieldViews();
         final PhaseType[] phases = PhaseType.values();
