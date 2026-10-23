@@ -45,6 +45,7 @@ import forge.gamemodes.hexcrawl.HexDeckStats.Advice;
 import forge.gamemodes.hexcrawl.HexPlayer;
 import forge.gamemodes.hexcrawl.HexRelic;
 import forge.gamemodes.hexcrawl.HexSession;
+import forge.item.IPaperCard;
 import forge.item.PaperCard;
 import forge.screens.home.hexcrawl.HexDeckParts.CardRow;
 import forge.screens.home.hexcrawl.HexDeckParts.ColourBars;
@@ -716,7 +717,19 @@ final class HexDeckDialog {
                     relic = r;
                 }
             }
-            final RelicBox box = new RelicBox(palette, relic != null, new MigLayout("insets 12 14 12 14, gap 14", "[44!][grow, fill]", "[top]"));
+            // the pictures of what the relic puts into play, if it does: pointing at one shows it big
+            final List<IPaperCard> pictures = new ArrayList<>();
+            if (relic != null) {
+                final List<String> cards = new ArrayList<>(relic.battlefield);
+                cards.addAll(relic.enemyBattlefield);
+                for (final String id : cards) {
+                    final IPaperCard card = content.findStartCard(id);
+                    if (card != null && !pictures.contains(card) && pictures.size() < 2) {
+                        pictures.add(card);
+                    }
+                }
+            }
+            final RelicBox box = new RelicBox(palette, relic != null, new MigLayout("insets 12 14 12 14, gap 14", "[44!][grow, fill][]", "[top]"));
             box.add(new Badge(HexTownStyle.slotGlyph(slot), 44, new Color(0x2a2416), relic != null ? GOLD_EDGE : new Color(0x4a4436), 2f,
                     relic != null ? GOLD_LIGHT : new Color(0x6f6a5f)), "w 44!, h 44!");
             final JPanel text = transparent(new MigLayout("insets 0, gap 0 3, wrap 1"));
@@ -724,13 +737,13 @@ final class HexDeckDialog {
             if (relic == null) {
                 text.add(label(t("lblHexSlotEmpty"), body(Font.ITALIC, 13f), HexTownStyle.FAINT));
             } else {
-                text.add(wrapped(relic.name, display(15.5f), TEXT_BRIGHT, relicTextW));
+                text.add(wrapped(relic.name, display(15.5f), TEXT_BRIGHT, relicTextW - 50 * pictures.size()));
                 String effects = HexCrawlPanel.relicEffects(relic);
                 if (relic.description != null && !relic.description.isEmpty()) {
                     effects += relic.description;
                 }
                 if (!effects.trim().isEmpty()) {
-                    text.add(wrapped(effects, body(Font.PLAIN, 12.5f), new Color(0xd6d0c2), relicTextW));
+                    text.add(wrapped(effects, body(Font.PLAIN, 12.5f), new Color(0xd6d0c2), relicTextW - 50 * pictures.size()));
                 }
                 life += relic.life;
                 hand += relic.hand;
@@ -738,6 +751,13 @@ final class HexDeckDialog {
                 enemyLife += relic.enemyLife;
             }
             box.add(text, "wmin 0");
+            if (!pictures.isEmpty()) {
+                final JPanel thumbs = transparent(new MigLayout("insets 0, gap 6"));
+                for (final IPaperCard card : pictures) {
+                    thumbs.add(HexTownStyle.thumbnail(card), "w 44!, h 61!");
+                }
+                box.add(thumbs);
+            }
             pnlRelics.add(box);
         }
         pnlRelics.add(wrapped(t("lblHexRelicHint"), body(Font.PLAIN, 12f), HexTownStyle.FAINT, relicTextW + 58), "gaptop 2");

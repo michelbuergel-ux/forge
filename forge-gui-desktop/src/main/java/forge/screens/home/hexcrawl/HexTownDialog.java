@@ -800,31 +800,41 @@ final class HexTownDialog {
 
     /** A relic in a gilded panel: its emblem, name and slot, what it does, and the button to buy or sell it. */
     private JPanel relicPanel(final HexPlayer p, final HexRelic relic, final HexShopOffer offer) {
-        final GildedPanel panel = new GildedPanel(palette, new MigLayout("insets 20 20 24 20, gap 0, wrap 1, fill", "[grow, fill]", "[][grow, top][]"));
+        final HexRelic old = offer != null ? campaign().relicInSlot(p, relic.slot) : null;
+        final GildedPanel panel = new GildedPanel(palette, new MigLayout("insets 20 20 24 20, gap 0, wrap 1, fill", "[grow, fill]",
+                old != null ? "[][][grow, top][]" : "[][grow, top][]"));
+        // the pictures of what the relic puts into play, if it does: pointing at one shows it big
+        final List<IPaperCard> pictures = new ArrayList<>();
+        final List<String> cards = new ArrayList<>(relic.battlefield);
+        cards.addAll(relic.enemyBattlefield);
+        for (final String id : cards) {
+            final IPaperCard card = content.findStartCard(id);
+            if (card != null && !pictures.contains(card) && pictures.size() < 2) {
+                pictures.add(card);
+            }
+        }
         final JPanel top = transparent(new MigLayout("insets 0, gap 12, aligny center", "[52!][grow, fill][]"));
         top.add(new Badge(HexTownStyle.slotGlyph(relic.slot), 52, new Color(0x2a2416), GOLD_EDGE, 2f, GOLD_LIGHT), "w 52!, h 52!");
         final JPanel names = transparent(new MigLayout("insets 0, gap 2, wrap 1"));
-        names.add(wrapped(relic.name, display(16f), TEXT_BRIGHT, relicW - 40 - 52 - 12 - 60));
+        names.add(wrapped(relic.name, display(16f), TEXT_BRIGHT, relicW - 40 - 52 - 12 - 12 - 50 * pictures.size()));
         names.add(label(t("lblHexRelicSlot", slotName(relic.slot)), body(Font.PLAIN, 12f), MUTED));
         top.add(names, "wmin 0");
-        // the picture of what the relic puts into play, if it does
-        final List<String> cards = relic.battlefield.isEmpty() ? relic.enemyBattlefield : relic.battlefield;
-        final IPaperCard card = cards.isEmpty() ? null : content.findStartCard(cards.get(0));
-        if (card instanceof PaperCard) {
-            final CardFace face = new CardFace();
-            face.setCard((PaperCard) card);
-            face.setToolTipText(card.getName());
-            top.add(face, "w 44!, h 61!");
+        if (!pictures.isEmpty()) {
+            final JPanel thumbs = transparent(new MigLayout("insets 0, gap 6"));
+            for (final IPaperCard card : pictures) {
+                thumbs.add(HexTownStyle.thumbnail(card), "w 44!, h 61!");
+            }
+            top.add(thumbs);
         }
         panel.add(top);
+        if (old != null) { // the head wears a relic in this slot already: buying swaps them
+            panel.add(new HexTownStyle.NoteBox(t("lblHexRelicReplaces", old.name, String.valueOf(content.relicSellPrice(old.name))),
+                    HexDeckParts.WARN, relicW - 40), "gaptop 12, wmin 0");
+        }
 
         final StringBuilder sb = new StringBuilder(HexCrawlPanel.relicEffects(relic));
         if (relic.description != null && !relic.description.isEmpty()) {
             sb.append(relic.description).append('\n');
-        }
-        final HexRelic old = offer != null ? campaign().relicInSlot(p, relic.slot) : null;
-        if (old != null) {
-            sb.append(t("lblHexRelicReplaces", old.name, String.valueOf(content.relicSellPrice(old.name)))).append('\n');
         }
         panel.add(wrapped(sb.toString(), body(Font.PLAIN, 13f), new Color(0xd6d0c2), relicW - 40 - 8), "gaptop 12, wmin 0");
 

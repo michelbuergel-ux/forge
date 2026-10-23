@@ -40,6 +40,7 @@ import forge.ImageCache;
 import forge.card.CardRarity;
 import forge.gamemodes.hexcrawl.HexColor;
 import forge.gui.GuiBase;
+import forge.item.IPaperCard;
 import forge.item.PaperCard;
 import forge.toolbox.FSkin;
 import forge.util.ImageFetcher;
@@ -1033,18 +1034,18 @@ final class HexTownStyle {
 
     /** The picture of a card, loaded (and fetched if missing) like the other card pictures of Forge, and scaled smoothly. */
     static final class CardImage implements ImageFetcher.Callback {
-        private final PaperCard card;
+        private final IPaperCard card;
         private final JComponent owner;
         private BufferedImage original;
         private BufferedImage scaled;
 
-        CardImage(final PaperCard card0, final JComponent owner0) {
+        CardImage(final IPaperCard card0, final JComponent owner0) {
             card = card0;
             owner = owner0;
             load(true);
         }
 
-        PaperCard card() {
+        IPaperCard card() {
             return card;
         }
 
@@ -1113,12 +1114,85 @@ final class HexTownStyle {
         g.draw(round(x + 1, y + 1, w - 2, h - 2, arc));
     }
 
+    /** How big a small card picture shows its card while the mouse is over it. */
+    static final int ZOOM_W = 252;
+    static final int ZOOM_H = 352;
+
+    /**
+     * A small picture of a card that shows the card big beside it while the mouse is over it (to the right,
+     * or to the left where the screen ends), in a dark frame with a gold edge.
+     */
+    static CardFace thumbnail(final IPaperCard card) {
+        final CardFace thumb = new CardFace();
+        thumb.setCard(card);
+        thumb.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        thumb.addMouseListener(new MouseAdapter() {
+            private javax.swing.Popup popup;
+
+            @Override
+            public void mouseEntered(final MouseEvent e) {
+                if (popup != null || !thumb.isShowing()) {
+                    return;
+                }
+                final CardFace big = new CardFace();
+                big.setCard(card);
+                final JPanel frame = new JPanel(new java.awt.BorderLayout());
+                frame.setBackground(new Color(0x15130f));
+                frame.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+                        javax.swing.BorderFactory.createLineBorder(GOLD_EDGE, 2), javax.swing.BorderFactory.createEmptyBorder(6, 6, 6, 6)));
+                frame.add(big, java.awt.BorderLayout.CENTER);
+                frame.setPreferredSize(new Dimension(ZOOM_W + 16, ZOOM_H + 16));
+                final java.awt.Point at = thumb.getLocationOnScreen();
+                final java.awt.Rectangle screen = thumb.getGraphicsConfiguration().getBounds();
+                int x = at.x + thumb.getWidth() + 12;
+                if (x + ZOOM_W + 16 > screen.x + screen.width) {
+                    x = at.x - ZOOM_W - 16 - 12;
+                }
+                final int y = Math.max(screen.y, Math.min(at.y - (ZOOM_H + 16) / 3, screen.y + screen.height - ZOOM_H - 16));
+                popup = javax.swing.PopupFactory.getSharedInstance().getPopup(thumb, frame, x, y);
+                popup.show();
+            }
+
+            @Override
+            public void mouseExited(final MouseEvent e) {
+                if (popup != null) {
+                    popup.hide();
+                    popup = null;
+                }
+            }
+        });
+        return thumb;
+    }
+
+    /** A short note in a rounded outline of its colour: a warning on a relic, say. */
+    static final class NoteBox extends JPanel {
+        private final Color color;
+
+        NoteBox(final String text, final Color color0, final int width) {
+            super(new MigLayout("insets 6 10 6 10, gap 0"));
+            color = color0;
+            setOpaque(false);
+            add(wrapped(text, body(Font.BOLD, 12f), color0, width - 20));
+        }
+
+        @Override
+        protected void paintComponent(final Graphics g) {
+            final Graphics2D g2 = smooth(g);
+            final RoundRectangle2D shape = round(0.5, 0.5, getWidth() - 1, getHeight() - 1, 8);
+            g2.setColor(alpha(color, .12));
+            g2.fill(shape);
+            g2.setColor(alpha(color, .7));
+            g2.draw(shape);
+            g2.dispose();
+        }
+    }
+
     /** A big card face, for the preview. */
     static final class CardFace extends JComponent {
         private CardImage image;
         private Color edge = GOLD_EDGE;
 
-        void setCard(final PaperCard card) {
+        void setCard(final IPaperCard card) {
             if (card == null) {
                 image = null;
             } else if (image == null || image.card() != card) {
