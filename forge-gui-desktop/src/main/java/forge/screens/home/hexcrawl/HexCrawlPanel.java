@@ -1,5 +1,18 @@
 package forge.screens.home.hexcrawl;
 
+import static forge.screens.home.hexcrawl.HexTownStyle.BAD;
+import static forge.screens.home.hexcrawl.HexTownStyle.GOLD_LIGHT;
+import static forge.screens.home.hexcrawl.HexTownStyle.MUTED;
+import static forge.screens.home.hexcrawl.HexTownStyle.TEXT;
+import static forge.screens.home.hexcrawl.HexTownStyle.TEXT_BRIGHT;
+import static forge.screens.home.hexcrawl.HexTownStyle.body;
+import static forge.screens.home.hexcrawl.HexTownStyle.caps;
+import static forge.screens.home.hexcrawl.HexTownStyle.decorative;
+import static forge.screens.home.hexcrawl.HexTownStyle.display;
+import static forge.screens.home.hexcrawl.HexTownStyle.label;
+import static forge.screens.home.hexcrawl.HexTownStyle.tracked;
+import static forge.screens.home.hexcrawl.HexTownStyle.wrapped;
+
 import java.awt.event.HierarchyEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -9,6 +22,8 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
+import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
@@ -44,13 +59,19 @@ import forge.item.PaperCard;
 import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.model.FModel;
 import forge.screens.home.CHomeUI;
-import forge.toolbox.FButton;
 import forge.toolbox.FLabel;
 import forge.toolbox.FOptionPane;
 import forge.toolbox.FScrollPane;
 import forge.toolbox.FSkin;
-import forge.toolbox.FTextArea;
 import forge.util.Localizer;
+import forge.screens.home.hexcrawl.HexSidebarParts.BossTrack;
+import forge.screens.home.hexcrawl.HexSidebarParts.Heading;
+import forge.screens.home.hexcrawl.HexSidebarParts.PartyRow;
+import forge.screens.home.hexcrawl.HexSidebarParts.Plate;
+import forge.screens.home.hexcrawl.HexSidebarParts.Sprite;
+import forge.screens.home.hexcrawl.HexSidebarParts.Threat;
+import forge.screens.home.hexcrawl.HexTownStyle.GoldButton;
+import forge.screens.home.hexcrawl.HexTownStyle.Palette;
 import net.miginfocom.swing.MigLayout;
 
 /**
@@ -63,25 +84,44 @@ import net.miginfocom.swing.MigLayout;
 public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     private final Localizer loc = Localizer.getInstance();
     private final HexMapPanel mapPanel = new HexMapPanel();
-    private final FLabel lblTitle = new FLabel.Builder().fontSize(18).fontStyle(java.awt.Font.BOLD).fontAlign(SwingConstants.LEFT).build();
-    private final FLabel lblPlace = new FLabel.Builder().fontSize(13).fontAlign(SwingConstants.LEFT).build();
-    private final FTextArea txtParty = new FTextArea();
-    private final FTextArea txtJournal = new FTextArea();
-    private final FButton btnFight = new FButton();
-    private final FButton btnNewGamePlus = new FButton();
-    private final FButton btnRewards = new FButton();
-    private final FButton btnPerk = new FButton();
-    private final FButton btnEvent = new FButton();
-    private final FButton btnShop = new FButton();
-    private final FButton btnDecks = new FButton();
-    private final FButton btnInvite = new FButton();
-    private final FButton btnJoin = new FButton();
-    private final FButton btnLeave = new FButton();
+    /** Width of the side panel, and of the text in its scrolling middle part. */
+    private static final int SIDE_W = 350;
+    private static final int MIDDLE_W = SIDE_W - 32 - 18;
+    private final JLabel lblTitle = label(" ", decorative(22f), TEXT_BRIGHT);
+    private final JLabel lblPlace = label(" ", tracked(display(11.5f), 0.12f), MUTED);
+    private final GoldButton btnFight = new GoldButton("", GoldButton.Kind.GOLD, 15f);
+    private final GoldButton btnNewGamePlus = new GoldButton("", GoldButton.Kind.GOLD, 13f);
+    private final GoldButton btnRewards = new GoldButton("", GoldButton.Kind.GOLD, 13f);
+    private final GoldButton btnPerk = new GoldButton("", GoldButton.Kind.GOLD, 13f);
+    private final GoldButton btnEvent = new GoldButton("", GoldButton.Kind.GOLD, 13f);
+    private final GoldButton btnShop = new GoldButton("", GoldButton.Kind.GOLD, 14f);
+    private final GoldButton btnDecks = new GoldButton("", GoldButton.Kind.OUTLINE, 13f);
+    private final GoldButton btnInvite = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
+    private final GoldButton btnJoin = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
+    private final GoldButton btnLeave = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
     /** Who is connected to whom: shown to the host and to guests. */
-    private final FLabel lblConnection = new FLabel.Builder().fontSize(12).fontStyle(java.awt.Font.BOLD).fontAlign(SwingConstants.LEFT).build();
-    private final FButton btnNew = new FButton();
-    private final FButton btnLoad = new FButton();
-    private final JPanel pnlFiles = new JPanel(new MigLayout("insets 0, gap 6, fillx", "[grow, fill][grow, fill]"));
+    private final JLabel lblConnection = label(" ", body(java.awt.Font.BOLD, 12f), MUTED);
+    private final GoldButton btnNew = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
+    private final GoldButton btnLoad = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
+
+    // the side panel's parts: the enemy ahead, the vote, the party, the archmages, tasks, the journal
+    private final JPanel threatBox = box();
+    private final JPanel voteBox = box();
+    private final Heading hdParty = new Heading(t("lblHexPartyTitle"));
+    private final JPanel pnlParty = transparent(new MigLayout("insets 0, gap 0 6, wrap 1, fillx", "[grow, fill]"));
+    private final List<PartyRow> partyRows = new ArrayList<>();
+    private final Heading hdBosses = new Heading(t("lblHexArchmagesTitle"));
+    private final BossTrack bossTrack = new BossTrack();
+    private final JLabel lblRecord = label(" ", body(java.awt.Font.PLAIN, 12f), MUTED);
+    private final Heading hdTasks = new Heading(t("lblHexTasksTitle"));
+    private final JPanel tasksBox = box();
+    private final Heading hdCycle = new Heading(t("lblHexCycleHeading"));
+    private final JPanel cycleBox = box();
+    private final Heading hdBoosts = new Heading(t("lblHexBoostsHeading"));
+    private final JPanel boostsBox = box();
+    private final Heading hdJournal = new Heading(t("lblHexJournalTitle"));
+    private final JPanel pnlJournal = transparent(new MigLayout("insets 0, gap 0 7, wrap 1", "[" + MIDDLE_W + "!]"));
+    private String journalShown = "";
 
     private HexSession session;
     private boolean rewardPromptOpen;
@@ -128,12 +168,12 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     });
 
     public HexCrawlPanel() {
-        super(new MigLayout("insets 10, gap 10, fill", "[grow, fill][330!, fill]", "[grow, fill]"));
+        super(new MigLayout("insets 10, gap 10, fill", "[grow, fill][" + SIDE_W + "!, fill]", "[grow, fill]"));
         setOpaque(false);
         add(mapPanel, "grow");
 
-        final JPanel side = new JPanel(new MigLayout("insets 0, gap 6, wrap 1, fillx, hidemode 3", "[fill]"));
-        side.setOpaque(false);
+        final Plate side = new Plate(this::palette, new MigLayout("insets 18 16 14 16, gap 0, wrap 1, fillx, hidemode 3",
+                "[grow, fill]"));
         btnRewards.setText(t("lblHexRewards"));
         btnPerk.setText(t("lblHexChoosePerk"));
         btnEvent.setText(t("lblHexEventChooseButton"));
@@ -142,29 +182,53 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnInvite.setText(t("lblHexInvite"));
         btnNew.setText(t("lblHexNewCampaign"));
         btnLoad.setText(t("lblHexLoadCampaign"));
-        txtParty.setFont(FSkin.getFont(13).getBaseFont());
-        txtJournal.setFont(FSkin.getFont(12).getBaseFont());
-        side.add(lblTitle, "h 26!");
-        side.add(lblPlace, "h 22!");
-        side.add(lblConnection, "h 20!");
-        side.add(cboLeader, "h 26!, hidemode 3");
-        side.add(txtParty);
-        side.add(btnFight, "h 34!");
-        side.add(btnNewGamePlus, "h 34!, hidemode 3");
-        side.add(btnRewards, "h 34!");
-        side.add(btnPerk, "h 34!");
-        side.add(btnEvent, "h 34!, hidemode 3");
-        side.add(btnShop, "h 30!");
-        side.add(btnDecks, "h 30!");
-        side.add(btnInvite, "h 28!");
-        side.add(btnJoin, "h 28!");
-        side.add(btnLeave, "h 26!");
-        pnlFiles.setOpaque(false);
-        pnlFiles.add(btnNew, "h 28!");
-        pnlFiles.add(btnLoad, "h 28!");
-        side.add(pnlFiles);
-        final FScrollPane scroll = new FScrollPane(txtJournal, true);
-        side.add(scroll, "grow, push, hmin 80");
+        side.add(lblTitle);
+        side.add(lblPlace, "gaptop 2");
+        side.add(lblConnection, "gaptop 6");
+
+        // what there is to do right now, the most pressing first
+        final JPanel actions = transparent(new MigLayout("insets 0, gap 0 8, wrap 1, fillx, hidemode 3", "[grow, fill]"));
+        actions.add(threatBox);
+        actions.add(btnFight, "h 46!");
+        actions.add(btnRewards, "h 40!");
+        actions.add(btnPerk, "h 40!");
+        actions.add(btnEvent, "h 40!");
+        actions.add(btnNewGamePlus, "h 40!");
+        actions.add(voteBox);
+        actions.add(btnShop, "h 44!");
+        actions.add(btnDecks, "h 38!");
+        side.add(actions, "gaptop 12");
+
+        // the party and the campaign so far, then the journal: scrolls when there is a lot of it
+        final JPanel middle = transparent(new MigLayout("insets 0 0 0 4, gap 0, wrap 1, hidemode 3", "[" + MIDDLE_W + "!, fill]"));
+        middle.add(hdParty);
+        middle.add(cboLeader, "h 28!, gaptop 4");
+        middle.add(pnlParty, "gaptop 6");
+        middle.add(hdBosses, "gaptop 12");
+        middle.add(bossTrack, "gaptop 2");
+        middle.add(lblRecord, "gaptop 2");
+        middle.add(hdTasks, "gaptop 12");
+        middle.add(tasksBox, "gaptop 2");
+        middle.add(hdCycle, "gaptop 12");
+        middle.add(cycleBox, "gaptop 2");
+        middle.add(hdBoosts, "gaptop 12");
+        middle.add(boostsBox, "gaptop 2");
+        middle.add(hdJournal, "gaptop 12");
+        middle.add(pnlJournal, "gaptop 4");
+        final FScrollPane scroll = new FScrollPane(middle, false, javax.swing.ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.getVerticalScrollBar().setUnitIncrement(24);
+        side.add(scroll, "gaptop 14, grow, push, h 120:120:n"); // whatever room the rest leaves
+
+        // campaigns and friends
+        final JPanel footer = transparent(new MigLayout("insets 0, gap 6 6, wrap 2, hidemode 3", "[grow, fill][grow, fill]"));
+        footer.add(new Heading(t("lblHexFilesTitle")), "span 2");
+        footer.add(btnInvite, "span 2, h 32!");
+        footer.add(btnJoin, "span 2, h 32!");
+        footer.add(btnLeave, "span 2, h 32!");
+        footer.add(btnNew, "h 32!");
+        footer.add(btnLoad, "h 32!");
+        side.add(footer, "gaptop 10");
         add(side, "grow");
 
         mapPanel.setOnTileClicked(this::onTileClicked);
@@ -486,6 +550,40 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
     // ------------------------------------------------------------------ display
 
+    private static JPanel transparent(final MigLayout layout) {
+        final JPanel panel = new JPanel(layout);
+        panel.setOpaque(false);
+        return panel;
+    }
+
+    /** A place for a piece of wrapped text, replaced when the text changes. */
+    private static JPanel box() {
+        final JPanel panel = new JPanel(new java.awt.BorderLayout());
+        panel.setOpaque(false);
+        return panel;
+    }
+
+    private static void setText(final JPanel box, final String text, final java.awt.Font font, final java.awt.Color color, final int width) {
+        final boolean has = text != null && !text.trim().isEmpty();
+        final String key = has ? text + '|' + color.getRGB() + '|' + width : "";
+        box.setVisible(has);
+        if (key.equals(box.getClientProperty("shown"))) {
+            return;
+        }
+        box.putClientProperty("shown", key);
+        box.removeAll();
+        if (has) {
+            box.add(wrapped(text, font, color, width));
+        }
+        box.revalidate();
+    }
+
+    /** The colours of the region the party stands in, for the side panel. */
+    private Palette palette() {
+        final HexCampaign campaign = getCampaign();
+        return HexTownStyle.palette(campaign == null || campaign.tile() == null ? HexColor.COLORLESS : campaign.tile().color);
+    }
+
     public void refresh() {
         final HexCampaign campaign = getCampaign();
         if (campaign != null) {
@@ -499,9 +597,12 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         mapPanel.setCampaign(campaign);
         mapPanel.setVotes(session == null ? null : session.getVotes());
+        final Palette palette = palette();
+        lblPlace.setForeground(palette.light());
         final boolean has = campaign != null;
         final boolean guest = isGuest() || HexNet.isGuest();
-        pnlFiles.setVisible(!guest);
+        btnNew.setVisible(!guest);
+        btnLoad.setVisible(!guest);
         btnInvite.setVisible(has && !guest);
         btnInvite.setText(t(HostingServer.isHosting() ? "lblHexInviteShow" : "lblHexInvite"));
         btnJoin.setVisible(!guest && !HostingServer.isHosting());
@@ -515,11 +616,18 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         if (!has) {
             btnFight.setVisible(false);
             btnRewards.setVisible(false);
+            btnPerk.setVisible(false);
+            btnEvent.setVisible(false);
             btnShop.setVisible(false);
+            threatBox.setVisible(false);
+            voteBox.setVisible(false);
+            for (final JComponent c : new JComponent[] { hdParty, cboLeader, pnlParty, hdBosses, bossTrack, lblRecord, hdTasks, tasksBox,
+                    hdCycle, cycleBox, hdBoosts, boostsBox }) {
+                c.setVisible(false);
+            }
             lblTitle.setText(t("lblHexCampaign"));
-            lblPlace.setText(t(guest ? "lblHexWaitingForHost" : "lblHexNoCampaign"));
-            txtParty.setText("");
-            txtJournal.setText(t("lblHexIntro"));
+            lblPlace.setText(caps(t(guest ? "lblHexWaitingForHost" : "lblHexNoCampaign")));
+            fillJournal(Collections.singletonList(t("lblHexIntro")));
             revalidate();
             repaint();
             return;
@@ -535,6 +643,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             }
         }
 
+        // what there is to do now
+        fillThreat(campaign);
         btnFight.setVisible(campaign.pendingEncounter != null);
         if (session.isFightRunning()) {
             btnFight.setText(t("lblHexFightRunning"));
@@ -553,104 +663,129 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnShop.setVisible(campaign.inTown());
 
         lblTitle.setText(campaign.cycle > 1 ? campaign.name + "  –  " + t("lblHexCycle", String.valueOf(campaign.cycle - 1)) : campaign.name);
+        lblTitle.setToolTipText(lblTitle.getText());
         final HexTile here = campaign.tile();
         String place = t(here.color.getLabelKey());
         if (here.poi == HexPoi.TOWN) {
-            place += " – " + t("lblHexTown") + " " + here.name;
+            place += " · " + t("lblHexTown") + " " + here.name;
         } else if (here.poi == HexPoi.BOSS) {
-            place += " – " + here.name;
+            place += " · " + here.name;
         }
-        final boolean myVoteMissing = !votes.isEmpty() && !votes.containsKey(me) && present.contains(me) && humans > 1;
-        lblPlace.setForeground(myVoteMissing ? new java.awt.Color(0xFB8C00) : FSkin.getColor(FSkin.Colors.CLR_TEXT).getColor());
-        lblPlace.setText(myVoteMissing ? t("lblHexYouHaveNotVoted", String.valueOf(Math.max(0, session.voteSecondsLeft(System.currentTimeMillis())))) : place);
-        fillLeader(campaign, humans, guest);
+        lblPlace.setText(caps(place));
 
-        final StringBuilder party = new StringBuilder();
-        for (final HexPlayer p : campaign.players) {
-            party.append(p.name);
+        // the vote, or how the campaign stands
+        final boolean myVoteMissing = !votes.isEmpty() && !votes.containsKey(me) && present.contains(me) && humans > 1;
+        final java.awt.Color orange = new java.awt.Color(0xF5A55A);
+        if (campaign.won) {
+            setText(voteBox, t("lblHexJournalVictory") + "\n" + t(guest ? "lblHexNewGamePlusWait" : "lblHexNewGamePlusHint"),
+                    body(java.awt.Font.BOLD, 12.5f), GOLD_LIGHT, SIDE_W - 32);
+        } else if (myVoteMissing) {
+            setText(voteBox, t("lblHexYouHaveNotVoted", String.valueOf(Math.max(0, session.voteSecondsLeft(System.currentTimeMillis())))),
+                    body(java.awt.Font.BOLD, 12.5f), orange, SIDE_W - 32);
+        } else if (campaign.pendingEncounter == null && humans > 1 && !campaign.isBusy()) {
+            final int secs = session.voteSecondsLeft(System.currentTimeMillis());
+            setText(voteBox, secs >= 0
+                    ? t("lblHexVoteCountdown", String.valueOf(votes.size()), String.valueOf(humans), String.valueOf(secs))
+                    : t("lblHexVoteHint", String.valueOf(votes.size()), String.valueOf(humans)),
+                    body(java.awt.Font.PLAIN, 12.5f), palette.light(), SIDE_W - 32);
+        } else {
+            setText(voteBox, null, null, MUTED, 0);
+        }
+
+        // the party
+        hdParty.setVisible(true);
+        pnlParty.setVisible(true);
+        fillLeader(campaign, humans, guest);
+        while (partyRows.size() < campaign.players.size()) {
+            final PartyRow row = new PartyRow();
+            partyRows.add(row);
+            pnlParty.add(row);
+        }
+        while (partyRows.size() > campaign.players.size()) {
+            pnlParty.remove(partyRows.remove(partyRows.size() - 1));
+        }
+        for (int i = 0; i < campaign.players.size(); i++) {
+            final HexPlayer p = campaign.players.get(i);
+            String tag = null;
             if (p.ai) {
-                party.append(" (").append(t("lblHexCompanion")).append(')');
+                tag = t("lblHexCompanion");
             } else if (!present.contains(p.name)) {
-                party.append(" (").append(t("lblHexAway")).append(')');
+                tag = t("lblHexAway");
             } else if (p.name.equals(me) && humans > 1) {
-                party.append(" (").append(t("lblHexYou")).append(')');
+                tag = t("lblHexYou");
             }
-            party.append(": ").append(t("lblHexGoldAndCards", String.valueOf(p.gold), String.valueOf(p.deck.size())));
+            final List<String> carried = new ArrayList<>();
+            carried.add(t("lblHexCardsCount", String.valueOf(p.deck.size())));
             if (!p.relics.isEmpty()) {
-                party.append(", ").append(t("lblHexRelicCount", String.valueOf(p.relics.size())));
-            }
-            if (votes.containsKey(p.name)) {
-                party.append("  \u2192 ").append(describeVote(campaign, votes.get(p.name)));
-                if (p.name.equals(campaign.leader)) {
-                    party.append(" (").append(t("lblHexLeaderDecides")).append(')');
-                }
-            } else if (!votes.isEmpty() && !p.ai && present.contains(p.name)) {
-                party.append("  \u2026 ").append(t("lblHexNotVoted"));
-            }
-            if (campaign.pendingEncounter == null && campaign.pendingReward(p.name) != null) {
-                party.append("  … ").append(t("lblHexChoosing"));
+                carried.add(t("lblHexRelicCount", String.valueOf(p.relics.size())));
             }
             if (!p.perks.isEmpty()) {
-                party.append(", ").append(t("lblHexPerkCount", String.valueOf(p.perks.size())));
+                carried.add(t("lblHexPerkCount", String.valueOf(p.perks.size())));
+            }
+            final List<String> doing = new ArrayList<>();
+            java.awt.Color statusColor = palette.light();
+            if (votes.containsKey(p.name)) {
+                doing.add(t("lblHexVotesFor", describeVote(campaign, votes.get(p.name)))
+                        + (p.name.equals(campaign.leader) ? " (" + t("lblHexLeaderDecides") + ")" : ""));
+            } else if (!votes.isEmpty() && !p.ai && present.contains(p.name)) {
+                doing.add(t("lblHexNotVoted"));
+                statusColor = orange;
+            }
+            if (campaign.pendingEncounter == null && campaign.pendingReward(p.name) != null) {
+                doing.add(t("lblHexChoosing"));
             }
             if (!p.perkOffer.isEmpty() && !session.isAiHead(p.name)) {
-                party.append("  … ").append(t("lblHexChoosingPerk"));
+                doing.add(t("lblHexChoosingPerk"));
             }
             // ready check before a fight: who is ready, who has looked at their deck
             if (campaign.pendingEncounter != null && !session.isFightRunning()) {
                 if (session.isAiHead(p.name)) {
-                    party.append("  ✓ ").append(t("lblHexReadyAi"));
+                    doing.add(t("lblHexReadyAi"));
+                } else if (ready.contains(p.name)) {
+                    doing.add(t("lblHexReady"));
+                    statusColor = new java.awt.Color(0x9BD18B);
                 } else {
-                    party.append(ready.contains(p.name) ? "  ✓ " + t("lblHexReady") : "  … " + t("lblHexNotReady"));
-                    if (campaign.deckChecked.contains(p.name)) {
-                        party.append("  ✓ ").append(t("lblHexDeckChecked"));
-                    }
+                    doing.add(t("lblHexNotReady"));
+                    statusColor = orange;
+                }
+                if (!session.isAiHead(p.name) && campaign.deckChecked.contains(p.name)) {
+                    doing.add(t("lblHexDeckChecked"));
                 }
             }
-            party.append('\n');
+            partyRows.get(i).set(p.name, tag, p.gold, String.join(" · ", carried), String.join(" · ", doing),
+                    statusColor, headColor(i), p.name.equals(me));
         }
-        party.append('\n').append(t("lblHexArchmages")).append(' ');
-        for (final HexColor c : HexColor.COLORS) {
-            party.append(campaign.defeatedBosses.contains(c) ? "[x] " : "[ ] ").append(HexContent.get().getBossName(c)).append("  ");
+
+        // the archmages, the record, tasks, what is different in this cycle and in the next fight
+        final String[] bosses = new String[HexColor.COLORS.length];
+        final java.awt.Color[] colors = new java.awt.Color[bosses.length];
+        final boolean[] beaten = new boolean[bosses.length];
+        for (int i = 0; i < bosses.length; i++) {
+            final HexColor c = HexColor.COLORS[i];
+            bosses[i] = HexContent.get().getBossName(c);
+            colors[i] = new java.awt.Color(c.getRgb());
+            beaten[i] = campaign.defeatedBosses.contains(c);
         }
-        party.append('\n').append(t("lblHexRecord", String.valueOf(campaign.battlesWon), String.valueOf(campaign.battlesLost)));
+        bossTrack.set(bosses, colors, beaten, t("lblHexBeaten"));
+        String record = t("lblHexRecord", String.valueOf(campaign.battlesWon), String.valueOf(campaign.battlesLost));
         if (campaign.goldMultiplier > 1) {
-            party.append("   ").append(t("lblHexGoldMultiplierInfo", String.valueOf(campaign.goldMultiplier)));
+            record += "  ·  " + t("lblHexGoldMultiplierInfo", String.valueOf(campaign.goldMultiplier));
         }
+        lblRecord.setText(record);
+        for (final JComponent c : new JComponent[] { hdBosses, bossTrack, lblRecord }) {
+            c.setVisible(true);
+        }
+        final List<String> tasks = new ArrayList<>();
         for (final HexQuest quest : campaign.quests) {
-            party.append('\n').append(t("lblHexQuestLine", quest.enemyName, String.valueOf(campaign.gold(quest.gold))));
+            tasks.add(t("lblHexQuestLine", quest.enemyName, String.valueOf(campaign.gold(quest.gold))));
         }
-        final List<String> cycleAdvantages = campaign.cycleAdvantages();
-        if (!cycleAdvantages.isEmpty()) {
-            party.append("\n\n").append(t("lblHexCycleTitle", String.valueOf(campaign.cycle - 1)));
-            for (final String a : cycleAdvantages) {
-                party.append("\n  • ").append(a);
-            }
-        }
-        final List<String> boosts = campaign.fightBoosts();
-        if (!boosts.isEmpty()) {
-            party.append("\n\n").append(t("lblHexBoostsTitle"));
-            for (final String boost : boosts) {
-                party.append("\n  • ").append(boost);
-            }
-        }
-        if (campaign.won) {
-            party.append("\n\n").append(t("lblHexJournalVictory"));
-            party.append("\n").append(t(guest ? "lblHexNewGamePlusWait" : "lblHexNewGamePlusHint"));
-        } else if (campaign.pendingEncounter != null) {
-            party.append("\n\n").append(describe(campaign.pendingEncounter));
-        } else if (humans > 1 && !campaign.isBusy()) {
-            final int secs = session.voteSecondsLeft(System.currentTimeMillis());
-            party.append("\n\n").append(secs >= 0
-                    ? t("lblHexVoteCountdown", String.valueOf(votes.size()), String.valueOf(humans), String.valueOf(secs))
-                    : t("lblHexVoteHint", String.valueOf(votes.size()), String.valueOf(humans)));
-        }
-        txtParty.setText(party.toString());
+        section(hdTasks, tasksBox, tasks);
+        section(hdCycle, cycleBox, campaign.cycleAdvantages());
+        section(hdBoosts, boostsBox, campaign.fightBoosts());
 
         final List<String> lines = new ArrayList<>(campaign.journal);
         Collections.reverse(lines);
-        txtJournal.setText(String.join("\n", lines));
-        txtJournal.setCaretPosition(0);
+        fillJournal(lines);
         if (shopRefresher != null) {
             shopRefresher.run();
         }
@@ -659,6 +794,64 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         revalidate();
         repaint();
+    }
+
+    /** A section of short lines (tasks, advantages, boosts), hidden while it has none. */
+    private void section(final Heading heading, final JPanel box, final List<String> lines) {
+        heading.setVisible(!lines.isEmpty());
+        final StringBuilder sb = new StringBuilder();
+        for (final String line : lines) {
+            sb.append(sb.length() == 0 ? "" : "\n").append("• ").append(line);
+        }
+        setText(box, sb.toString(), body(java.awt.Font.PLAIN, 12.5f), TEXT, MIDDLE_W);
+    }
+
+    /** The journal, newest first; the latest entry a little brighter. */
+    private void fillJournal(final List<String> lines) {
+        final List<String> shown = lines.subList(0, Math.min(lines.size(), 80));
+        final String key = shown.size() + "|" + (shown.isEmpty() ? "" : shown.get(0)) + "|" + lines.size();
+        hdJournal.setVisible(!shown.isEmpty());
+        if (key.equals(journalShown)) {
+            return;
+        }
+        journalShown = key;
+        pnlJournal.removeAll();
+        for (int i = 0; i < shown.size(); i++) {
+            pnlJournal.add(wrapped(shown.get(i), body(java.awt.Font.PLAIN, 12f), i == 0 ? TEXT : new java.awt.Color(0xbdb6a6), MIDDLE_W));
+        }
+        pnlJournal.revalidate();
+    }
+
+    /** The enemy the party is about to fight, with its figure, life and what the scouts found out. */
+    private void fillThreat(final HexCampaign campaign) {
+        final HexEncounter enc = campaign.pendingEncounter;
+        if (enc == null) {
+            threatBox.setVisible(false);
+            threatBox.putClientProperty("shown", null);
+            return;
+        }
+        final String more = (enemyExtras(campaign, enc) + scoutReport(campaign, enc)).trim();
+        final String key = enc.enemyName + '|' + campaign.enemyLife(enc) + '|' + more;
+        threatBox.setVisible(true);
+        if (key.equals(threatBox.getClientProperty("shown"))) {
+            return;
+        }
+        threatBox.putClientProperty("shown", key);
+        threatBox.removeAll();
+        final Threat card = new Threat(new MigLayout("insets 12 12 14 12, gap 10", "[56!][grow, fill]", "[top]"));
+        card.add(new Sprite(HexSprites.get(enc.enemyName), 56), "w 56!, h 56!");
+        final int textW = SIDE_W - 32 - 24 - 56 - 10;
+        final JPanel text = transparent(new MigLayout("insets 0, gap 0 2, wrap 1"));
+        text.add(label(caps(t(enc.boss ? "lblHexBossAheadTitle" : "lblHexEnemyAheadTitle")), tracked(display(11f), 0.2f), BAD));
+        text.add(wrapped(enc.enemyName, display(17f), TEXT_BRIGHT, textW));
+        text.add(label(t("lblHexLifeAmount", String.valueOf(campaign.enemyLife(enc))), body(java.awt.Font.BOLD, 12.5f), new java.awt.Color(0xf3c4b2)));
+        if (!more.isEmpty()) {
+            text.add(wrapped(more, body(java.awt.Font.PLAIN, 12f), new java.awt.Color(0xe0d2c8), textW), "gaptop 4");
+        }
+        card.add(text, "wmin 0");
+        card.setToolTipText("<html>" + describe(enc).replace("&", "&amp;").replace("<", "&lt;").replace("\n", "<br>") + "</html>");
+        threatBox.add(card);
+        threatBox.revalidate();
     }
 
     private String describe(final HexEncounter enc) {

@@ -193,6 +193,11 @@ final class HexTownStyle {
         }
 
         @Override
+        public Dimension getMinimumSize() {
+            return getPreferredSize(); // the lines never get cut off
+        }
+
+        @Override
         protected void paintComponent(final Graphics g) {
             final Graphics2D g2 = smooth(g);
             g2.setFont(getFont());
