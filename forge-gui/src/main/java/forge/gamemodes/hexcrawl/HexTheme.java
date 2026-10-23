@@ -38,6 +38,11 @@ public final class HexTheme {
         return labelArg == null ? Localizer.getInstance().getMessage(labelKey) : Localizer.getInstance().getMessage(labelKey, labelArg);
     }
 
+    /** The label without its kind ("Elf" instead of "Tribe: Elf"), for places that name the kind themselves. */
+    public String getName() {
+        return labelArg == null ? getLabel() : labelArg;
+    }
+
     @Override
     public String toString() {
         return getLabel();

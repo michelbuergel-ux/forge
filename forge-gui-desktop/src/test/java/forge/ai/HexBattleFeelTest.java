@@ -1,11 +1,9 @@
 package forge.ai;
 
-import forge.card.MagicColor;
 import forge.game.Game;
 import forge.game.card.Card;
 import forge.game.card.CounterEnumType;
 import forge.game.event.GameEventPlayerDamaged;
-import forge.game.event.GameEventSpellAbilityCast;
 import forge.game.player.Player;
 import forge.game.player.RegisteredPlayer;
 import forge.game.zone.ZoneType;
