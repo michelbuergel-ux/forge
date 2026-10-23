@@ -87,6 +87,11 @@ final class HexTownStyle {
         }
     }
 
+    /** Gold, for what has three colours or more (a deck of many colours). */
+    static Palette multicolour() {
+        return palette(0xd4a94e, 0x272012, 0x30281a, 0xf2e1b4, 0x17140d);
+    }
+
     private static Palette palette(final int accent, final int dark, final int mid, final int light, final int ground) {
         return new Palette(new Color(accent), new Color(dark), new Color(mid), new Color(light), new Color(ground));
     }
@@ -232,6 +237,11 @@ final class HexTownStyle {
     static void weave(final Graphics2D g, final int w, final int h, final Color base, final Palette p) {
         g.setColor(base);
         g.fillRect(0, 0, w, h);
+        weaveLines(g, w, h, p);
+    }
+
+    /** The threads of the woven texture alone, over whatever is painted already. */
+    static void weaveLines(final Graphics2D g, final int w, final int h, final Palette p) {
         final Shape clip = g.getClip();
         g.clipRect(0, 0, w, h);
         g.setStroke(new BasicStroke(2f));
@@ -399,31 +409,33 @@ final class HexTownStyle {
             weave(g2, getWidth(), CLOTH, p.dark(), p);
             g2.setColor(p.accent());
             g2.fillRect(0, CLOTH, getWidth(), 3);
-            // the filigree: two lines, two leaves and a diamond, in gold over the seam
-            final double cx = getWidth() / 2.0;
-            final double cy = CLOTH + 1.5;
-            g2.setColor(p.ground());
-            g2.fill(new Rectangle2D.Double(cx - 34, cy - 7, 68, 14));
-            g2.setColor(GOLD);
-            g2.setStroke(new BasicStroke(1.3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            g2.draw(new java.awt.geom.Line2D.Double(cx - 120, cy, cx - 32, cy));
-            g2.draw(new java.awt.geom.Line2D.Double(cx + 32, cy, cx + 120, cy));
-            for (final int side : new int[] { -1, 1 }) {
-                final Path2D.Double leaf = new Path2D.Double();
-                leaf.moveTo(cx + side * 32, cy);
-                leaf.curveTo(cx + side * 24, cy - 7, cx + side * 16, cy - 7, cx + side * 10, cy);
-                leaf.curveTo(cx + side * 16, cy + 7, cx + side * 24, cy + 7, cx + side * 32, cy);
-                g2.draw(leaf);
-            }
-            final Path2D.Double diamond = new Path2D.Double();
-            diamond.moveTo(cx, cy - 6);
-            diamond.lineTo(cx + 6, cy);
-            diamond.lineTo(cx, cy + 6);
-            diamond.lineTo(cx - 6, cy);
-            diamond.closePath();
-            g2.fill(diamond);
+            filigree(g2, getWidth() / 2.0, CLOTH + 1.5, p.ground());
             g2.dispose();
         }
+    }
+
+    /** The filigree over a banner's seam: two lines, two leaves and a diamond, in gold. */
+    static void filigree(final Graphics2D g2, final double cx, final double cy, final Color ground) {
+        g2.setColor(ground);
+        g2.fill(new Rectangle2D.Double(cx - 34, cy - 7, 68, 14));
+        g2.setColor(GOLD);
+        g2.setStroke(new BasicStroke(1.3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g2.draw(new java.awt.geom.Line2D.Double(cx - 120, cy, cx - 32, cy));
+        g2.draw(new java.awt.geom.Line2D.Double(cx + 32, cy, cx + 120, cy));
+        for (final int side : new int[] { -1, 1 }) {
+            final Path2D.Double leaf = new Path2D.Double();
+            leaf.moveTo(cx + side * 32, cy);
+            leaf.curveTo(cx + side * 24, cy - 7, cx + side * 16, cy - 7, cx + side * 10, cy);
+            leaf.curveTo(cx + side * 16, cy + 7, cx + side * 24, cy + 7, cx + side * 32, cy);
+            g2.draw(leaf);
+        }
+        final Path2D.Double diamond = new Path2D.Double();
+        diamond.moveTo(cx, cy - 6);
+        diamond.lineTo(cx + 6, cy);
+        diamond.lineTo(cx, cy + 6);
+        diamond.lineTo(cx - 6, cy);
+        diamond.closePath();
+        g2.fill(diamond);
     }
 
     /** The coat of arms of the town: a shield in its colours with a crest for its land. */
