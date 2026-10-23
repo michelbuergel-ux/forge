@@ -226,8 +226,8 @@ final class HexTownDialog {
             return;
         }
         final Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
-        final int width = Math.min(1280, screen.width - 40);
-        final int height = Math.min(800, screen.height - 40);
+        final int width = Math.min(1440, screen.width - 40); // as big as the deck window
+        final int height = Math.min(920, screen.height - 40);
         dialog = new FDialog(true, false, "0");
         dialog.getTitleBar().setVisible(false);
         dialog.add(build(width, height), "w 100%!, h 100%!");
@@ -250,7 +250,7 @@ final class HexTownDialog {
         final HexTile town = campaign().tile();
         palette = HexTownStyle.palette(town.color);
         pageW = width - SIDEBAR_W - 2 * 24 - 16; // the page's padding and room for a scroll bar
-        tileW = Math.max(110, Math.min(190, (pageW - PREVIEW_W - 20 - (COLUMNS - 1) * GAP) / COLUMNS));
+        tileW = Math.max(110, Math.min(200, (pageW - PREVIEW_W - 20 - (COLUMNS - 1) * GAP) / COLUMNS));
         counterW = (pageW - (COUNTER_COLUMNS - 1) * 14) / COUNTER_COLUMNS;
         relicW = (pageW - 2 * GAP) / 3;
         questW = (pageW - GAP) / 2;

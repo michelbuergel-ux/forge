@@ -412,10 +412,10 @@ final class HexDeckParts {
             g2.setColor(GOLD_LIGHT);
             g2.drawString(value, 16, top + 52);
             g2.setColor(dot);
-            g2.fill(new Ellipse2D.Double(16, top + 69, 8, 8));
+            g2.fill(new Ellipse2D.Double(15, top + 69, 8, 8));
             g2.setFont(body(Font.PLAIN, 12f));
             g2.setColor(MUTED);
-            g2.drawString(HexSidebarParts.fit(g2, note, w - 46), 30, top + 77);
+            g2.drawString(HexSidebarParts.fit(g2, note, w - 36), 29, top + 77);
             g2.dispose();
         }
     }
@@ -450,18 +450,34 @@ final class HexDeckParts {
         g.fill(round(x - 20, outlineB ? 7.5 : 6, 14, outlineB ? 7 : 10, outlineB ? 4 : 3));
     }
 
-    /** The colours: for each, the bar of what the spells need and the outlined bar of what the lands make. */
-    static final class ColourBars extends JComponent {
-        private final List<ColourRow> rows = new ArrayList<>();
-        private String title = "";
-        private String needLegend = "";
-        private String makeLegend = "";
-        private String empty = "";
+    /** The heading of the colours: its title and the legend of the two bars (it stays put while the rows scroll). */
+    static final class ColourHeader extends JComponent {
+        private final String title;
+        private final String needLegend;
+        private final String makeLegend;
 
-        void set(final String title0, final String needLegend0, final String makeLegend0, final String empty0, final List<ColourRow> rows0) {
+        ColourHeader(final String title0, final String needLegend0, final String makeLegend0) {
             title = title0;
             needLegend = needLegend0;
             makeLegend = makeLegend0;
+            setPreferredSize(new Dimension(200, 22));
+        }
+
+        @Override
+        protected void paintComponent(final Graphics g) {
+            final Graphics2D g2 = smooth(g);
+            header(g2, getWidth(), title, needLegend, new Color(0xc7c0ae), makeLegend, new Color(0xc7c0ae), true);
+            g2.dispose();
+        }
+    }
+
+    /** The colours: for each, the bar of what the spells need and the outlined bar of what the lands make. */
+    static final class ColourBars extends JComponent {
+        static final int ROW = 31;
+        private final List<ColourRow> rows = new ArrayList<>();
+        private String empty = "";
+
+        void set(final String empty0, final List<ColourRow> rows0) {
             empty = empty0;
             rows.clear();
             rows.addAll(rows0);
@@ -471,23 +487,22 @@ final class HexDeckParts {
 
         @Override
         public Dimension getPreferredSize() {
-            return new Dimension(200, 30 + Math.max(1, rows.size()) * 31);
+            return new Dimension(200, 4 + Math.max(1, rows.size()) * ROW);
         }
 
         @Override
         protected void paintComponent(final Graphics g) {
             final Graphics2D g2 = smooth(g);
             final int w = getWidth();
-            header(g2, w, title, needLegend, new Color(0xc7c0ae), makeLegend, new Color(0xc7c0ae), true);
             if (rows.isEmpty()) {
                 g2.setFont(body(Font.PLAIN, 13f));
                 g2.setColor(new Color(0xd6d0c2));
-                g2.drawString(empty, 0, 50);
+                g2.drawString(empty, 0, 22);
             }
             final int labelW = 168;
             final int barX = 104;
             final int barW = Math.max(40, w - barX - labelW - 12);
-            int y = 30;
+            int y = 4;
             for (final ColourRow r : rows) {
                 final Path2D.Double gem = new Path2D.Double();
                 gem.moveTo(7, y + 6);
@@ -520,7 +535,7 @@ final class HexDeckParts {
                 g2.setColor(r.makeColor());
                 fm = g2.getFontMetrics();
                 g2.drawString(r.makeLabel(), w - fm.stringWidth(r.makeLabel()), y + 24);
-                y += 31;
+                y += ROW;
             }
             g2.dispose();
         }
@@ -562,10 +577,12 @@ final class HexDeckParts {
             final int gap = 10;
             final double colW = (w - gap * 6) / 7.0;
             final int base = getHeight() - 20;
+            // the tallest bar ends under the heading, with room for its number above it
+            final double barMax = Math.max(8, base - 22 - 18);
             for (int i = 0; i < 7; i++) {
                 final double x = i * (colW + gap);
-                final double hc = creatures[i] * 60.0 / max;
-                final double ho = (all[i] - creatures[i]) * 60.0 / max;
+                final double hc = creatures[i] * barMax / max;
+                final double ho = (all[i] - creatures[i]) * barMax / max;
                 if (hc > 0) {
                     g2.setColor(p.accent());
                     g2.fill(round(x, base - hc, colW, hc, 6));

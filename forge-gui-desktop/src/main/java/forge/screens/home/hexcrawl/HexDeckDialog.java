@@ -48,6 +48,7 @@ import forge.gamemodes.hexcrawl.HexSession;
 import forge.item.PaperCard;
 import forge.screens.home.hexcrawl.HexDeckParts.CardRow;
 import forge.screens.home.hexcrawl.HexDeckParts.ColourBars;
+import forge.screens.home.hexcrawl.HexDeckParts.ColourHeader;
 import forge.screens.home.hexcrawl.HexDeckParts.ColourRow;
 import forge.screens.home.hexcrawl.HexDeckParts.CurveChart;
 import forge.screens.home.hexcrawl.HexDeckParts.DeckBanner;
@@ -400,14 +401,16 @@ final class HexDeckDialog {
         top.add(grid, "wmin 0");
         column.add(top);
 
-        final GildedPanel colours = new GildedPanel(palette, new MigLayout("insets 12 18 14 18, gap 0, fill", "[grow, fill]"));
+        // the colours under a fixed heading: three rows at most, the others scroll
+        final GildedPanel colours = new GildedPanel(palette, new MigLayout("insets 12 18 14 18, gap 0 6, wrap 1, fill", "[grow, fill]"));
+        colours.add(new ColourHeader(t("lblHexColoursTitle"), t("lblHexNeededBy"), t("lblHexMadeBy")), "h 22!");
         bars = new ColourBars();
-        colours.add(bars);
+        colours.add(scroller(bars), "h " + (4 + ColourBars.ROW) + ":pref:" + (4 + 3 * ColourBars.ROW) + ", wmin 0");
         column.add(colours);
 
         final GildedPanel curve = new GildedPanel(palette, new MigLayout("insets 12 18 14 18, gap 0, fill", "[grow, fill]"));
         chart = new CurveChart(palette);
-        curve.add(chart);
+        curve.add(chart, "hmin " + chart.getPreferredSize().height);
         column.add(curve);
 
         final GildedPanel advice = new GildedPanel(palette, new MigLayout("insets 12 18 14 18, gap 0 10, wrap 1, fill", "[grow, fill]", "[][grow, fill]"));
@@ -800,7 +803,7 @@ final class HexDeckDialog {
                     wanted > 0 ? t("lblHexLandsNeed", String.valueOf(stats.sources[i]), String.valueOf(wanted))
                             : t("lblHexLandsNotNeeded", String.valueOf(stats.sources[i])), color));
         }
-        bars.set(t("lblHexColoursTitle"), t("lblHexNeededBy"), t("lblHexMadeBy"), t("lblHexNoColours"), colourRows);
+        bars.set(t("lblHexNoColours"), colourRows);
         chart.set(t("lblHexCurveTitle"), t("lblHexCurveCreatures"), t("lblHexCurveOther"), stats.curve, stats.curveCreatures);
     }
 
