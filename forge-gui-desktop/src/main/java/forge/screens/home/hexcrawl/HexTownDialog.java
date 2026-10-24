@@ -162,6 +162,14 @@ final class HexTownDialog {
     private JPanel pnlSale;
     private String saleShown = "";
 
+    /** Which cards the sell and trade pages show: all, the deck's or the sideboard's. */
+    private static final String SOURCE_ALL = "all";
+    private static final String SOURCE_DECK = "deck";
+    private static final String SOURCE_SIDEBOARD = "sideboard";
+    private String source = SOURCE_ALL;
+    private final List<Pill> salePills = new ArrayList<>();
+    private final List<Pill> tradePills = new ArrayList<>();
+
     // trading with team mates
     private final PillTray mateTray = new PillTray();
     private final List<Pill> matePills = new ArrayList<>();
@@ -991,9 +999,10 @@ final class HexTownDialog {
 
     private JPanel buildSellPage() {
         final JPanel page = transparent(new MigLayout("insets 0, gap 0, wrap 1, fill", "[grow, fill]", "[]14[grow, fill]"));
-        final JPanel top = transparent(new MigLayout("insets 0, gap 16, aligny bottom"));
+        final JPanel top = transparent(new MigLayout("insets 0, gap 16, aligny bottom, fillx", "[][]push[]"));
         top.add(title(t("lblHexTabSell")));
         top.add(label(t("lblHexSellHint", String.valueOf(HexCampaign.MIN_DECK_SIZE)), body(Font.PLAIN, 13f), MUTED), "gapbottom 4");
+        top.add(sourcePills(salePills));
         page.add(top);
         pnlSale = transparent(new MigLayout("insets 0 0 8 0, gap 14, wrap " + COUNTER_COLUMNS, "", "[top]"));
         page.add(scroller(pnlSale), "wmin 0, hmin 0");
@@ -1017,12 +1026,43 @@ final class HexTownDialog {
         return rows;
     }
 
+    /** The tray of pills that shows all cards, the deck's or the sideboard's (one per page, the choice is shared). */
+    private PillTray sourcePills(final List<Pill> pills) {
+        final PillTray tray = new PillTray();
+        final String[][] choices = { { SOURCE_ALL, "lblHexFilterAll" }, { SOURCE_DECK, "lblHexDeckList" }, { SOURCE_SIDEBOARD, "lblHexSideboardTab" } };
+        for (final String[] choice : choices) {
+            final Pill pill = new Pill(t(choice[1]));
+            pill.putClientProperty("source", choice[0]);
+            pill.addActionListener(e -> {
+                source = choice[0];
+                fill();
+            });
+            pills.add(pill);
+            tray.add(pill, "h 30!");
+        }
+        return tray;
+    }
+
+    /** The cards of the counter the filter lets through. */
+    private List<SaleRow> shownRows(final HexPlayer p, final List<Pill> pills) {
+        for (final Pill pill : pills) {
+            pill.setActive(source.equals(pill.getClientProperty("source")));
+        }
+        final List<SaleRow> rows = new ArrayList<>();
+        for (final SaleRow row : saleRows(p)) {
+            if (SOURCE_ALL.equals(source) || row.sideboard() == SOURCE_SIDEBOARD.equals(source)) {
+                rows.add(row);
+            }
+        }
+        return rows;
+    }
+
     private String copies(final SaleRow row) {
         return t(row.sideboard() ? "lblHexCountSideboard" : "lblHexCountDeck", String.valueOf(row.copies()));
     }
 
     private void fillDeck(final HexPlayer p) {
-        final List<SaleRow> rows = saleRows(p);
+        final List<SaleRow> rows = shownRows(p, salePills);
         final String shown = p.name + '/' + rows;
         if (shown.equals(saleShown)) {
             return;
@@ -1097,7 +1137,10 @@ final class HexTownDialog {
         });
         row.add(btnGiveGold, "h 40!");
         page.add(row);
-        page.add(label(t("lblHexTradeHint"), body(Font.PLAIN, 13f), MUTED));
+        final JPanel hint = transparent(new MigLayout("insets 0, gap 16, aligny center, fillx", "[]push[]"));
+        hint.add(label(t("lblHexTradeHint"), body(Font.PLAIN, 13f), MUTED));
+        hint.add(sourcePills(tradePills));
+        page.add(hint);
         pnlTrade = transparent(new MigLayout("insets 0 0 8 0, gap 14, wrap " + COUNTER_COLUMNS, "", "[top]"));
         page.add(scroller(pnlTrade), "wmin 0, hmin 0");
         return page;
@@ -1132,7 +1175,7 @@ final class HexTownDialog {
         for (int i = 0; i < matePills.size(); i++) {
             matePills.get(i).setActive(mates.get(i).equals(mate));
         }
-        final List<SaleRow> rows = saleRows(p);
+        final List<SaleRow> rows = shownRows(p, tradePills);
         final String shown = p.name + '/' + rows;
         if (shown.equals(tradeShown)) {
             return;
