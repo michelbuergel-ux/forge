@@ -47,7 +47,8 @@ public class HexShopThemesTest extends AITest {
             final PaperCard card = content.getCard(o.card);
             AssertJUnit.assertTrue(o.card + " is no Goblin card", goblins.fits(card.getRules()));
             final byte color = card.getRules().getColor().getColor();
-            AssertJUnit.assertTrue(o.card + " is not red", color == forge.card.MagicColor.RED || color == forge.card.MagicColor.COLORLESS);
+            // red, colourless, or multicoloured with red (the towns sell those too)
+            AssertJUnit.assertTrue(o.card + " is not red", (color & forge.card.MagicColor.RED) != 0 || color == forge.card.MagicColor.COLORLESS);
         }
         AssertJUnit.assertEquals(HexContent.CARDS_PER_SHOP, creatures);
     }

@@ -47,7 +47,7 @@ public final class HexContent {
         String bossInsult;
     }
 
-    public static final int CARDS_PER_SHOP = 5;
+    public static final int CARDS_PER_SHOP = 8;
     public static final int RELICS_PER_TOWN = 3;
     private static final Set<String> RELIC_SLOTS = new HashSet<>(java.util.Arrays.asList("Left", "Right", "Neck", "Body", "Boots"));
 
