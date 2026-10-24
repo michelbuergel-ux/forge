@@ -592,6 +592,7 @@ public final class HexContent {
         enc.color = quest.color;
         enc.gold = 20 + quest.life;
         enc.questId = quest.id;
+        enc.archenemy = quest.archenemy;
         enc.q = quest.q;
         enc.r = quest.r;
         final HexRelic relic = quest.relic == null ? null : relics.get(quest.relic);
@@ -600,6 +601,23 @@ public final class HexContent {
             enc.startCards.addAll(relic.battlefield);
         }
         return enc;
+    }
+
+    /** How many schemes an archenemy brings (the size of an Archenemy scheme deck). */
+    public static final int SCHEMES_PER_ARCHENEMY = 20;
+
+    /** A scheme deck for an archenemy: different schemes the AI can play, drawn with the given random. */
+    public List<PaperCard> schemeDeck(final Random rnd) {
+        final List<PaperCard> all = new ArrayList<>();
+        final Set<String> names = new HashSet<>();
+        for (final PaperCard card : FModel.getArchenemyCards().toFlatList()) {
+            if (!card.getRules().getAiHints().getRemAIDecks() && names.add(card.getName())) {
+                all.add(card);
+            }
+        }
+        all.sort((a, b) -> a.getName().compareTo(b.getName())); // a stable order, so seeds are reproducible
+        Collections.shuffle(all, rnd);
+        return new ArrayList<>(all.subList(0, Math.min(SCHEMES_PER_ARCHENEMY, all.size())));
     }
 
     /**

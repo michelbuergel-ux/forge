@@ -166,7 +166,8 @@ public class HexMapPanel extends JPanel {
         if (enemy != null) {
             final String life = String.valueOf(campaign.enemyLife(enemy));
             if (quest != null) {
-                sb.append(" – ").append(loc.getMessage("lblHexQuestMarker", quest.enemyName, life, String.valueOf(campaign.gold(quest.gold))));
+                sb.append(" – ").append(loc.getMessage(quest.archenemy ? "lblHexQuestMarkerArchenemy" : "lblHexQuestMarker",
+                        quest.enemyName, life, String.valueOf(campaign.gold(quest.gold))));
             } else if (t.poi == HexPoi.BOSS) {
                 sb.append(" (").append(loc.getMessage("lblHexLifeShort", life)).append(')');
             } else {

@@ -117,6 +117,10 @@ public class RegisteredPlayer {
     public Iterable<? extends IPaperCard> getSchemes() {
         return schemes == null ? EmptyList : schemes;
     }
+    /** A scheme deck for this player: it becomes an archenemy that sets a scheme in motion each turn. */
+    public void setSchemes(Iterable<? extends IPaperCard> schemes0) {
+        schemes = schemes0;
+    }
 
     public Iterable<PaperCard> getPlanes() {
         return planes == null ? EmptyList : planes;

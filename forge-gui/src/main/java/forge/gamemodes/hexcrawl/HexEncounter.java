@@ -21,6 +21,8 @@ public class HexEncounter {
     public boolean roaming;
     /** A roaming enemy caught the party: the heads may look at their decks before the fight. */
     public boolean ambush;
+    /** The enemy of an archenemy task: alone, with a deck of schemes it sets in motion every turn. */
+    public boolean archenemy;
     /** A boss's own words before the fight and after beating the party (Adventure data), or null. */
     public String intro;
     public String insult;

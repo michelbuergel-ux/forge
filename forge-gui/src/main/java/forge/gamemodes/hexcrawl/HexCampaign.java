@@ -29,6 +29,12 @@ public class HexCampaign {
     /** What the enemy side gets on top of the enemy's own life, by the number of heads of the party (1 to 4). */
     public static final int[] ENEMY_EXTRA_LIFE = { 0, 5, 30, 40 };
     public static final int QUESTS_PER_TOWN = 2;
+    /** One in this many new tasks is an archenemy (at most one per notice board). */
+    public static final int ARCHENEMY_ODDS = 3;
+    /** An archenemy's bounty, in percent of an ordinary task's. */
+    public static final int ARCHENEMY_BOUNTY_PERCENT = 150;
+    /** An archenemy fights alone: this much life for every head it does without. */
+    public static final int ARCHENEMY_LIFE_PER_MISSING_HEAD = 10;
     public static final int MAX_ACTIVE_QUESTS = 3;
     /** A town gets new goods and tasks after this many won fights. */
     public static final int RESTOCK_AFTER_WINS = 4;
@@ -1468,6 +1474,11 @@ public class HexCampaign {
             quest.r = t.r;
             quest.town = town.name;
             quest.gold += 10 * HexMap.distance(t.q, t.r, town.q, town.r);
+            // now and then an archenemy: alone, with a deck of schemes, and a bigger bounty (one per board)
+            if (result.stream().noneMatch(o -> o.archenemy) && rnd.nextInt(ARCHENEMY_ODDS) == 0) {
+                quest.archenemy = true;
+                quest.gold = quest.gold * ARCHENEMY_BOUNTY_PERCENT / 100;
+            }
             result.add(quest);
         }
         return result;
@@ -1528,12 +1539,20 @@ public class HexCampaign {
         return ENEMY_HEADS[Math.max(1, Math.min(ENEMY_HEADS.length, players.size())) - 1];
     }
 
+    /** The heads of this fight's enemy: an archenemy fights alone, every other enemy with enemyHeads(). */
+    public int enemyHeads(final HexEncounter enc) {
+        return enc != null && enc.archenemy ? 1 : enemyHeads();
+    }
+
     /**
      * Shared life of the enemy side of a fight: the life of the enemy, ten more for every
      * follower, and what the relics of the party do to it.
      */
     public int enemyLife(final HexEncounter enc) {
         int life = enc.life + ENEMY_EXTRA_LIFE[Math.max(1, Math.min(ENEMY_EXTRA_LIFE.length, players.size())) - 1] + boostEnemyLife + cycleLife();
+        if (enc.archenemy) {
+            life += ARCHENEMY_LIFE_PER_MISSING_HEAD * (enemyHeads() - 1); // alone instead of with heads
+        }
         final HexBiomeRule biome = HexBiomeRule.forFight(this, enc);
         if (biome != null) {
             life += biome.enemyLife; // New Game Plus: the wastes

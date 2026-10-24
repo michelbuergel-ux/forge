@@ -17,4 +17,6 @@ public class HexQuest {
     public String town;
     /** The relic the enemy carries into the fight, or null. */
     public String relic;
+    /** An archenemy: it fights alone (no heads or followers), with a deck of schemes. */
+    public boolean archenemy;
 }

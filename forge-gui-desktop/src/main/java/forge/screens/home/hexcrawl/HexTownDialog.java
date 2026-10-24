@@ -967,7 +967,7 @@ final class HexTownDialog {
         final HexEncounter enc = content.questEncounter(quest);
         final int textW = questW - 48 - 56 - 28 - rightW - 8; // what is left for the text
         final JPanel text = transparent(new MigLayout("insets 0, gap 3, wrap 1"));
-        text.add(label(caps(t("lblHexWanted")), tracked(display(12f), 0.25f), WANTED));
+        text.add(label(caps(t(quest.archenemy ? "lblHexWantedArchenemy" : "lblHexWanted")), tracked(display(12f), 0.25f), WANTED));
         text.add(wrapped(quest.enemyName, display(19f), PARCHMENT_INK, textW));
         final int far = HexMap.distance(quest.q, quest.r, c.partyQ, c.partyR);
         text.add(wrapped(t("lblHexQuestWhere", t(quest.color.getLabelKey()), String.valueOf(far), String.valueOf(c.enemyLife(enc))),

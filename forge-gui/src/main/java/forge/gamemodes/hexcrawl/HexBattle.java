@@ -103,6 +103,11 @@ public final class HexBattle {
         applyEnemyRelics(campaign, enemy);
         applyCycle(campaign, enc, enemy, 1);
         players.add(enemy);
+        if (enc.archenemy) {
+            // an archenemy fights alone, with a deck of schemes (the same ones each time this fight is set up)
+            enemy.setSchemes(content.schemeDeck(new java.util.Random(campaign.seed * 31 + campaign.fights() * 7919L + enc.questId)));
+            return;
+        }
         if (enc.headsAlike()) {
             for (int n = 2; n <= campaign.enemyHeads(); n++) {
                 final RegisteredPlayer rp = new RegisteredPlayer(content.loadEnemyDeck(enc));

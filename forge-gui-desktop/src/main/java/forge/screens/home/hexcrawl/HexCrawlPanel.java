@@ -777,7 +777,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         final List<String> tasks = new ArrayList<>();
         for (final HexQuest quest : campaign.quests) {
-            tasks.add(t("lblHexQuestLine", quest.enemyName, String.valueOf(campaign.gold(quest.gold))));
+            tasks.add(t(quest.archenemy ? "lblHexQuestLineArchenemy" : "lblHexQuestLine", quest.enemyName, String.valueOf(campaign.gold(quest.gold))));
         }
         section(hdTasks, tasksBox, tasks);
         section(hdCycle, cycleBox, campaign.cycleAdvantages());
@@ -842,7 +842,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         card.add(new Sprite(HexSprites.get(enc.enemyName), 56), "w 56!, h 56!");
         final int textW = SIDE_W - 32 - 24 - 56 - 10;
         final JPanel text = transparent(new MigLayout("insets 0, gap 0 2, wrap 1"));
-        text.add(label(caps(t(enc.boss ? "lblHexBossAheadTitle" : "lblHexEnemyAheadTitle")), tracked(display(11f), 0.2f), BAD));
+        text.add(label(caps(t(enc.boss ? "lblHexBossAheadTitle" : enc.archenemy ? "lblHexArchenemyAheadTitle" : "lblHexEnemyAheadTitle")),
+                tracked(display(11f), 0.2f), BAD));
         text.add(wrapped(enc.enemyName, display(17f), TEXT_BRIGHT, textW));
         text.add(label(t("lblHexLifeAmount", String.valueOf(campaign.enemyLife(enc))), body(java.awt.Font.BOLD, 12.5f), new java.awt.Color(0xf3c4b2)));
         if (!more.isEmpty()) {
@@ -1232,7 +1233,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     static String enemyExtras(final HexCampaign campaign, final HexEncounter enc, final boolean withFollowers) {
         final Localizer loc = Localizer.getInstance();
         final StringBuilder sb = new StringBuilder();
-        final int followers = campaign.enemyHeads() - 1;
+        if (enc.archenemy) { // alone, with schemes: the one thing to know about it
+            sb.append(' ').append(loc.getMessage("lblHexEnemyArchenemy", String.valueOf(HexContent.SCHEMES_PER_ARCHENEMY)));
+        }
+        final int followers = campaign.enemyHeads(enc) - 1;
         if (withFollowers && followers > 0) {
             sb.append(' ').append(loc.getMessage(enc.headsAlike() ? "lblHexEnemyCopies" : "lblHexEnemyFollowers", String.valueOf(followers)));
         }
