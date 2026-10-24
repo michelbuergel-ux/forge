@@ -1,0 +1,3512 @@
+[
+  {
+    "name": "Aladdin's Lamp",
+    "slot": "Right",
+    "price": 30,
+    "battlefield": [
+      "Aladdin's Lamp"
+    ]
+  },
+  {
+    "name": "Aladdin's Lamp II",
+    "slot": "Right",
+    "price": 68,
+    "tier": 2,
+    "base": "Aladdin's Lamp",
+    "battlefield": [
+      "Aladdin's Lamp",
+      "Aladdin's Lamp"
+    ]
+  },
+  {
+    "name": "Aladdin's Lamp III",
+    "slot": "Right",
+    "price": 153,
+    "tier": 3,
+    "base": "Aladdin's Lamp",
+    "battlefield": [
+      "Aladdin's Lamp",
+      "Aladdin's Lamp",
+      "Aladdin's Lamp"
+    ]
+  },
+  {
+    "name": "Aladdin's Ring",
+    "slot": "Right",
+    "price": 30,
+    "battlefield": [
+      "Aladdin's Ring"
+    ]
+  },
+  {
+    "name": "Aladdin's Ring II",
+    "slot": "Right",
+    "price": 68,
+    "tier": 2,
+    "base": "Aladdin's Ring",
+    "battlefield": [
+      "Aladdin's Ring",
+      "Aladdin's Ring"
+    ]
+  },
+  {
+    "name": "Aladdin's Ring III",
+    "slot": "Right",
+    "price": 153,
+    "tier": 3,
+    "base": "Aladdin's Ring",
+    "battlefield": [
+      "Aladdin's Ring",
+      "Aladdin's Ring",
+      "Aladdin's Ring"
+    ]
+  },
+  {
+    "name": "Amulet of Kroog",
+    "slot": "Neck",
+    "price": 60,
+    "battlefield": [
+      "Amulet of Kroog"
+    ]
+  },
+  {
+    "name": "Amulet of Kroog II",
+    "slot": "Neck",
+    "price": 135,
+    "tier": 2,
+    "base": "Amulet of Kroog",
+    "battlefield": [
+      "Amulet of Kroog",
+      "Amulet of Kroog"
+    ]
+  },
+  {
+    "name": "Amulet of Kroog III",
+    "slot": "Neck",
+    "price": 304,
+    "tier": 3,
+    "base": "Amulet of Kroog",
+    "battlefield": [
+      "Amulet of Kroog",
+      "Amulet of Kroog",
+      "Amulet of Kroog"
+    ]
+  },
+  {
+    "name": "Amulet of Telepathy",
+    "slot": "Neck",
+    "price": 60,
+    "battlefield": [
+      "Telepathy|USG"
+    ],
+    "description": "Your opponent plays with their hand revealed"
+  },
+  {
+    "name": "Amulet of Telepathy II",
+    "slot": "Neck",
+    "price": 135,
+    "tier": 2,
+    "base": "Amulet of Telepathy",
+    "battlefield": [
+      "Telepathy|USG",
+      "Telepathy|USG"
+    ],
+    "description": "Your opponent plays with their hand revealed"
+  },
+  {
+    "name": "Amulet of Telepathy III",
+    "slot": "Neck",
+    "price": 304,
+    "tier": 3,
+    "base": "Amulet of Telepathy",
+    "battlefield": [
+      "Telepathy|USG",
+      "Telepathy|USG",
+      "Telepathy|USG"
+    ],
+    "description": "Your opponent plays with their hand revealed"
+  },
+  {
+    "name": "Amulet of Vigor",
+    "slot": "Neck",
+    "price": 140,
+    "battlefield": [
+      "Amulet of Vigor"
+    ]
+  },
+  {
+    "name": "Amulet of Vigor II",
+    "slot": "Neck",
+    "price": 315,
+    "tier": 2,
+    "base": "Amulet of Vigor",
+    "battlefield": [
+      "Amulet of Vigor",
+      "Amulet of Vigor"
+    ]
+  },
+  {
+    "name": "Amulet of Vigor III",
+    "slot": "Neck",
+    "price": 709,
+    "tier": 3,
+    "base": "Amulet of Vigor",
+    "battlefield": [
+      "Amulet of Vigor",
+      "Amulet of Vigor",
+      "Amulet of Vigor"
+    ]
+  },
+  {
+    "name": "Amulet of the Deceiver",
+    "slot": "Neck",
+    "price": 200,
+    "life": -1,
+    "battlefield": [
+      "Bloodsprout Talisman"
+    ],
+    "enemyBattlefield": [
+      "Illusory Demon"
+    ]
+  },
+  {
+    "name": "Amulet of the Deceiver II",
+    "slot": "Neck",
+    "price": 450,
+    "tier": 2,
+    "base": "Amulet of the Deceiver",
+    "life": -2,
+    "battlefield": [
+      "Bloodsprout Talisman",
+      "Bloodsprout Talisman"
+    ],
+    "enemyBattlefield": [
+      "Illusory Demon",
+      "Illusory Demon"
+    ]
+  },
+  {
+    "name": "Amulet of the Deceiver III",
+    "slot": "Neck",
+    "price": 1013,
+    "tier": 3,
+    "base": "Amulet of the Deceiver",
+    "life": -3,
+    "battlefield": [
+      "Bloodsprout Talisman",
+      "Bloodsprout Talisman",
+      "Bloodsprout Talisman"
+    ],
+    "enemyBattlefield": [
+      "Illusory Demon",
+      "Illusory Demon",
+      "Illusory Demon"
+    ]
+  },
+  {
+    "name": "Angelic Armaments",
+    "slot": "Right",
+    "price": 200,
+    "life": 4,
+    "battlefield": [
+      "Angelic Armaments|AVR"
+    ],
+    "description": "Equip 4, +2/+2 and flying and become an angel"
+  },
+  {
+    "name": "Angelic Armaments II",
+    "slot": "Right",
+    "price": 450,
+    "tier": 2,
+    "base": "Angelic Armaments",
+    "life": 8,
+    "battlefield": [
+      "Angelic Armaments|AVR",
+      "Angelic Armaments|AVR"
+    ],
+    "description": "Equip 4, +2/+2 and flying and become an angel"
+  },
+  {
+    "name": "Angelic Armaments III",
+    "slot": "Right",
+    "price": 1013,
+    "tier": 3,
+    "base": "Angelic Armaments",
+    "life": 12,
+    "battlefield": [
+      "Angelic Armaments|AVR",
+      "Angelic Armaments|AVR",
+      "Angelic Armaments|AVR"
+    ],
+    "description": "Equip 4, +2/+2 and flying and become an angel"
+  },
+  {
+    "name": "Angelic Greaves",
+    "slot": "Boots",
+    "price": 160,
+    "life": 2,
+    "battlefield": [
+      "Angelic Wall|PO2"
+    ],
+    "description": "0/4 wall with flying"
+  },
+  {
+    "name": "Angelic Greaves II",
+    "slot": "Boots",
+    "price": 360,
+    "tier": 2,
+    "base": "Angelic Greaves",
+    "life": 4,
+    "battlefield": [
+      "Angelic Wall|PO2",
+      "Angelic Wall|PO2"
+    ],
+    "description": "0/4 wall with flying"
+  },
+  {
+    "name": "Angelic Greaves III",
+    "slot": "Boots",
+    "price": 810,
+    "tier": 3,
+    "base": "Angelic Greaves",
+    "life": 6,
+    "battlefield": [
+      "Angelic Wall|PO2",
+      "Angelic Wall|PO2",
+      "Angelic Wall|PO2"
+    ],
+    "description": "0/4 wall with flying"
+  },
+  {
+    "name": "Armor of the Hivelord",
+    "slot": "Body",
+    "price": 400,
+    "life": 5,
+    "hand": 1
+  },
+  {
+    "name": "Armor of the Hivelord II",
+    "slot": "Body",
+    "price": 900,
+    "tier": 2,
+    "base": "Armor of the Hivelord",
+    "life": 10,
+    "hand": 2
+  },
+  {
+    "name": "Armor of the Hivelord III",
+    "slot": "Body",
+    "price": 2025,
+    "tier": 3,
+    "base": "Armor of the Hivelord",
+    "life": 15,
+    "hand": 3
+  },
+  {
+    "name": "Axt",
+    "slot": "Left",
+    "price": 50,
+    "battlefield": [
+      "Bonesplitter"
+    ]
+  },
+  {
+    "name": "Axt II",
+    "slot": "Left",
+    "price": 113,
+    "tier": 2,
+    "base": "Axt",
+    "battlefield": [
+      "Bonesplitter",
+      "Bonesplitter"
+    ]
+  },
+  {
+    "name": "Axt III",
+    "slot": "Left",
+    "price": 254,
+    "tier": 3,
+    "base": "Axt",
+    "battlefield": [
+      "Bonesplitter",
+      "Bonesplitter",
+      "Bonesplitter"
+    ]
+  },
+  {
+    "name": "Basilisk Collar",
+    "slot": "Neck",
+    "price": 500,
+    "life": 1,
+    "hand": -1,
+    "battlefield": [
+      "Basilisk Collar"
+    ],
+    "description": "Equipment that gives deathouch and lifelink"
+  },
+  {
+    "name": "Basilisk Collar II",
+    "slot": "Neck",
+    "price": 1125,
+    "tier": 2,
+    "base": "Basilisk Collar",
+    "life": 2,
+    "hand": -2,
+    "battlefield": [
+      "Basilisk Collar",
+      "Basilisk Collar"
+    ],
+    "description": "Equipment that gives deathouch and lifelink"
+  },
+  {
+    "name": "Basilisk Collar III",
+    "slot": "Neck",
+    "price": 2531,
+    "tier": 3,
+    "base": "Basilisk Collar",
+    "life": 3,
+    "hand": -3,
+    "battlefield": [
+      "Basilisk Collar",
+      "Basilisk Collar",
+      "Basilisk Collar"
+    ],
+    "description": "Equipment that gives deathouch and lifelink"
+  },
+  {
+    "name": "Battle Standard",
+    "slot": "Left",
+    "price": 30,
+    "life": -1,
+    "battlefield": [
+      "r_1_1_goblin"
+    ]
+  },
+  {
+    "name": "Battle Standard II",
+    "slot": "Left",
+    "price": 68,
+    "tier": 2,
+    "base": "Battle Standard",
+    "life": -2,
+    "battlefield": [
+      "r_1_1_goblin",
+      "r_1_1_goblin"
+    ]
+  },
+  {
+    "name": "Battle Standard III",
+    "slot": "Left",
+    "price": 153,
+    "tier": 3,
+    "base": "Battle Standard",
+    "life": -3,
+    "battlefield": [
+      "r_1_1_goblin",
+      "r_1_1_goblin",
+      "r_1_1_goblin"
+    ]
+  },
+  {
+    "name": "Black Lotus",
+    "slot": "Right",
+    "price": 600,
+    "battlefield": [
+      "Black Lotus"
+    ]
+  },
+  {
+    "name": "Black Lotus II",
+    "slot": "Right",
+    "price": 1350,
+    "tier": 2,
+    "base": "Black Lotus",
+    "battlefield": [
+      "Black Lotus",
+      "Black Lotus"
+    ]
+  },
+  {
+    "name": "Black Lotus III",
+    "slot": "Right",
+    "price": 3038,
+    "tier": 3,
+    "base": "Black Lotus",
+    "battlefield": [
+      "Black Lotus",
+      "Black Lotus",
+      "Black Lotus"
+    ]
+  },
+  {
+    "name": "Blood Vial",
+    "slot": "Right",
+    "price": 30,
+    "battlefield": [
+      "c_a_blood_draw"
+    ]
+  },
+  {
+    "name": "Blood Vial II",
+    "slot": "Right",
+    "price": 68,
+    "tier": 2,
+    "base": "Blood Vial",
+    "battlefield": [
+      "c_a_blood_draw",
+      "c_a_blood_draw"
+    ]
+  },
+  {
+    "name": "Blood Vial III",
+    "slot": "Right",
+    "price": 153,
+    "tier": 3,
+    "base": "Blood Vial",
+    "battlefield": [
+      "c_a_blood_draw",
+      "c_a_blood_draw",
+      "c_a_blood_draw"
+    ]
+  },
+  {
+    "name": "Bronze Sword",
+    "slot": "Left",
+    "price": 50,
+    "battlefield": [
+      "Bronze Sword"
+    ]
+  },
+  {
+    "name": "Bronze Sword II",
+    "slot": "Left",
+    "price": 113,
+    "tier": 2,
+    "base": "Bronze Sword",
+    "battlefield": [
+      "Bronze Sword",
+      "Bronze Sword"
+    ]
+  },
+  {
+    "name": "Bronze Sword III",
+    "slot": "Left",
+    "price": 254,
+    "tier": 3,
+    "base": "Bronze Sword",
+    "battlefield": [
+      "Bronze Sword",
+      "Bronze Sword",
+      "Bronze Sword"
+    ]
+  },
+  {
+    "name": "Charm",
+    "slot": "Right",
+    "price": 60,
+    "battlefield": [
+      "c_a_clue_draw"
+    ]
+  },
+  {
+    "name": "Charm II",
+    "slot": "Right",
+    "price": 135,
+    "tier": 2,
+    "base": "Charm",
+    "battlefield": [
+      "c_a_clue_draw",
+      "c_a_clue_draw"
+    ]
+  },
+  {
+    "name": "Charm III",
+    "slot": "Right",
+    "price": 304,
+    "tier": 3,
+    "base": "Charm",
+    "battlefield": [
+      "c_a_clue_draw",
+      "c_a_clue_draw",
+      "c_a_clue_draw"
+    ]
+  },
+  {
+    "name": "Cheat",
+    "slot": "Neck",
+    "price": 1000,
+    "battlefield": [
+      "Blightsteel Colossus",
+      "Urabrask the Hidden",
+      "Avatar of Slaughter"
+    ]
+  },
+  {
+    "name": "Cheat II",
+    "slot": "Neck",
+    "price": 2250,
+    "tier": 2,
+    "base": "Cheat",
+    "battlefield": [
+      "Blightsteel Colossus",
+      "Blightsteel Colossus",
+      "Urabrask the Hidden",
+      "Avatar of Slaughter",
+      "Avatar of Slaughter"
+    ]
+  },
+  {
+    "name": "Cheat III",
+    "slot": "Neck",
+    "price": 5063,
+    "tier": 3,
+    "base": "Cheat",
+    "battlefield": [
+      "Blightsteel Colossus",
+      "Blightsteel Colossus",
+      "Blightsteel Colossus",
+      "Urabrask the Hidden",
+      "Avatar of Slaughter",
+      "Avatar of Slaughter",
+      "Avatar of Slaughter"
+    ]
+  },
+  {
+    "name": "Chicken Egg",
+    "slot": "Right",
+    "price": 60,
+    "life": 1,
+    "battlefield": [
+      "Chicken Egg"
+    ]
+  },
+  {
+    "name": "Chicken Egg II",
+    "slot": "Right",
+    "price": 135,
+    "tier": 2,
+    "base": "Chicken Egg",
+    "life": 2,
+    "battlefield": [
+      "Chicken Egg",
+      "Chicken Egg"
+    ]
+  },
+  {
+    "name": "Chicken Egg III",
+    "slot": "Right",
+    "price": 304,
+    "tier": 3,
+    "base": "Chicken Egg",
+    "life": 3,
+    "battlefield": [
+      "Chicken Egg",
+      "Chicken Egg",
+      "Chicken Egg"
+    ]
+  },
+  {
+    "name": "Concordant Boots",
+    "slot": "Boots",
+    "price": 180,
+    "battlefield": [
+      "Concordant Crossroads|LEG"
+    ],
+    "description": "All creatures have haste"
+  },
+  {
+    "name": "Concordant Boots II",
+    "slot": "Boots",
+    "price": 405,
+    "tier": 2,
+    "base": "Concordant Boots",
+    "battlefield": [
+      "Concordant Crossroads|LEG",
+      "Concordant Crossroads|LEG"
+    ],
+    "description": "All creatures have haste"
+  },
+  {
+    "name": "Concordant Boots III",
+    "slot": "Boots",
+    "price": 911,
+    "tier": 3,
+    "base": "Concordant Boots",
+    "battlefield": [
+      "Concordant Crossroads|LEG",
+      "Concordant Crossroads|LEG",
+      "Concordant Crossroads|LEG"
+    ],
+    "description": "All creatures have haste"
+  },
+  {
+    "name": "Crown of Growth",
+    "slot": "Neck",
+    "price": 60,
+    "life": 1,
+    "hand": -1,
+    "battlefield": [
+      "Season of Growth"
+    ],
+    "description": "Start with Season of Growth"
+  },
+  {
+    "name": "Crown of Growth II",
+    "slot": "Neck",
+    "price": 135,
+    "tier": 2,
+    "base": "Crown of Growth",
+    "life": 2,
+    "hand": -2,
+    "battlefield": [
+      "Season of Growth",
+      "Season of Growth"
+    ],
+    "description": "Start with Season of Growth"
+  },
+  {
+    "name": "Crown of Growth III",
+    "slot": "Neck",
+    "price": 304,
+    "tier": 3,
+    "base": "Crown of Growth",
+    "life": 3,
+    "hand": -3,
+    "battlefield": [
+      "Season of Growth",
+      "Season of Growth",
+      "Season of Growth"
+    ],
+    "description": "Start with Season of Growth"
+  },
+  {
+    "name": "Cursed Ring",
+    "slot": "Right",
+    "price": 80,
+    "battlefield": [
+      "c_0_1_a_goblin_construct_noblock_ping",
+      "c_0_1_a_goblin_construct_noblock_ping",
+      "c_0_1_a_goblin_construct_noblock_ping"
+    ]
+  },
+  {
+    "name": "Cursed Ring II",
+    "slot": "Right",
+    "price": 180,
+    "tier": 2,
+    "base": "Cursed Ring",
+    "battlefield": [
+      "c_0_1_a_goblin_construct_noblock_ping",
+      "c_0_1_a_goblin_construct_noblock_ping",
+      "c_0_1_a_goblin_construct_noblock_ping",
+      "c_0_1_a_goblin_construct_noblock_ping",
+      "c_0_1_a_goblin_construct_noblock_ping",
+      "c_0_1_a_goblin_construct_noblock_ping"
+    ]
+  },
+  {
+    "name": "Cursed Ring III",
+    "slot": "Right",
+    "price": 405,
+    "tier": 3,
+    "base": "Cursed Ring",
+    "battlefield": [
+      "c_0_1_a_goblin_construct_noblock_ping",
+      "c_0_1_a_goblin_construct_noblock_ping",
+      "c_0_1_a_goblin_construct_noblock_ping",
+      "c_0_1_a_goblin_construct_noblock_ping",
+      "c_0_1_a_goblin_construct_noblock_ping",
+      "c_0_1_a_goblin_construct_noblock_ping",
+      "c_0_1_a_goblin_construct_noblock_ping",
+      "c_0_1_a_goblin_construct_noblock_ping",
+      "c_0_1_a_goblin_construct_noblock_ping"
+    ]
+  },
+  {
+    "name": "Dagger",
+    "slot": "Left",
+    "price": 40,
+    "battlefield": [
+      "Spare Dagger"
+    ]
+  },
+  {
+    "name": "Dagger II",
+    "slot": "Left",
+    "price": 90,
+    "tier": 2,
+    "base": "Dagger",
+    "battlefield": [
+      "Spare Dagger",
+      "Spare Dagger"
+    ]
+  },
+  {
+    "name": "Dagger III",
+    "slot": "Left",
+    "price": 203,
+    "tier": 3,
+    "base": "Dagger",
+    "battlefield": [
+      "Spare Dagger",
+      "Spare Dagger",
+      "Spare Dagger"
+    ]
+  },
+  {
+    "name": "Dark Amulet",
+    "slot": "Neck",
+    "price": 60,
+    "battlefield": [
+      "Necropolis of Azar"
+    ]
+  },
+  {
+    "name": "Dark Amulet II",
+    "slot": "Neck",
+    "price": 135,
+    "tier": 2,
+    "base": "Dark Amulet",
+    "battlefield": [
+      "Necropolis of Azar",
+      "Necropolis of Azar"
+    ]
+  },
+  {
+    "name": "Dark Amulet III",
+    "slot": "Neck",
+    "price": 304,
+    "tier": 3,
+    "base": "Dark Amulet",
+    "battlefield": [
+      "Necropolis of Azar",
+      "Necropolis of Azar",
+      "Necropolis of Azar"
+    ]
+  },
+  {
+    "name": "Dark Armor",
+    "slot": "Body",
+    "price": 60,
+    "life": -2,
+    "battlefield": [
+      "Skeletal Snake"
+    ]
+  },
+  {
+    "name": "Dark Armor II",
+    "slot": "Body",
+    "price": 135,
+    "tier": 2,
+    "base": "Dark Armor",
+    "life": -4,
+    "battlefield": [
+      "Skeletal Snake",
+      "Skeletal Snake"
+    ]
+  },
+  {
+    "name": "Dark Armor III",
+    "slot": "Body",
+    "price": 304,
+    "tier": 3,
+    "base": "Dark Armor",
+    "life": -6,
+    "battlefield": [
+      "Skeletal Snake",
+      "Skeletal Snake",
+      "Skeletal Snake"
+    ]
+  },
+  {
+    "name": "Dark Boots",
+    "slot": "Boots",
+    "price": 40,
+    "life": -2,
+    "battlefield": [
+      "Clattering Augur"
+    ]
+  },
+  {
+    "name": "Dark Boots II",
+    "slot": "Boots",
+    "price": 90,
+    "tier": 2,
+    "base": "Dark Boots",
+    "life": -4,
+    "battlefield": [
+      "Clattering Augur",
+      "Clattering Augur"
+    ]
+  },
+  {
+    "name": "Dark Boots III",
+    "slot": "Boots",
+    "price": 203,
+    "tier": 3,
+    "base": "Dark Boots",
+    "life": -6,
+    "battlefield": [
+      "Clattering Augur",
+      "Clattering Augur",
+      "Clattering Augur"
+    ]
+  },
+  {
+    "name": "Dark Shield",
+    "slot": "Right",
+    "price": 50,
+    "life": -3,
+    "battlefield": [
+      "Barrier of Bones"
+    ]
+  },
+  {
+    "name": "Dark Shield II",
+    "slot": "Right",
+    "price": 113,
+    "tier": 2,
+    "base": "Dark Shield",
+    "life": -6,
+    "battlefield": [
+      "Barrier of Bones",
+      "Barrier of Bones"
+    ]
+  },
+  {
+    "name": "Dark Shield III",
+    "slot": "Right",
+    "price": 254,
+    "tier": 3,
+    "base": "Dark Shield",
+    "life": -9,
+    "battlefield": [
+      "Barrier of Bones",
+      "Barrier of Bones",
+      "Barrier of Bones"
+    ]
+  },
+  {
+    "name": "Disrupting Scepter",
+    "slot": "Left",
+    "price": 50,
+    "battlefield": [
+      "Disrupting Scepter"
+    ]
+  },
+  {
+    "name": "Disrupting Scepter II",
+    "slot": "Left",
+    "price": 113,
+    "tier": 2,
+    "base": "Disrupting Scepter",
+    "battlefield": [
+      "Disrupting Scepter",
+      "Disrupting Scepter"
+    ]
+  },
+  {
+    "name": "Disrupting Scepter III",
+    "slot": "Left",
+    "price": 254,
+    "tier": 3,
+    "base": "Disrupting Scepter",
+    "battlefield": [
+      "Disrupting Scepter",
+      "Disrupting Scepter",
+      "Disrupting Scepter"
+    ]
+  },
+  {
+    "name": "Dungeon Map",
+    "slot": "Right",
+    "price": 240,
+    "battlefield": [
+      "Dungeon Map"
+    ]
+  },
+  {
+    "name": "Dungeon Map II",
+    "slot": "Right",
+    "price": 540,
+    "tier": 2,
+    "base": "Dungeon Map",
+    "battlefield": [
+      "Dungeon Map",
+      "Dungeon Map"
+    ]
+  },
+  {
+    "name": "Dungeon Map III",
+    "slot": "Right",
+    "price": 1215,
+    "tier": 3,
+    "base": "Dungeon Map",
+    "battlefield": [
+      "Dungeon Map",
+      "Dungeon Map",
+      "Dungeon Map"
+    ]
+  },
+  {
+    "name": "Entrancing Lyre",
+    "slot": "Right",
+    "price": 120,
+    "battlefield": [
+      "Entrancing Lyre"
+    ]
+  },
+  {
+    "name": "Entrancing Lyre II",
+    "slot": "Right",
+    "price": 270,
+    "tier": 2,
+    "base": "Entrancing Lyre",
+    "battlefield": [
+      "Entrancing Lyre",
+      "Entrancing Lyre"
+    ]
+  },
+  {
+    "name": "Entrancing Lyre III",
+    "slot": "Right",
+    "price": 608,
+    "tier": 3,
+    "base": "Entrancing Lyre",
+    "battlefield": [
+      "Entrancing Lyre",
+      "Entrancing Lyre",
+      "Entrancing Lyre"
+    ]
+  },
+  {
+    "name": "Evil Ankh",
+    "slot": "Right",
+    "price": 500,
+    "life": 1,
+    "hand": -1,
+    "battlefield": [
+      "Ankh of Mishra"
+    ],
+    "description": "Start with Ankh of Mishra"
+  },
+  {
+    "name": "Evil Ankh II",
+    "slot": "Right",
+    "price": 1125,
+    "tier": 2,
+    "base": "Evil Ankh",
+    "life": 2,
+    "hand": -2,
+    "battlefield": [
+      "Ankh of Mishra",
+      "Ankh of Mishra"
+    ],
+    "description": "Start with Ankh of Mishra"
+  },
+  {
+    "name": "Evil Ankh III",
+    "slot": "Right",
+    "price": 2531,
+    "tier": 3,
+    "base": "Evil Ankh",
+    "life": 3,
+    "hand": -3,
+    "battlefield": [
+      "Ankh of Mishra",
+      "Ankh of Mishra",
+      "Ankh of Mishra"
+    ],
+    "description": "Start with Ankh of Mishra"
+  },
+  {
+    "name": "Gold Armor",
+    "slot": "Body",
+    "price": 300,
+    "life": 4
+  },
+  {
+    "name": "Gold Armor II",
+    "slot": "Body",
+    "price": 675,
+    "tier": 2,
+    "base": "Gold Armor",
+    "life": 8
+  },
+  {
+    "name": "Gold Armor III",
+    "slot": "Body",
+    "price": 1519,
+    "tier": 3,
+    "base": "Gold Armor",
+    "life": 12
+  },
+  {
+    "name": "Gold Boots",
+    "slot": "Boots",
+    "price": 200,
+    "life": 2
+  },
+  {
+    "name": "Gold Boots II",
+    "slot": "Boots",
+    "price": 450,
+    "tier": 2,
+    "base": "Gold Boots",
+    "life": 4
+  },
+  {
+    "name": "Gold Boots III",
+    "slot": "Boots",
+    "price": 1013,
+    "tier": 3,
+    "base": "Gold Boots",
+    "life": 6
+  },
+  {
+    "name": "Gold Shield",
+    "slot": "Right",
+    "price": 260,
+    "life": 3
+  },
+  {
+    "name": "Gold Shield II",
+    "slot": "Right",
+    "price": 585,
+    "tier": 2,
+    "base": "Gold Shield",
+    "life": 6
+  },
+  {
+    "name": "Gold Shield III",
+    "slot": "Right",
+    "price": 1316,
+    "tier": 3,
+    "base": "Gold Shield",
+    "life": 9
+  },
+  {
+    "name": "Golden Egg",
+    "slot": "Left",
+    "price": 40,
+    "battlefield": [
+      "Golden Egg|ELD"
+    ],
+    "description": "Filter mana or pay 2 for 3 life"
+  },
+  {
+    "name": "Golden Egg II",
+    "slot": "Left",
+    "price": 90,
+    "tier": 2,
+    "base": "Golden Egg",
+    "battlefield": [
+      "Golden Egg|ELD",
+      "Golden Egg|ELD"
+    ],
+    "description": "Filter mana or pay 2 for 3 life"
+  },
+  {
+    "name": "Golden Egg III",
+    "slot": "Left",
+    "price": 203,
+    "tier": 3,
+    "base": "Golden Egg",
+    "battlefield": [
+      "Golden Egg|ELD",
+      "Golden Egg|ELD",
+      "Golden Egg|ELD"
+    ],
+    "description": "Filter mana or pay 2 for 3 life"
+  },
+  {
+    "name": "Hallowed Sigil",
+    "slot": "Neck",
+    "price": 120,
+    "battlefield": [
+      "Hallowed Sigil"
+    ],
+    "description": "Give a creature hexproof until end of turn"
+  },
+  {
+    "name": "Hallowed Sigil II",
+    "slot": "Neck",
+    "price": 270,
+    "tier": 2,
+    "base": "Hallowed Sigil",
+    "battlefield": [
+      "Hallowed Sigil",
+      "Hallowed Sigil"
+    ],
+    "description": "Give a creature hexproof until end of turn"
+  },
+  {
+    "name": "Hallowed Sigil III",
+    "slot": "Neck",
+    "price": 608,
+    "tier": 3,
+    "base": "Hallowed Sigil",
+    "battlefield": [
+      "Hallowed Sigil",
+      "Hallowed Sigil",
+      "Hallowed Sigil"
+    ],
+    "description": "Give a creature hexproof until end of turn"
+  },
+  {
+    "name": "Heart-Piercer",
+    "slot": "Left",
+    "price": 40,
+    "battlefield": [
+      "Heart-Piercer Bow"
+    ]
+  },
+  {
+    "name": "Heart-Piercer II",
+    "slot": "Left",
+    "price": 90,
+    "tier": 2,
+    "base": "Heart-Piercer",
+    "battlefield": [
+      "Heart-Piercer Bow",
+      "Heart-Piercer Bow"
+    ]
+  },
+  {
+    "name": "Heart-Piercer III",
+    "slot": "Left",
+    "price": 203,
+    "tier": 3,
+    "base": "Heart-Piercer",
+    "battlefield": [
+      "Heart-Piercer Bow",
+      "Heart-Piercer Bow",
+      "Heart-Piercer Bow"
+    ]
+  },
+  {
+    "name": "Heavy Arbalest",
+    "slot": "Left",
+    "price": 30,
+    "battlefield": [
+      "Heavy Arbalest"
+    ]
+  },
+  {
+    "name": "Heavy Arbalest II",
+    "slot": "Left",
+    "price": 68,
+    "tier": 2,
+    "base": "Heavy Arbalest",
+    "battlefield": [
+      "Heavy Arbalest",
+      "Heavy Arbalest"
+    ]
+  },
+  {
+    "name": "Heavy Arbalest III",
+    "slot": "Left",
+    "price": 153,
+    "tier": 3,
+    "base": "Heavy Arbalest",
+    "battlefield": [
+      "Heavy Arbalest",
+      "Heavy Arbalest",
+      "Heavy Arbalest"
+    ]
+  },
+  {
+    "name": "Hivestone",
+    "slot": "Left",
+    "price": 80,
+    "battlefield": [
+      "Hivestone"
+    ]
+  },
+  {
+    "name": "Hivestone II",
+    "slot": "Left",
+    "price": 180,
+    "tier": 2,
+    "base": "Hivestone",
+    "battlefield": [
+      "Hivestone",
+      "Hivestone"
+    ]
+  },
+  {
+    "name": "Hivestone III",
+    "slot": "Left",
+    "price": 405,
+    "tier": 3,
+    "base": "Hivestone",
+    "battlefield": [
+      "Hivestone",
+      "Hivestone",
+      "Hivestone"
+    ]
+  },
+  {
+    "name": "Iron Armor",
+    "slot": "Body",
+    "price": 60,
+    "life": 2
+  },
+  {
+    "name": "Iron Armor II",
+    "slot": "Body",
+    "price": 135,
+    "tier": 2,
+    "base": "Iron Armor",
+    "life": 4
+  },
+  {
+    "name": "Iron Armor III",
+    "slot": "Body",
+    "price": 304,
+    "tier": 3,
+    "base": "Iron Armor",
+    "life": 6
+  },
+  {
+    "name": "Iron Shield",
+    "slot": "Right",
+    "price": 130,
+    "life": 2
+  },
+  {
+    "name": "Iron Shield II",
+    "slot": "Right",
+    "price": 293,
+    "tier": 2,
+    "base": "Iron Shield",
+    "life": 4
+  },
+  {
+    "name": "Iron Shield III",
+    "slot": "Right",
+    "price": 659,
+    "tier": 3,
+    "base": "Iron Shield",
+    "life": 6
+  },
+  {
+    "name": "Jandor's Ring",
+    "slot": "Right",
+    "price": 50,
+    "battlefield": [
+      "Jandor's Ring"
+    ]
+  },
+  {
+    "name": "Jandor's Ring II",
+    "slot": "Right",
+    "price": 113,
+    "tier": 2,
+    "base": "Jandor's Ring",
+    "battlefield": [
+      "Jandor's Ring",
+      "Jandor's Ring"
+    ]
+  },
+  {
+    "name": "Jandor's Ring III",
+    "slot": "Right",
+    "price": 254,
+    "tier": 3,
+    "base": "Jandor's Ring",
+    "battlefield": [
+      "Jandor's Ring",
+      "Jandor's Ring",
+      "Jandor's Ring"
+    ]
+  },
+  {
+    "name": "Jeweled Amulet",
+    "slot": "Neck",
+    "price": 100,
+    "battlefield": [
+      "Jeweled Amulet"
+    ]
+  },
+  {
+    "name": "Jeweled Amulet II",
+    "slot": "Neck",
+    "price": 225,
+    "tier": 2,
+    "base": "Jeweled Amulet",
+    "battlefield": [
+      "Jeweled Amulet",
+      "Jeweled Amulet"
+    ]
+  },
+  {
+    "name": "Jeweled Amulet III",
+    "slot": "Neck",
+    "price": 506,
+    "tier": 3,
+    "base": "Jeweled Amulet",
+    "battlefield": [
+      "Jeweled Amulet",
+      "Jeweled Amulet",
+      "Jeweled Amulet"
+    ]
+  },
+  {
+    "name": "Jinxed Ring",
+    "slot": "Right",
+    "price": 50,
+    "enemyBattlefield": [
+      "Jinxed Ring"
+    ]
+  },
+  {
+    "name": "Jungle Shield",
+    "slot": "Right",
+    "price": 90,
+    "battlefield": [
+      "g_0_1_plant"
+    ]
+  },
+  {
+    "name": "Jungle Shield II",
+    "slot": "Right",
+    "price": 203,
+    "tier": 2,
+    "base": "Jungle Shield",
+    "battlefield": [
+      "g_0_1_plant",
+      "g_0_1_plant"
+    ]
+  },
+  {
+    "name": "Jungle Shield III",
+    "slot": "Right",
+    "price": 457,
+    "tier": 3,
+    "base": "Jungle Shield",
+    "battlefield": [
+      "g_0_1_plant",
+      "g_0_1_plant",
+      "g_0_1_plant"
+    ]
+  },
+  {
+    "name": "Kite Shield",
+    "slot": "Right",
+    "price": 30,
+    "battlefield": [
+      "Kite Shield"
+    ]
+  },
+  {
+    "name": "Kite Shield II",
+    "slot": "Right",
+    "price": 68,
+    "tier": 2,
+    "base": "Kite Shield",
+    "battlefield": [
+      "Kite Shield",
+      "Kite Shield"
+    ]
+  },
+  {
+    "name": "Kite Shield III",
+    "slot": "Right",
+    "price": 153,
+    "tier": 3,
+    "base": "Kite Shield",
+    "battlefield": [
+      "Kite Shield",
+      "Kite Shield",
+      "Kite Shield"
+    ]
+  },
+  {
+    "name": "Life Amulet",
+    "slot": "Neck",
+    "price": 80,
+    "life": 2
+  },
+  {
+    "name": "Life Amulet II",
+    "slot": "Neck",
+    "price": 180,
+    "tier": 2,
+    "base": "Life Amulet",
+    "life": 4
+  },
+  {
+    "name": "Life Amulet III",
+    "slot": "Neck",
+    "price": 405,
+    "tier": 3,
+    "base": "Life Amulet",
+    "life": 6
+  },
+  {
+    "name": "Lightbringers Boots",
+    "slot": "Boots",
+    "price": 160,
+    "battlefield": [
+      "Ajani's Mantra"
+    ],
+    "enemyLife": 5,
+    "description": "Brings life to both friend and foe"
+  },
+  {
+    "name": "Lightbringers Boots II",
+    "slot": "Boots",
+    "price": 360,
+    "tier": 2,
+    "base": "Lightbringers Boots",
+    "battlefield": [
+      "Ajani's Mantra",
+      "Ajani's Mantra"
+    ],
+    "enemyLife": 10,
+    "description": "Brings life to both friend and foe"
+  },
+  {
+    "name": "Lightbringers Boots III",
+    "slot": "Boots",
+    "price": 810,
+    "tier": 3,
+    "base": "Lightbringers Boots",
+    "battlefield": [
+      "Ajani's Mantra",
+      "Ajani's Mantra",
+      "Ajani's Mantra"
+    ],
+    "enemyLife": 15,
+    "description": "Brings life to both friend and foe"
+  },
+  {
+    "name": "Mad Staff",
+    "slot": "Left",
+    "price": 80,
+    "battlefield": [
+      "Power Struggle"
+    ]
+  },
+  {
+    "name": "Mad Staff II",
+    "slot": "Left",
+    "price": 180,
+    "tier": 2,
+    "base": "Mad Staff",
+    "battlefield": [
+      "Power Struggle",
+      "Power Struggle"
+    ]
+  },
+  {
+    "name": "Mad Staff III",
+    "slot": "Left",
+    "price": 405,
+    "tier": 3,
+    "base": "Mad Staff",
+    "battlefield": [
+      "Power Struggle",
+      "Power Struggle",
+      "Power Struggle"
+    ]
+  },
+  {
+    "name": "Magic Shard",
+    "slot": "Right",
+    "price": 70,
+    "battlefield": [
+      "c_e_shard_draw"
+    ]
+  },
+  {
+    "name": "Magic Shard II",
+    "slot": "Right",
+    "price": 158,
+    "tier": 2,
+    "base": "Magic Shard",
+    "battlefield": [
+      "c_e_shard_draw",
+      "c_e_shard_draw"
+    ]
+  },
+  {
+    "name": "Magic Shard III",
+    "slot": "Right",
+    "price": 356,
+    "tier": 3,
+    "base": "Magic Shard",
+    "battlefield": [
+      "c_e_shard_draw",
+      "c_e_shard_draw",
+      "c_e_shard_draw"
+    ]
+  },
+  {
+    "name": "Mantle of Denial",
+    "slot": "Body",
+    "price": 60,
+    "life": 1,
+    "hand": 1,
+    "battlefield": [
+      "Hesitation"
+    ],
+    "description": "Start with Hesitation"
+  },
+  {
+    "name": "Mantle of Denial II",
+    "slot": "Body",
+    "price": 135,
+    "tier": 2,
+    "base": "Mantle of Denial",
+    "life": 2,
+    "hand": 2,
+    "battlefield": [
+      "Hesitation",
+      "Hesitation"
+    ],
+    "description": "Start with Hesitation"
+  },
+  {
+    "name": "Mantle of Denial III",
+    "slot": "Body",
+    "price": 304,
+    "tier": 3,
+    "base": "Mantle of Denial",
+    "life": 3,
+    "hand": 3,
+    "battlefield": [
+      "Hesitation",
+      "Hesitation",
+      "Hesitation"
+    ],
+    "description": "Start with Hesitation"
+  },
+  {
+    "name": "Mirror Shield",
+    "slot": "Right",
+    "price": 50,
+    "battlefield": [
+      "Mirror Shield"
+    ]
+  },
+  {
+    "name": "Mirror Shield II",
+    "slot": "Right",
+    "price": 113,
+    "tier": 2,
+    "base": "Mirror Shield",
+    "battlefield": [
+      "Mirror Shield",
+      "Mirror Shield"
+    ]
+  },
+  {
+    "name": "Mirror Shield III",
+    "slot": "Right",
+    "price": 254,
+    "tier": 3,
+    "base": "Mirror Shield",
+    "battlefield": [
+      "Mirror Shield",
+      "Mirror Shield",
+      "Mirror Shield"
+    ]
+  },
+  {
+    "name": "Mithril Armor",
+    "slot": "Body",
+    "price": 300,
+    "life": 5
+  },
+  {
+    "name": "Mithril Armor II",
+    "slot": "Body",
+    "price": 675,
+    "tier": 2,
+    "base": "Mithril Armor",
+    "life": 10
+  },
+  {
+    "name": "Mithril Armor III",
+    "slot": "Body",
+    "price": 1519,
+    "tier": 3,
+    "base": "Mithril Armor",
+    "life": 15
+  },
+  {
+    "name": "Mithril Boots",
+    "slot": "Boots",
+    "price": 200,
+    "life": 2
+  },
+  {
+    "name": "Mithril Boots II",
+    "slot": "Boots",
+    "price": 450,
+    "tier": 2,
+    "base": "Mithril Boots",
+    "life": 4
+  },
+  {
+    "name": "Mithril Boots III",
+    "slot": "Boots",
+    "price": 1013,
+    "tier": 3,
+    "base": "Mithril Boots",
+    "life": 6
+  },
+  {
+    "name": "Mithril Shield",
+    "slot": "Right",
+    "price": 130,
+    "battlefield": [
+      "c_0_4_a_wall_defender"
+    ]
+  },
+  {
+    "name": "Mithril Shield II",
+    "slot": "Right",
+    "price": 293,
+    "tier": 2,
+    "base": "Mithril Shield",
+    "battlefield": [
+      "c_0_4_a_wall_defender",
+      "c_0_4_a_wall_defender"
+    ]
+  },
+  {
+    "name": "Mithril Shield III",
+    "slot": "Right",
+    "price": 659,
+    "tier": 3,
+    "base": "Mithril Shield",
+    "battlefield": [
+      "c_0_4_a_wall_defender",
+      "c_0_4_a_wall_defender",
+      "c_0_4_a_wall_defender"
+    ]
+  },
+  {
+    "name": "Mox Emerald",
+    "slot": "Neck",
+    "price": 500,
+    "battlefield": [
+      "Mox Emerald"
+    ]
+  },
+  {
+    "name": "Mox Emerald II",
+    "slot": "Neck",
+    "price": 1125,
+    "tier": 2,
+    "base": "Mox Emerald",
+    "battlefield": [
+      "Mox Emerald",
+      "Mox Emerald"
+    ]
+  },
+  {
+    "name": "Mox Emerald III",
+    "slot": "Neck",
+    "price": 2531,
+    "tier": 3,
+    "base": "Mox Emerald",
+    "battlefield": [
+      "Mox Emerald",
+      "Mox Emerald",
+      "Mox Emerald"
+    ]
+  },
+  {
+    "name": "Mox Jet",
+    "slot": "Neck",
+    "price": 500,
+    "battlefield": [
+      "Mox Jet"
+    ]
+  },
+  {
+    "name": "Mox Jet II",
+    "slot": "Neck",
+    "price": 1125,
+    "tier": 2,
+    "base": "Mox Jet",
+    "battlefield": [
+      "Mox Jet",
+      "Mox Jet"
+    ]
+  },
+  {
+    "name": "Mox Jet III",
+    "slot": "Neck",
+    "price": 2531,
+    "tier": 3,
+    "base": "Mox Jet",
+    "battlefield": [
+      "Mox Jet",
+      "Mox Jet",
+      "Mox Jet"
+    ]
+  },
+  {
+    "name": "Mox Pearl",
+    "slot": "Neck",
+    "price": 500,
+    "battlefield": [
+      "Mox Pearl"
+    ]
+  },
+  {
+    "name": "Mox Pearl II",
+    "slot": "Neck",
+    "price": 1125,
+    "tier": 2,
+    "base": "Mox Pearl",
+    "battlefield": [
+      "Mox Pearl",
+      "Mox Pearl"
+    ]
+  },
+  {
+    "name": "Mox Pearl III",
+    "slot": "Neck",
+    "price": 2531,
+    "tier": 3,
+    "base": "Mox Pearl",
+    "battlefield": [
+      "Mox Pearl",
+      "Mox Pearl",
+      "Mox Pearl"
+    ]
+  },
+  {
+    "name": "Mox Ruby",
+    "slot": "Neck",
+    "price": 500,
+    "battlefield": [
+      "Mox Ruby"
+    ]
+  },
+  {
+    "name": "Mox Ruby II",
+    "slot": "Neck",
+    "price": 1125,
+    "tier": 2,
+    "base": "Mox Ruby",
+    "battlefield": [
+      "Mox Ruby",
+      "Mox Ruby"
+    ]
+  },
+  {
+    "name": "Mox Ruby III",
+    "slot": "Neck",
+    "price": 2531,
+    "tier": 3,
+    "base": "Mox Ruby",
+    "battlefield": [
+      "Mox Ruby",
+      "Mox Ruby",
+      "Mox Ruby"
+    ]
+  },
+  {
+    "name": "Mox Sapphire",
+    "slot": "Neck",
+    "price": 500,
+    "battlefield": [
+      "Mox Sapphire"
+    ]
+  },
+  {
+    "name": "Mox Sapphire II",
+    "slot": "Neck",
+    "price": 1125,
+    "tier": 2,
+    "base": "Mox Sapphire",
+    "battlefield": [
+      "Mox Sapphire",
+      "Mox Sapphire"
+    ]
+  },
+  {
+    "name": "Mox Sapphire III",
+    "slot": "Neck",
+    "price": 2531,
+    "tier": 3,
+    "base": "Mox Sapphire",
+    "battlefield": [
+      "Mox Sapphire",
+      "Mox Sapphire",
+      "Mox Sapphire"
+    ]
+  },
+  {
+    "name": "Nine-Ringed Bo",
+    "slot": "Left",
+    "price": 30,
+    "battlefield": [
+      "Nine-Ringed Bo"
+    ]
+  },
+  {
+    "name": "Nine-Ringed Bo II",
+    "slot": "Left",
+    "price": 68,
+    "tier": 2,
+    "base": "Nine-Ringed Bo",
+    "battlefield": [
+      "Nine-Ringed Bo",
+      "Nine-Ringed Bo"
+    ]
+  },
+  {
+    "name": "Nine-Ringed Bo III",
+    "slot": "Left",
+    "price": 153,
+    "tier": 3,
+    "base": "Nine-Ringed Bo",
+    "battlefield": [
+      "Nine-Ringed Bo",
+      "Nine-Ringed Bo",
+      "Nine-Ringed Bo"
+    ]
+  },
+  {
+    "name": "Pandora's Box",
+    "slot": "Right",
+    "price": 30,
+    "battlefield": [
+      "Pandora's Box"
+    ]
+  },
+  {
+    "name": "Pandora's Box II",
+    "slot": "Right",
+    "price": 68,
+    "tier": 2,
+    "base": "Pandora's Box",
+    "battlefield": [
+      "Pandora's Box",
+      "Pandora's Box"
+    ]
+  },
+  {
+    "name": "Pandora's Box III",
+    "slot": "Right",
+    "price": 153,
+    "tier": 3,
+    "base": "Pandora's Box",
+    "battlefield": [
+      "Pandora's Box",
+      "Pandora's Box",
+      "Pandora's Box"
+    ]
+  },
+  {
+    "name": "Prayerbook of Ire",
+    "slot": "Left",
+    "price": 60,
+    "battlefield": [
+      "Font of Ire|JOU"
+    ],
+    "description": "3R for 5 damage to a player"
+  },
+  {
+    "name": "Prayerbook of Ire II",
+    "slot": "Left",
+    "price": 135,
+    "tier": 2,
+    "base": "Prayerbook of Ire",
+    "battlefield": [
+      "Font of Ire|JOU",
+      "Font of Ire|JOU"
+    ],
+    "description": "3R for 5 damage to a player"
+  },
+  {
+    "name": "Prayerbook of Ire III",
+    "slot": "Left",
+    "price": 304,
+    "tier": 3,
+    "base": "Prayerbook of Ire",
+    "battlefield": [
+      "Font of Ire|JOU",
+      "Font of Ire|JOU",
+      "Font of Ire|JOU"
+    ],
+    "description": "3R for 5 damage to a player"
+  },
+  {
+    "name": "Prism Ring",
+    "slot": "Right",
+    "price": 40,
+    "battlefield": [
+      "Prism Ring"
+    ]
+  },
+  {
+    "name": "Prism Ring II",
+    "slot": "Right",
+    "price": 90,
+    "tier": 2,
+    "base": "Prism Ring",
+    "battlefield": [
+      "Prism Ring",
+      "Prism Ring"
+    ]
+  },
+  {
+    "name": "Prism Ring III",
+    "slot": "Right",
+    "price": 203,
+    "tier": 3,
+    "base": "Prism Ring",
+    "battlefield": [
+      "Prism Ring",
+      "Prism Ring",
+      "Prism Ring"
+    ]
+  },
+  {
+    "name": "Raptor Bondband",
+    "slot": "Boots",
+    "price": 80,
+    "life": -3,
+    "battlefield": [
+      "Frenzied Raptor|IKO"
+    ],
+    "description": "4/2 dinosaur"
+  },
+  {
+    "name": "Raptor Bondband II",
+    "slot": "Boots",
+    "price": 180,
+    "tier": 2,
+    "base": "Raptor Bondband",
+    "life": -6,
+    "battlefield": [
+      "Frenzied Raptor|IKO",
+      "Frenzied Raptor|IKO"
+    ],
+    "description": "4/2 dinosaur"
+  },
+  {
+    "name": "Raptor Bondband III",
+    "slot": "Boots",
+    "price": 405,
+    "tier": 3,
+    "base": "Raptor Bondband",
+    "life": -9,
+    "battlefield": [
+      "Frenzied Raptor|IKO",
+      "Frenzied Raptor|IKO",
+      "Frenzied Raptor|IKO"
+    ],
+    "description": "4/2 dinosaur"
+  },
+  {
+    "name": "Relic Amulet",
+    "slot": "Neck",
+    "price": 50,
+    "battlefield": [
+      "Relic Amulet"
+    ]
+  },
+  {
+    "name": "Relic Amulet II",
+    "slot": "Neck",
+    "price": 113,
+    "tier": 2,
+    "base": "Relic Amulet",
+    "battlefield": [
+      "Relic Amulet",
+      "Relic Amulet"
+    ]
+  },
+  {
+    "name": "Relic Amulet III",
+    "slot": "Neck",
+    "price": 254,
+    "tier": 3,
+    "base": "Relic Amulet",
+    "battlefield": [
+      "Relic Amulet",
+      "Relic Amulet",
+      "Relic Amulet"
+    ]
+  },
+  {
+    "name": "Ring of Immortals",
+    "slot": "Right",
+    "price": 80,
+    "battlefield": [
+      "Ring of Immortals"
+    ]
+  },
+  {
+    "name": "Ring of Immortals II",
+    "slot": "Right",
+    "price": 180,
+    "tier": 2,
+    "base": "Ring of Immortals",
+    "battlefield": [
+      "Ring of Immortals",
+      "Ring of Immortals"
+    ]
+  },
+  {
+    "name": "Ring of Immortals III",
+    "slot": "Right",
+    "price": 405,
+    "tier": 3,
+    "base": "Ring of Immortals",
+    "battlefield": [
+      "Ring of Immortals",
+      "Ring of Immortals",
+      "Ring of Immortals"
+    ]
+  },
+  {
+    "name": "Ring of Renewal",
+    "slot": "Right",
+    "price": 100,
+    "battlefield": [
+      "Ring of Renewal"
+    ]
+  },
+  {
+    "name": "Ring of Renewal II",
+    "slot": "Right",
+    "price": 225,
+    "tier": 2,
+    "base": "Ring of Renewal",
+    "battlefield": [
+      "Ring of Renewal",
+      "Ring of Renewal"
+    ]
+  },
+  {
+    "name": "Ring of Renewal III",
+    "slot": "Right",
+    "price": 506,
+    "tier": 3,
+    "base": "Ring of Renewal",
+    "battlefield": [
+      "Ring of Renewal",
+      "Ring of Renewal",
+      "Ring of Renewal"
+    ]
+  },
+  {
+    "name": "Ring of Three Wishes",
+    "slot": "Right",
+    "price": 50,
+    "battlefield": [
+      "Ring of Three Wishes"
+    ]
+  },
+  {
+    "name": "Ring of Three Wishes II",
+    "slot": "Right",
+    "price": 113,
+    "tier": 2,
+    "base": "Ring of Three Wishes",
+    "battlefield": [
+      "Ring of Three Wishes",
+      "Ring of Three Wishes"
+    ]
+  },
+  {
+    "name": "Ring of Three Wishes III",
+    "slot": "Right",
+    "price": 254,
+    "tier": 3,
+    "base": "Ring of Three Wishes",
+    "battlefield": [
+      "Ring of Three Wishes",
+      "Ring of Three Wishes",
+      "Ring of Three Wishes"
+    ]
+  },
+  {
+    "name": "Robes of Omniscience",
+    "slot": "Body",
+    "price": 200,
+    "life": -6,
+    "hand": 2,
+    "description": "-6 life. Draw 2 extra cards at game start"
+  },
+  {
+    "name": "Robes of Omniscience II",
+    "slot": "Body",
+    "price": 450,
+    "tier": 2,
+    "base": "Robes of Omniscience",
+    "life": -12,
+    "hand": 4,
+    "description": "-6 life. Draw 2 extra cards at game start"
+  },
+  {
+    "name": "Robes of Omniscience III",
+    "slot": "Body",
+    "price": 1013,
+    "tier": 3,
+    "base": "Robes of Omniscience",
+    "life": -18,
+    "hand": 6,
+    "description": "-6 life. Draw 2 extra cards at game start"
+  },
+  {
+    "name": "Shell Wand",
+    "slot": "Left",
+    "price": 80,
+    "enemyLife": -2
+  },
+  {
+    "name": "Slime-Covered Boots",
+    "slot": "Boots",
+    "price": 120,
+    "life": -1,
+    "battlefield": [
+      "Ooze Flux"
+    ]
+  },
+  {
+    "name": "Slime-Covered Boots II",
+    "slot": "Boots",
+    "price": 270,
+    "tier": 2,
+    "base": "Slime-Covered Boots",
+    "life": -2,
+    "battlefield": [
+      "Ooze Flux",
+      "Ooze Flux"
+    ]
+  },
+  {
+    "name": "Slime-Covered Boots III",
+    "slot": "Boots",
+    "price": 608,
+    "tier": 3,
+    "base": "Slime-Covered Boots",
+    "life": -3,
+    "battlefield": [
+      "Ooze Flux",
+      "Ooze Flux",
+      "Ooze Flux"
+    ]
+  },
+  {
+    "name": "Snack",
+    "slot": "Right",
+    "price": 30,
+    "battlefield": [
+      "c_a_food_sac"
+    ]
+  },
+  {
+    "name": "Snack II",
+    "slot": "Right",
+    "price": 68,
+    "tier": 2,
+    "base": "Snack",
+    "battlefield": [
+      "c_a_food_sac",
+      "c_a_food_sac"
+    ]
+  },
+  {
+    "name": "Snack III",
+    "slot": "Right",
+    "price": 153,
+    "tier": 3,
+    "base": "Snack",
+    "battlefield": [
+      "c_a_food_sac",
+      "c_a_food_sac",
+      "c_a_food_sac"
+    ]
+  },
+  {
+    "name": "Sol Ring",
+    "slot": "Left",
+    "price": 500,
+    "battlefield": [
+      "Sol Ring"
+    ]
+  },
+  {
+    "name": "Sol Ring II",
+    "slot": "Left",
+    "price": 1125,
+    "tier": 2,
+    "base": "Sol Ring",
+    "battlefield": [
+      "Sol Ring",
+      "Sol Ring"
+    ]
+  },
+  {
+    "name": "Sol Ring III",
+    "slot": "Left",
+    "price": 2531,
+    "tier": 3,
+    "base": "Sol Ring",
+    "battlefield": [
+      "Sol Ring",
+      "Sol Ring",
+      "Sol Ring"
+    ]
+  },
+  {
+    "name": "Spell Book",
+    "slot": "Left",
+    "price": 160,
+    "hand": 1
+  },
+  {
+    "name": "Spell Book II",
+    "slot": "Left",
+    "price": 360,
+    "tier": 2,
+    "base": "Spell Book",
+    "hand": 2
+  },
+  {
+    "name": "Spell Book III",
+    "slot": "Left",
+    "price": 810,
+    "tier": 3,
+    "base": "Spell Book",
+    "hand": 3
+  },
+  {
+    "name": "Steel Armor",
+    "slot": "Body",
+    "price": 100,
+    "life": 3
+  },
+  {
+    "name": "Steel Armor II",
+    "slot": "Body",
+    "price": 225,
+    "tier": 2,
+    "base": "Steel Armor",
+    "life": 6
+  },
+  {
+    "name": "Steel Armor III",
+    "slot": "Body",
+    "price": 506,
+    "tier": 3,
+    "base": "Steel Armor",
+    "life": 9
+  },
+  {
+    "name": "Steel Boots",
+    "slot": "Boots",
+    "price": 90,
+    "life": 1
+  },
+  {
+    "name": "Steel Boots II",
+    "slot": "Boots",
+    "price": 203,
+    "tier": 2,
+    "base": "Steel Boots",
+    "life": 2
+  },
+  {
+    "name": "Steel Boots III",
+    "slot": "Boots",
+    "price": 457,
+    "tier": 3,
+    "base": "Steel Boots",
+    "life": 3
+  },
+  {
+    "name": "Steel Shield",
+    "slot": "Right",
+    "price": 130,
+    "battlefield": [
+      "w_0_3_wall_defender"
+    ]
+  },
+  {
+    "name": "Steel Shield II",
+    "slot": "Right",
+    "price": 293,
+    "tier": 2,
+    "base": "Steel Shield",
+    "battlefield": [
+      "w_0_3_wall_defender",
+      "w_0_3_wall_defender"
+    ]
+  },
+  {
+    "name": "Steel Shield III",
+    "slot": "Right",
+    "price": 659,
+    "tier": 3,
+    "base": "Steel Shield",
+    "battlefield": [
+      "w_0_3_wall_defender",
+      "w_0_3_wall_defender",
+      "w_0_3_wall_defender"
+    ]
+  },
+  {
+    "name": "Steel Sword",
+    "slot": "Left",
+    "price": 90,
+    "battlefield": [
+      "Greatsword"
+    ]
+  },
+  {
+    "name": "Steel Sword II",
+    "slot": "Left",
+    "price": 203,
+    "tier": 2,
+    "base": "Steel Sword",
+    "battlefield": [
+      "Greatsword",
+      "Greatsword"
+    ]
+  },
+  {
+    "name": "Steel Sword III",
+    "slot": "Left",
+    "price": 457,
+    "tier": 3,
+    "base": "Steel Sword",
+    "battlefield": [
+      "Greatsword",
+      "Greatsword",
+      "Greatsword"
+    ]
+  },
+  {
+    "name": "The Blackstaff of Waterdeep",
+    "slot": "Left",
+    "price": 70,
+    "battlefield": [
+      "The Blackstaff of Waterdeep"
+    ]
+  },
+  {
+    "name": "The Underworld Cookbook",
+    "slot": "Left",
+    "price": 80,
+    "battlefield": [
+      "The Underworld Cookbook"
+    ]
+  },
+  {
+    "name": "The Underworld Cookbook II",
+    "slot": "Left",
+    "price": 180,
+    "tier": 2,
+    "base": "The Underworld Cookbook",
+    "battlefield": [
+      "The Underworld Cookbook",
+      "The Underworld Cookbook"
+    ]
+  },
+  {
+    "name": "The Underworld Cookbook III",
+    "slot": "Left",
+    "price": 405,
+    "tier": 3,
+    "base": "The Underworld Cookbook",
+    "battlefield": [
+      "The Underworld Cookbook",
+      "The Underworld Cookbook",
+      "The Underworld Cookbook"
+    ]
+  },
+  {
+    "name": "Traveler's Amulet",
+    "slot": "Neck",
+    "price": 100,
+    "battlefield": [
+      "Traveler's Amulet"
+    ]
+  },
+  {
+    "name": "Traveler's Amulet II",
+    "slot": "Neck",
+    "price": 225,
+    "tier": 2,
+    "base": "Traveler's Amulet",
+    "battlefield": [
+      "Traveler's Amulet",
+      "Traveler's Amulet"
+    ]
+  },
+  {
+    "name": "Traveler's Amulet III",
+    "slot": "Neck",
+    "price": 506,
+    "tier": 3,
+    "base": "Traveler's Amulet",
+    "battlefield": [
+      "Traveler's Amulet",
+      "Traveler's Amulet",
+      "Traveler's Amulet"
+    ]
+  },
+  {
+    "name": "Treasure",
+    "slot": "Right",
+    "price": 100,
+    "battlefield": [
+      "c_a_treasure_sac"
+    ]
+  },
+  {
+    "name": "Treasure II",
+    "slot": "Right",
+    "price": 225,
+    "tier": 2,
+    "base": "Treasure",
+    "battlefield": [
+      "c_a_treasure_sac",
+      "c_a_treasure_sac"
+    ]
+  },
+  {
+    "name": "Treasure III",
+    "slot": "Right",
+    "price": 506,
+    "tier": 3,
+    "base": "Treasure",
+    "battlefield": [
+      "c_a_treasure_sac",
+      "c_a_treasure_sac",
+      "c_a_treasure_sac"
+    ]
+  },
+  {
+    "name": "Unerring Sling",
+    "slot": "Left",
+    "price": 80,
+    "battlefield": [
+      "Unerring Sling"
+    ]
+  },
+  {
+    "name": "Unerring Sling II",
+    "slot": "Left",
+    "price": 180,
+    "tier": 2,
+    "base": "Unerring Sling",
+    "battlefield": [
+      "Unerring Sling",
+      "Unerring Sling"
+    ]
+  },
+  {
+    "name": "Unerring Sling III",
+    "slot": "Left",
+    "price": 405,
+    "tier": 3,
+    "base": "Unerring Sling",
+    "battlefield": [
+      "Unerring Sling",
+      "Unerring Sling",
+      "Unerring Sling"
+    ]
+  },
+  {
+    "name": "Unhallowed Sigil",
+    "slot": "Right",
+    "price": 120,
+    "battlefield": [
+      "Sigil of Torment"
+    ],
+    "description": "Devour the life of an enemy creature, killing it"
+  },
+  {
+    "name": "Unhallowed Sigil II",
+    "slot": "Right",
+    "price": 270,
+    "tier": 2,
+    "base": "Unhallowed Sigil",
+    "battlefield": [
+      "Sigil of Torment",
+      "Sigil of Torment"
+    ],
+    "description": "Devour the life of an enemy creature, killing it"
+  },
+  {
+    "name": "Unhallowed Sigil III",
+    "slot": "Right",
+    "price": 608,
+    "tier": 3,
+    "base": "Unhallowed Sigil",
+    "battlefield": [
+      "Sigil of Torment",
+      "Sigil of Torment",
+      "Sigil of Torment"
+    ],
+    "description": "Devour the life of an enemy creature, killing it"
+  },
+  {
+    "name": "Veilstone Amulet",
+    "slot": "Neck",
+    "price": 100,
+    "battlefield": [
+      "Veilstone Amulet"
+    ]
+  },
+  {
+    "name": "Veilstone Amulet II",
+    "slot": "Neck",
+    "price": 225,
+    "tier": 2,
+    "base": "Veilstone Amulet",
+    "battlefield": [
+      "Veilstone Amulet",
+      "Veilstone Amulet"
+    ]
+  },
+  {
+    "name": "Veilstone Amulet III",
+    "slot": "Neck",
+    "price": 506,
+    "tier": 3,
+    "base": "Veilstone Amulet",
+    "battlefield": [
+      "Veilstone Amulet",
+      "Veilstone Amulet",
+      "Veilstone Amulet"
+    ]
+  },
+  {
+    "name": "Warren Tender's Baton",
+    "slot": "Left",
+    "price": 60,
+    "life": 1,
+    "battlefield": [
+      "Goblin Warrens|FEM"
+    ],
+    "description": "Pay 2R and sac 2 Goblins to create 3 1/1 Goblin tokens"
+  },
+  {
+    "name": "Warren Tender's Baton II",
+    "slot": "Left",
+    "price": 135,
+    "tier": 2,
+    "base": "Warren Tender's Baton",
+    "life": 2,
+    "battlefield": [
+      "Goblin Warrens|FEM",
+      "Goblin Warrens|FEM"
+    ],
+    "description": "Pay 2R and sac 2 Goblins to create 3 1/1 Goblin tokens"
+  },
+  {
+    "name": "Warren Tender's Baton III",
+    "slot": "Left",
+    "price": 304,
+    "tier": 3,
+    "base": "Warren Tender's Baton",
+    "life": 3,
+    "battlefield": [
+      "Goblin Warrens|FEM",
+      "Goblin Warrens|FEM",
+      "Goblin Warrens|FEM"
+    ],
+    "description": "Pay 2R and sac 2 Goblins to create 3 1/1 Goblin tokens"
+  },
+  {
+    "name": "Wood Bow",
+    "slot": "Left",
+    "price": 30,
+    "battlefield": [
+      "Fyndhorn Bow"
+    ]
+  },
+  {
+    "name": "Wood Bow II",
+    "slot": "Left",
+    "price": 68,
+    "tier": 2,
+    "base": "Wood Bow",
+    "battlefield": [
+      "Fyndhorn Bow",
+      "Fyndhorn Bow"
+    ]
+  },
+  {
+    "name": "Wood Bow III",
+    "slot": "Left",
+    "price": 153,
+    "tier": 3,
+    "base": "Wood Bow",
+    "battlefield": [
+      "Fyndhorn Bow",
+      "Fyndhorn Bow",
+      "Fyndhorn Bow"
+    ]
+  },
+  {
+    "name": "Xira's Fancy Hat",
+    "slot": "Neck",
+    "price": 200,
+    "life": 2,
+    "battlefield": [
+      "Xira's Hive"
+    ]
+  },
+  {
+    "name": "Xira's Fancy Hat II",
+    "slot": "Neck",
+    "price": 450,
+    "tier": 2,
+    "base": "Xira's Fancy Hat",
+    "life": 4,
+    "battlefield": [
+      "Xira's Hive",
+      "Xira's Hive"
+    ]
+  },
+  {
+    "name": "Xira's Fancy Hat III",
+    "slot": "Neck",
+    "price": 1013,
+    "tier": 3,
+    "base": "Xira's Fancy Hat",
+    "life": 6,
+    "battlefield": [
+      "Xira's Hive",
+      "Xira's Hive",
+      "Xira's Hive"
+    ]
+  },
+  {
+    "name": "Akroma, Angel of Wrath Avatar",
+    "slot": "Avatar",
+    "price": 1100,
+    "avatar": "Akroma, Angel of Wrath Avatar",
+    "life": 7,
+    "hand": 1
+  },
+  {
+    "name": "Arcanis, the Omnipotent Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Arcanis, the Omnipotent Avatar",
+    "life": -3,
+    "hand": 1
+  },
+  {
+    "name": "Arcbound Overseer Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Arcbound Overseer Avatar",
+    "life": 3
+  },
+  {
+    "name": "Ashling the Pilgrim Avatar",
+    "slot": "Avatar",
+    "price": 1000,
+    "avatar": "Ashling the Pilgrim Avatar",
+    "life": 6,
+    "hand": -1
+  },
+  {
+    "name": "Ashling, the Extinguisher Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Ashling, the Extinguisher Avatar",
+    "life": -3,
+    "hand": 1
+  },
+  {
+    "name": "Ashnod",
+    "slot": "Avatar",
+    "price": 1000,
+    "avatar": "Ashnod",
+    "life": -8,
+    "hand": 1
+  },
+  {
+    "name": "Barrin",
+    "slot": "Avatar",
+    "price": 1050,
+    "avatar": "Barrin",
+    "aiPlayable": false,
+    "life": 6
+  },
+  {
+    "name": "Birds of Paradise Avatar",
+    "slot": "Avatar",
+    "price": 975,
+    "avatar": "Birds of Paradise Avatar",
+    "life": -3
+  },
+  {
+    "name": "Bosh, Iron Golem Avatar",
+    "slot": "Avatar",
+    "price": 1000,
+    "avatar": "Bosh, Iron Golem Avatar",
+    "aiPlayable": false,
+    "life": -2
+  },
+  {
+    "name": "Braids, Conjurer Adept Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Braids, Conjurer Adept Avatar",
+    "life": 3
+  },
+  {
+    "name": "Chronatog Avatar",
+    "slot": "Avatar",
+    "price": 950,
+    "avatar": "Chronatog Avatar",
+    "aiPlayable": false,
+    "life": 1,
+    "hand": -1
+  },
+  {
+    "name": "Crovax",
+    "slot": "Avatar",
+    "price": 1100,
+    "avatar": "Crovax",
+    "hand": 2
+  },
+  {
+    "name": "Dakkon Blackblade Avatar",
+    "slot": "Avatar",
+    "price": 1050,
+    "avatar": "Dakkon Blackblade Avatar",
+    "aiPlayable": false,
+    "hand": 1
+  },
+  {
+    "name": "Dauntless Escort Avatar",
+    "slot": "Avatar",
+    "price": 1050,
+    "avatar": "Dauntless Escort Avatar",
+    "life": 1,
+    "hand": 1
+  },
+  {
+    "name": "Diamond Faerie Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Diamond Faerie Avatar",
+    "life": 5
+  },
+  {
+    "name": "Eight-and-a-Half-Tails Avatar",
+    "slot": "Avatar",
+    "price": 1075,
+    "avatar": "Eight-and-a-Half-Tails Avatar",
+    "life": -3,
+    "hand": 2
+  },
+  {
+    "name": "Eladamri",
+    "slot": "Avatar",
+    "price": 1075,
+    "avatar": "Eladamri",
+    "aiPlayable": false,
+    "life": 15,
+    "hand": -1
+  },
+  {
+    "name": "Eladamri, Lord of Leaves Avatar",
+    "slot": "Avatar",
+    "price": 950,
+    "avatar": "Eladamri, Lord of Leaves Avatar",
+    "life": 2,
+    "hand": -1
+  },
+  {
+    "name": "Elvish Champion Avatar",
+    "slot": "Avatar",
+    "price": 975,
+    "avatar": "Elvish Champion Avatar",
+    "life": -5
+  },
+  {
+    "name": "Enigma Sphinx Avatar",
+    "slot": "Avatar",
+    "price": 975,
+    "avatar": "Enigma Sphinx Avatar",
+    "life": 5,
+    "hand": -1
+  },
+  {
+    "name": "Erhnam Djinn Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Erhnam Djinn Avatar",
+    "life": 3
+  },
+  {
+    "name": "Ertai",
+    "slot": "Avatar",
+    "price": 975,
+    "avatar": "Ertai",
+    "life": 4,
+    "hand": -1
+  },
+  {
+    "name": "Etched Oracle Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Etched Oracle Avatar",
+    "life": -4,
+    "hand": 1
+  },
+  {
+    "name": "Fallen Angel Avatar",
+    "slot": "Avatar",
+    "price": 975,
+    "avatar": "Fallen Angel Avatar",
+    "life": -5
+  },
+  {
+    "name": "Figure of Destiny Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Figure of Destiny Avatar",
+    "life": 3
+  },
+  {
+    "name": "Flametongue Kavu Avatar",
+    "slot": "Avatar",
+    "price": 950,
+    "avatar": "Flametongue Kavu Avatar",
+    "life": -6
+  },
+  {
+    "name": "Frenetic Efreet Avatar",
+    "slot": "Avatar",
+    "price": 925,
+    "avatar": "Frenetic Efreet Avatar",
+    "life": -3,
+    "hand": -1
+  },
+  {
+    "name": "Gerrard",
+    "slot": "Avatar",
+    "price": 800,
+    "avatar": "Gerrard",
+    "hand": -4
+  },
+  {
+    "name": "Gix",
+    "slot": "Avatar",
+    "price": 1050,
+    "avatar": "Gix",
+    "life": 18,
+    "hand": -2
+  },
+  {
+    "name": "Goblin Warchief Avatar",
+    "slot": "Avatar",
+    "price": 1050,
+    "avatar": "Goblin Warchief Avatar",
+    "life": 2,
+    "hand": 1
+  },
+  {
+    "name": "Greven il-Vec",
+    "slot": "Avatar",
+    "price": 950,
+    "avatar": "Greven il-Vec",
+    "life": 2,
+    "hand": -1
+  },
+  {
+    "name": "Grinning Demon Avatar",
+    "slot": "Avatar",
+    "price": 950,
+    "avatar": "Grinning Demon Avatar",
+    "life": -2,
+    "hand": -1
+  },
+  {
+    "name": "Haakon, Stromgald Scourge Avatar",
+    "slot": "Avatar",
+    "price": 975,
+    "avatar": "Haakon, Stromgald Scourge Avatar",
+    "life": -3
+  },
+  {
+    "name": "Hanna",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Hanna",
+    "life": -5,
+    "hand": 1
+  },
+  {
+    "name": "Heartwood Storyteller Avatar",
+    "slot": "Avatar",
+    "price": 975,
+    "avatar": "Heartwood Storyteller Avatar",
+    "life": 4,
+    "hand": -1
+  },
+  {
+    "name": "Hell's Caretaker Avatar",
+    "slot": "Avatar",
+    "price": 925,
+    "avatar": "Hell's Caretaker Avatar",
+    "aiPlayable": false,
+    "life": -4,
+    "hand": -1
+  },
+  {
+    "name": "Hermit Druid Avatar",
+    "slot": "Avatar",
+    "price": 900,
+    "avatar": "Hermit Druid Avatar",
+    "life": -2,
+    "hand": -2
+  },
+  {
+    "name": "Higure, the Still Wind Avatar",
+    "slot": "Avatar",
+    "price": 975,
+    "avatar": "Higure, the Still Wind Avatar",
+    "life": 3,
+    "hand": -1
+  },
+  {
+    "name": "Ink-Eyes, Servant of Oni Avatar",
+    "slot": "Avatar",
+    "price": 975,
+    "avatar": "Ink-Eyes, Servant of Oni Avatar",
+    "life": -3
+  },
+  {
+    "name": "Jaya Ballard Avatar",
+    "slot": "Avatar",
+    "price": 1000,
+    "avatar": "Jaya Ballard Avatar",
+    "life": 1
+  },
+  {
+    "name": "Jhoira of the Ghitu Avatar",
+    "slot": "Avatar",
+    "price": 1050,
+    "avatar": "Jhoira of the Ghitu Avatar",
+    "hand": 1
+  },
+  {
+    "name": "Karn",
+    "slot": "Avatar",
+    "price": 1100,
+    "avatar": "Karn",
+    "life": 6,
+    "hand": 1
+  },
+  {
+    "name": "Karona, False God Avatar",
+    "slot": "Avatar",
+    "price": 1000,
+    "avatar": "Karona, False God Avatar",
+    "life": 8,
+    "hand": -1
+  },
+  {
+    "name": "Kresh the Bloodbraided Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Kresh the Bloodbraided Avatar",
+    "life": -3,
+    "hand": 1
+  },
+  {
+    "name": "Loxodon Hierarch Avatar",
+    "slot": "Avatar",
+    "price": 1100,
+    "avatar": "Loxodon Hierarch Avatar",
+    "life": 12
+  },
+  {
+    "name": "Lyna",
+    "slot": "Avatar",
+    "price": 1075,
+    "avatar": "Lyna",
+    "life": -4,
+    "hand": 2
+  },
+  {
+    "name": "Lyzolda, the Blood Witch Avatar",
+    "slot": "Avatar",
+    "price": 950,
+    "avatar": "Lyzolda, the Blood Witch Avatar",
+    "life": -1,
+    "hand": -1
+  },
+  {
+    "name": "Maelstrom Archangel Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Maelstrom Archangel Avatar",
+    "life": 5
+  },
+  {
+    "name": "Malfegor Avatar",
+    "slot": "Avatar",
+    "price": 1100,
+    "avatar": "Malfegor Avatar",
+    "life": -2,
+    "hand": 2
+  },
+  {
+    "name": "Maralen of the Mornsong Avatar",
+    "slot": "Avatar",
+    "price": 975,
+    "avatar": "Maralen of the Mornsong Avatar",
+    "aiPlayable": false,
+    "life": -3
+  },
+  {
+    "name": "Maraxus",
+    "slot": "Avatar",
+    "price": 1050,
+    "avatar": "Maraxus",
+    "life": 2,
+    "hand": 1
+  },
+  {
+    "name": "Maro Avatar",
+    "slot": "Avatar",
+    "price": 1050,
+    "avatar": "Maro Avatar",
+    "aiPlayable": false,
+    "life": -7,
+    "hand": 2
+  },
+  {
+    "name": "Master of the Wild Hunt Avatar",
+    "slot": "Avatar",
+    "price": 1075,
+    "avatar": "Master of the Wild Hunt Avatar",
+    "life": 3,
+    "hand": 1
+  },
+  {
+    "name": "Mayael the Anima Avatar",
+    "slot": "Avatar",
+    "price": 1075,
+    "avatar": "Mayael the Anima Avatar",
+    "life": 5,
+    "hand": 1
+  },
+  {
+    "name": "Mirri",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Mirri",
+    "aiPlayable": false,
+    "life": 5
+  },
+  {
+    "name": "Mirri the Cursed Avatar",
+    "slot": "Avatar",
+    "price": 875,
+    "avatar": "Mirri the Cursed Avatar",
+    "life": -3,
+    "hand": -2
+  },
+  {
+    "name": "Mirror Entity Avatar",
+    "slot": "Avatar",
+    "price": 1050,
+    "avatar": "Mirror Entity Avatar",
+    "life": -2,
+    "hand": 1
+  },
+  {
+    "name": "Mishra",
+    "slot": "Avatar",
+    "price": 975,
+    "avatar": "Mishra",
+    "life": -3
+  },
+  {
+    "name": "Momir Vig, Simic Visionary Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Momir Vig, Simic Visionary Avatar",
+    "life": 4
+  },
+  {
+    "name": "Morinfen Avatar",
+    "slot": "Avatar",
+    "price": 1200,
+    "avatar": "Morinfen Avatar",
+    "aiPlayable": false,
+    "life": 30
+  },
+  {
+    "name": "Multani",
+    "slot": "Avatar",
+    "price": 850,
+    "avatar": "Multani",
+    "life": -2,
+    "hand": -3
+  },
+  {
+    "name": "Murderous Redcap Avatar",
+    "slot": "Avatar",
+    "price": 1000,
+    "avatar": "Murderous Redcap Avatar",
+    "life": -2
+  },
+  {
+    "name": "Necropotence Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Necropotence Avatar",
+    "aiPlayable": false,
+    "life": 4
+  },
+  {
+    "name": "Nekrataal Avatar",
+    "slot": "Avatar",
+    "price": 925,
+    "avatar": "Nekrataal Avatar",
+    "life": -4,
+    "hand": -1
+  },
+  {
+    "name": "Oni of Wild Places Avatar",
+    "slot": "Avatar",
+    "price": 1000,
+    "avatar": "Oni of Wild Places Avatar",
+    "life": -2
+  },
+  {
+    "name": "Oracle",
+    "slot": "Avatar",
+    "price": 1125,
+    "avatar": "Oracle",
+    "aiPlayable": false,
+    "life": 9,
+    "hand": 1
+  },
+  {
+    "name": "Orcish Squatters Avatar",
+    "slot": "Avatar",
+    "price": 950,
+    "avatar": "Orcish Squatters Avatar",
+    "life": -1,
+    "hand": -1
+  },
+  {
+    "name": "Orim",
+    "slot": "Avatar",
+    "price": 1100,
+    "avatar": "Orim",
+    "life": 12
+  },
+  {
+    "name": "Peacekeeper Avatar",
+    "slot": "Avatar",
+    "price": 1075,
+    "avatar": "Peacekeeper Avatar",
+    "life": 9
+  },
+  {
+    "name": "Phage the Untouchable Avatar",
+    "slot": "Avatar",
+    "price": 975,
+    "avatar": "Phage the Untouchable Avatar",
+    "life": -5
+  },
+  {
+    "name": "Platinum Angel Avatar",
+    "slot": "Avatar",
+    "price": 950,
+    "avatar": "Platinum Angel Avatar",
+    "life": -2,
+    "hand": -1
+  },
+  {
+    "name": "Prodigal Sorcerer Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Prodigal Sorcerer Avatar",
+    "life": 5
+  },
+  {
+    "name": "Raksha Golden Cub Avatar",
+    "slot": "Avatar",
+    "price": 1125,
+    "avatar": "Raksha Golden Cub Avatar",
+    "life": 9,
+    "hand": 1
+  },
+  {
+    "name": "Reaper King Avatar",
+    "slot": "Avatar",
+    "price": 875,
+    "avatar": "Reaper King Avatar",
+    "life": -5,
+    "hand": -2
+  },
+  {
+    "name": "Rith, the Awakener Avatar",
+    "slot": "Avatar",
+    "price": 1050,
+    "avatar": "Rith, the Awakener Avatar",
+    "life": 6
+  },
+  {
+    "name": "Rofellos",
+    "slot": "Avatar",
+    "price": 925,
+    "avatar": "Rofellos",
+    "life": 4,
+    "hand": -2
+  },
+  {
+    "name": "Royal Assassin Avatar",
+    "slot": "Avatar",
+    "price": 900,
+    "avatar": "Royal Assassin Avatar",
+    "hand": -2
+  },
+  {
+    "name": "Rumbling Slum Avatar",
+    "slot": "Avatar",
+    "price": 1050,
+    "avatar": "Rumbling Slum Avatar",
+    "life": 1,
+    "hand": 1
+  },
+  {
+    "name": "Sakashima the Impostor Avatar",
+    "slot": "Avatar",
+    "price": 1000,
+    "avatar": "Sakashima the Impostor Avatar",
+    "life": 1
+  },
+  {
+    "name": "Selenia",
+    "slot": "Avatar",
+    "price": 1100,
+    "avatar": "Selenia",
+    "life": 7,
+    "hand": 1
+  },
+  {
+    "name": "Serra",
+    "slot": "Avatar",
+    "price": 1050,
+    "avatar": "Serra",
+    "life": 1,
+    "hand": 1
+  },
+  {
+    "name": "Serra Angel Avatar",
+    "slot": "Avatar",
+    "price": 1000,
+    "avatar": "Serra Angel Avatar",
+    "life": -1
+  },
+  {
+    "name": "Seshiro the Anointed Avatar",
+    "slot": "Avatar",
+    "price": 1000,
+    "avatar": "Seshiro the Anointed Avatar",
+    "life": -1
+  },
+  {
+    "name": "Sidar Kondo",
+    "slot": "Avatar",
+    "price": 1050,
+    "avatar": "Sidar Kondo",
+    "life": 12,
+    "hand": -1
+  },
+  {
+    "name": "Sisay",
+    "slot": "Avatar",
+    "price": 875,
+    "avatar": "Sisay",
+    "aiPlayable": false,
+    "life": -3,
+    "hand": -2
+  },
+  {
+    "name": "Sisters of Stone Death Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Sisters of Stone Death Avatar",
+    "life": -5,
+    "hand": 1
+  },
+  {
+    "name": "Sliver Queen Avatar",
+    "slot": "Avatar",
+    "price": 1050,
+    "avatar": "Sliver Queen Avatar",
+    "life": 7
+  },
+  {
+    "name": "Sliver Queen, Brood Mother",
+    "slot": "Avatar",
+    "price": 1050,
+    "avatar": "Sliver Queen, Brood Mother",
+    "life": 8
+  },
+  {
+    "name": "Squee",
+    "slot": "Avatar",
+    "price": 1125,
+    "avatar": "Squee",
+    "aiPlayable": false,
+    "life": -4,
+    "hand": 3
+  },
+  {
+    "name": "Squee, Goblin Nabob Avatar",
+    "slot": "Avatar",
+    "price": 1125,
+    "avatar": "Squee, Goblin Nabob Avatar",
+    "life": -4,
+    "hand": 3
+  },
+  {
+    "name": "Stalking Tiger Avatar",
+    "slot": "Avatar",
+    "price": 1000,
+    "avatar": "Stalking Tiger Avatar",
+    "life": 2
+  },
+  {
+    "name": "Starke",
+    "slot": "Avatar",
+    "price": 1000,
+    "avatar": "Starke",
+    "life": -2
+  },
+  {
+    "name": "Stonehewer Giant Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Stonehewer Giant Avatar",
+    "life": -5,
+    "hand": 1
+  },
+  {
+    "name": "Stuffy Doll Avatar",
+    "slot": "Avatar",
+    "price": 950,
+    "avatar": "Stuffy Doll Avatar",
+    "life": -6
+  },
+  {
+    "name": "Tahngarth",
+    "slot": "Avatar",
+    "price": 1000,
+    "avatar": "Tahngarth",
+    "life": 7,
+    "hand": -1
+  },
+  {
+    "name": "Takara",
+    "slot": "Avatar",
+    "price": 1100,
+    "avatar": "Takara",
+    "aiPlayable": false,
+    "life": -8,
+    "hand": 3
+  },
+  {
+    "name": "Tawnos",
+    "slot": "Avatar",
+    "price": 1125,
+    "avatar": "Tawnos",
+    "life": -4,
+    "hand": 3
+  },
+  {
+    "name": "Teysa, Orzhov Scion Avatar",
+    "slot": "Avatar",
+    "price": 1000,
+    "avatar": "Teysa, Orzhov Scion Avatar",
+    "life": -2
+  },
+  {
+    "name": "Titania",
+    "slot": "Avatar",
+    "price": 1075,
+    "avatar": "Titania",
+    "life": -5,
+    "hand": 2
+  },
+  {
+    "name": "Tradewind Rider Avatar",
+    "slot": "Avatar",
+    "price": 1075,
+    "avatar": "Tradewind Rider Avatar",
+    "life": 4,
+    "hand": 1
+  },
+  {
+    "name": "Two-Headed Giant of Foriys Avatar",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Two-Headed Giant of Foriys Avatar",
+    "life": -4,
+    "hand": 1
+  },
+  {
+    "name": "Urza",
+    "slot": "Avatar",
+    "price": 1025,
+    "avatar": "Urza",
+    "life": 10,
+    "hand": -1
+  },
+  {
+    "name": "Vampire Nocturnus Avatar",
+    "slot": "Avatar",
+    "price": 950,
+    "avatar": "Vampire Nocturnus Avatar",
+    "life": -2,
+    "hand": -1
+  },
+  {
+    "name": "Viridian Zealot Avatar",
+    "slot": "Avatar",
+    "price": 1000,
+    "avatar": "Viridian Zealot Avatar",
+    "life": 2
+  },
+  {
+    "name": "Volrath",
+    "slot": "Avatar",
+    "price": 1075,
+    "avatar": "Volrath",
+    "life": -3,
+    "hand": 2
+  },
+  {
+    "name": "Xantcha",
+    "slot": "Avatar",
+    "price": 1075,
+    "avatar": "Xantcha",
+    "aiPlayable": false,
+    "life": 3,
+    "hand": 1
+  }
+]

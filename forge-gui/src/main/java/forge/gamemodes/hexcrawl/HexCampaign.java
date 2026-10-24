@@ -950,7 +950,7 @@ public class HexCampaign {
         final Random rnd = random();
         if (event == HexEvent.RUINED_SHRINE) {
             final List<HexRelic> free = new ArrayList<>();
-            for (final HexRelic relic : content.allRelics()) {
+            for (final HexRelic relic : content.ordinaryRelics()) {
                 if (!p.relics.contains(relic.name) && relicInSlot(p, relic.slot) == null) {
                     free.add(relic);
                 }
@@ -959,7 +959,7 @@ public class HexCampaign {
                 p.gold += gold(HexEvent.CHEST_GOLD);
                 log(msg("lblHexJournalShrineGold", p.name, card, String.valueOf(gold(HexEvent.CHEST_GOLD))));
             } else {
-                final HexRelic relic = free.get(rnd.nextInt(free.size()));
+                final HexRelic relic = content.upgrade(free.get(rnd.nextInt(free.size())), cycle, rnd); // New Game Plus: maybe a stronger one
                 p.relics.add(relic.name);
                 log(msg("lblHexJournalShrine", p.name, card, relic.name));
             }
@@ -1200,7 +1200,8 @@ public class HexCampaign {
         final String key = tile().key();
         final String tab = relicTabKey(head);
         stock.removeIf(o -> tab.equals(o.tab));
-        for (final HexShopOffer o : HexContent.get().relicStock(random())) {
+        final HexPlayer p = player(head);
+        for (final HexShopOffer o : HexContent.get().relicStock(random(), cycle, p != null && p.ai)) {
             o.tab = tab;
             stock.add(o);
         }
@@ -1465,7 +1466,7 @@ public class HexCampaign {
         int guard = 50;
         while (result.size() < QUESTS_PER_TOWN && !fields.isEmpty() && guard-- > 0) {
             final HexTile t = fields.remove(rnd.nextInt(fields.size()));
-            final HexQuest quest = HexContent.get().questEnemy(t.color, rnd);
+            final HexQuest quest = HexContent.get().questEnemy(t.color, rnd, cycle);
             if (quest == null || !names.add(quest.enemyName)) {
                 continue;
             }

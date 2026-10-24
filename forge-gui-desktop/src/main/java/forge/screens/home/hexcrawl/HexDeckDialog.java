@@ -84,7 +84,7 @@ import net.miginfocom.swing.MigLayout;
 final class HexDeckDialog {
     private static final String TAB_SIDE = "side";
     private static final String TAB_RELICS = "relics";
-    private static final String[] SLOTS = { "Left", "Right", "Neck", "Body", "Boots" };
+    private static final String[] SLOTS = { "Left", "Right", "Neck", "Body", "Boots", HexContent.AVATAR_SLOT };
     private static final String[] COLOR_KEYS = { "lblWhite", "lblBlue", "lblBlack", "lblRed", "lblGreen" };
     /** The colours of the gems and bars: white, blue, black, red, green. */
     private static final Color[] GEMS = { new Color(0xe8dcae), new Color(0x4f8fd6), new Color(0x9a6bc0), new Color(0xd9603f), new Color(0x6aa863) };
@@ -718,17 +718,7 @@ final class HexDeckDialog {
                 }
             }
             // the pictures of what the relic puts into play, if it does: pointing at one shows it big
-            final List<IPaperCard> pictures = new ArrayList<>();
-            if (relic != null) {
-                final List<String> cards = new ArrayList<>(relic.battlefield);
-                cards.addAll(relic.enemyBattlefield);
-                for (final String id : cards) {
-                    final IPaperCard card = content.findStartCard(id);
-                    if (card != null && !pictures.contains(card) && pictures.size() < 2) {
-                        pictures.add(card);
-                    }
-                }
-            }
+            final List<IPaperCard> pictures = relic == null ? new ArrayList<>() : content.relicPictures(relic, 2);
             final RelicBox box = new RelicBox(palette, relic != null, new MigLayout("insets 12 14 12 14, gap 14", "[44!][grow, fill][]", "[top]"));
             box.add(new Badge(HexTownStyle.slotGlyph(slot), 44, new Color(0x2a2416), relic != null ? GOLD_EDGE : new Color(0x4a4436), 2f,
                     relic != null ? GOLD_LIGHT : new Color(0x6f6a5f)), "w 44!, h 44!");

@@ -49,7 +49,11 @@ public final class HexContent {
 
     public static final int CARDS_PER_SHOP = 8;
     public static final int RELICS_PER_TOWN = 3;
-    private static final Set<String> RELIC_SLOTS = new HashSet<>(java.util.Arrays.asList("Left", "Right", "Neck", "Body", "Boots"));
+    /** The slot of the Vanguard avatars: one per head, worn in the command zone. */
+    public static final String AVATAR_SLOT = "Avatar";
+    private static final Set<String> RELIC_SLOTS = new HashSet<>(java.util.Arrays.asList("Left", "Right", "Neck", "Body", "Boots", AVATAR_SLOT));
+    /** The highest tier of a relic (II and III are the stronger ones of New Game Plus). */
+    public static final int MAX_RELIC_TIER = 3;
 
     private static final Map<HexColor, String> BOSS_NAMES = new EnumMap<>(HexColor.class);
     static {
@@ -298,8 +302,48 @@ public final class HexContent {
         return null; // multicoloured cards are not sold in the single coloured towns
     }
 
-    /** Reads the wearable items of the Adventure mode whose effects we can apply to a fight. */
+    /** The relics of the Hex Campaign: its own file, so that nothing here depends on (or changes) the Adventure mode's items. */
+    public static final String RELICS_FILE = ForgeConstants.RES_DIR + "hexcrawl" + File.separator + "relics.json";
+
+    /**
+     * Reads the relics (res/hexcrawl/relics.json): the ordinary ones, their stronger versions for New Game Plus and
+     * the Vanguard avatars. A relic whose cards Forge does not know is left out. The equipment of the enemies still
+     * comes from the Adventure mode's items, like the enemies themselves.
+     */
     private void loadRelics() {
+        loadEnemyEquipment();
+        final File f = new File(RELICS_FILE);
+        if (!f.isFile()) {
+            return;
+        }
+        try (Reader reader = new FileReader(f, java.nio.charset.StandardCharsets.UTF_8)) {
+            final HexRelic[] all = new com.google.gson.Gson().fromJson(reader, HexRelic[].class);
+            for (final HexRelic relic : all) {
+                if (relic == null || relic.name == null || !RELIC_SLOTS.contains(relic.slot) || relic.price <= 0) {
+                    continue;
+                }
+                boolean known = relic.avatar == null || findAvatar(relic.avatar) != null;
+                for (final String card : relic.battlefield) {
+                    known &= findStartCard(card) != null;
+                }
+                for (final String card : relic.enemyBattlefield) {
+                    known &= findStartCard(card) != null;
+                }
+                if (!known) {
+                    continue;
+                }
+                if (relic.description == null) {
+                    relic.description = relic.avatar == null ? "" : avatarText(relic.avatar);
+                }
+                relics.put(relic.name, relic);
+            }
+        } catch (final Exception ex) {
+            ex.printStackTrace(); // the campaign works without relics
+        }
+    }
+
+    /** The cards of the Adventure mode's items, which the enemies are equipped with. */
+    private void loadEnemyEquipment() {
         final File f = new File(dir() + "world" + File.separator + "items.json");
         if (!f.isFile()) {
             return;
@@ -308,7 +352,6 @@ public final class HexContent {
             for (final JsonElement el : JsonParser.parseReader(reader).getAsJsonArray()) {
                 final JsonObject o = el.getAsJsonObject();
                 if (o.has("name") && o.has("effect") && o.getAsJsonObject("effect").has("startBattleWithCard")) {
-                    // also items that are not for sale: enemies are equipped with them
                     final List<String> cards = new ArrayList<>();
                     for (final JsonElement c : o.getAsJsonObject("effect").getAsJsonArray("startBattleWithCard")) {
                         if (findStartCard(c.getAsString()) != null) {
@@ -317,54 +360,89 @@ public final class HexContent {
                     }
                     itemStartCards.put(o.get("name").getAsString(), cards);
                 }
-                if (!o.has("name") || !o.has("effect") || !o.has("cost") || !o.has("equipmentSlot")
-                        || (o.has("questItem") && o.get("questItem").getAsBoolean())) {
-                    continue;
-                }
-                final HexRelic relic = new HexRelic();
-                relic.name = o.get("name").getAsString();
-                relic.slot = o.get("equipmentSlot").getAsString();
-                if (!RELIC_SLOTS.contains(relic.slot) || o.get("cost").getAsInt() <= 0) {
-                    continue;
-                }
-                relic.price = Math.max(30, o.get("cost").getAsInt() / 50);
-                final JsonObject effect = o.getAsJsonObject("effect");
-                // items that need the Adventure mode's own cards (command zone effects) are left out
-                if (effect.has("startBattleWithCardInCommandZone") || !readEffect(effect, relic, false)) {
-                    continue;
-                }
-                if (effect.has("opponent") && !readEffect(effect.getAsJsonObject("opponent"), relic, true)) {
-                    continue;
-                }
-                if (relic.life == 0 && relic.hand == 0 && relic.battlefield.isEmpty() && relic.enemyLife == 0 && relic.enemyBattlefield.isEmpty()) {
-                    continue; // only useful on the Adventure map
-                }
-                relic.description = o.has("description") ? o.get("description").getAsString() : "";
-                relics.put(relic.name, relic);
             }
         } catch (final Exception ex) {
-            ex.printStackTrace(); // the campaign works without relics
+            ex.printStackTrace(); // the enemies then fight without their equipment
         }
     }
 
-    private boolean readEffect(final JsonObject effect, final HexRelic relic, final boolean enemy) {
-        final int life = effect.has("lifeModifier") ? effect.get("lifeModifier").getAsInt() : 0;
-        final List<String> cards = enemy ? relic.enemyBattlefield : relic.battlefield;
-        if (effect.has("startBattleWithCard")) {
-            for (final JsonElement c : effect.getAsJsonArray("startBattleWithCard")) {
-                if (findStartCard(c.getAsString()) == null) {
-                    return false;
+    /** A Vanguard card by name, or null. */
+    public PaperCard findAvatar(final String name) {
+        try {
+            for (final PaperCard card : FModel.getAvatarPool().toFlatList()) {
+                if (card.getName().equals(name)) {
+                    return card;
                 }
-                cards.add(c.getAsString());
+            }
+        } catch (final RuntimeException e) {
+            // no avatars
+        }
+        return null;
+    }
+
+    private String avatarText(final String name) {
+        final PaperCard card = findAvatar(name);
+        final String text = card == null ? null : card.getRules().getOracleText();
+        // without the card's "Hand +1, life +7": the relic shows its hand and life on lines of their own
+        return text == null ? "" : text.replace("\\n", "\n").replaceFirst("^Hand [+-]\\d+, life [+-]\\d+\\s*", "").trim();
+    }
+
+    /**
+     * A relic as it is offered in this cycle: in New Game Plus its stronger versions (tier II from the second cycle,
+     * III from the third) come up, each step with an even chance.
+     */
+    public HexRelic upgrade(final HexRelic relic, final int cycle, final Random rnd) {
+        HexRelic result = relic;
+        for (int tier = 2; tier <= Math.min(MAX_RELIC_TIER, cycle); tier++) {
+            final HexRelic stronger = relics.get(relic.name + (tier == 2 ? " II" : " III"));
+            if (stronger == null || !rnd.nextBoolean()) {
+                break;
+            }
+            result = stronger;
+        }
+        return result;
+    }
+
+    /** The cards to show for a relic: its avatar, then what it puts into play (its own cards, then the enemy's), each once. */
+    public List<forge.item.IPaperCard> relicPictures(final HexRelic relic, final int max) {
+        final List<forge.item.IPaperCard> result = new ArrayList<>();
+        if (relic.avatar != null) {
+            final PaperCard avatar = findAvatar(relic.avatar);
+            if (avatar != null) {
+                result.add(avatar);
             }
         }
-        if (enemy) {
-            relic.enemyLife = life;
-        } else {
-            relic.life = life;
-            relic.hand = effect.has("changeStartCards") ? effect.get("changeStartCards").getAsInt() : 0;
+        final List<String> cards = new ArrayList<>(relic.battlefield);
+        cards.addAll(relic.enemyBattlefield);
+        for (final String id : cards) {
+            final forge.item.IPaperCard card = findStartCard(id);
+            if (card != null && !result.contains(card) && result.size() < max) {
+                result.add(card);
+            }
         }
-        return true;
+        return result;
+    }
+
+    /** The ordinary relics (tier 1, no avatars), in a stable order: what shops, shrines and wanted enemies draw from. */
+    public List<HexRelic> ordinaryRelics() {
+        final List<HexRelic> result = new ArrayList<>();
+        for (final HexRelic relic : allRelics()) {
+            if (relic.tier <= 1 && relic.avatar == null) {
+                result.add(relic);
+            }
+        }
+        return result;
+    }
+
+    /** The avatars, in a stable order; only those the AI plays well for an AI head. */
+    public List<HexRelic> avatars(final boolean forAi) {
+        final List<HexRelic> result = new ArrayList<>();
+        for (final HexRelic relic : allRelics()) {
+            if (relic.avatar != null && (relic.aiPlayable || !forAi)) {
+                result.add(relic);
+            }
+        }
+        return result;
     }
 
     /** A card or a token an item puts onto the battlefield, by the name the Adventure data uses. */
@@ -553,6 +631,11 @@ public final class HexContent {
      * that fits the colour of the field it will camp on.
      */
     public HexQuest questEnemy(final HexColor color, final Random rnd) {
+        return questEnemy(color, rnd, 1);
+    }
+
+    /** The same in a New Game Plus cycle: the relic the enemy carries may be a stronger one. */
+    public HexQuest questEnemy(final HexColor color, final Random rnd, final int cycle) {
         if (miniBosses.isEmpty()) {
             return null;
         }
@@ -572,14 +655,14 @@ public final class HexContent {
         quest.gold = 60 + quest.life;
         // a wanted enemy carries a relic that helps it (never one that also helps the party)
         final List<HexRelic> helpful = new ArrayList<>();
-        for (final HexRelic relic : relics.values()) {
+        for (final HexRelic relic : ordinaryRelics()) {
             if (relic.life >= 0 && relic.hand >= 0 && relic.enemyLife == 0 && relic.enemyBattlefield.isEmpty()
                     && (relic.life > 0 || !relic.battlefield.isEmpty())) {
                 helpful.add(relic);
             }
         }
         if (!helpful.isEmpty()) {
-            quest.relic = helpful.get(rnd.nextInt(helpful.size())).name;
+            quest.relic = upgrade(helpful.get(rnd.nextInt(helpful.size())), cycle, rnd).name;
         }
         return quest;
     }
@@ -1009,17 +1092,31 @@ public final class HexContent {
         return result;
     }
 
-    /** The relics a town's dealer offers. */
+    /** The relics a town's dealer offers in the first cycle (to a human head). */
     public List<HexShopOffer> relicStock(final Random rnd) {
+        return relicStock(rnd, 1, false);
+    }
+
+    /**
+     * The relics a town's dealer offers a head: three relics (in New Game Plus possibly their stronger versions)
+     * and one Vanguard avatar (for an AI head one it plays well).
+     */
+    public List<HexShopOffer> relicStock(final Random rnd, final int cycle, final boolean aiHead) {
         final List<HexShopOffer> offers = new ArrayList<>();
-        final List<HexRelic> all = new ArrayList<>(relics.values());
+        final List<HexRelic> all = ordinaryRelics();
         final Set<String> relicNames = new HashSet<>();
         int guard = 200;
         while (relicNames.size() < Math.min(RELICS_PER_TOWN, all.size()) && guard-- > 0) {
-            final HexRelic relic = all.get(rnd.nextInt(all.size()));
-            if (relicNames.add(relic.name)) {
+            final HexRelic picked = all.get(rnd.nextInt(all.size()));
+            if (relicNames.add(picked.name)) {
+                final HexRelic relic = upgrade(picked, cycle, rnd);
                 offers.add(new HexShopOffer(HexShopType.RELIC, relic.name, relic.price));
             }
+        }
+        final List<HexRelic> avatars = avatars(aiHead);
+        if (!avatars.isEmpty()) {
+            final HexRelic avatar = avatars.get(rnd.nextInt(avatars.size()));
+            offers.add(new HexShopOffer(HexShopType.RELIC, avatar.name, avatar.price));
         }
         return offers;
     }

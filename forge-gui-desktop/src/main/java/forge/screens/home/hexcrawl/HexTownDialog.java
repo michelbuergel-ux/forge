@@ -821,15 +821,7 @@ final class HexTownDialog {
         final GildedPanel panel = new GildedPanel(palette, new MigLayout("insets 20 20 24 20, gap 0, wrap 1, fill", "[grow, fill]",
                 old != null ? "[][][grow, top][]" : "[][grow, top][]"));
         // the pictures of what the relic puts into play, if it does: pointing at one shows it big
-        final List<IPaperCard> pictures = new ArrayList<>();
-        final List<String> cards = new ArrayList<>(relic.battlefield);
-        cards.addAll(relic.enemyBattlefield);
-        for (final String id : cards) {
-            final IPaperCard card = content.findStartCard(id);
-            if (card != null && !pictures.contains(card) && pictures.size() < 2) {
-                pictures.add(card);
-            }
-        }
+        final List<IPaperCard> pictures = content.relicPictures(relic, 2);
         final JPanel top = transparent(new MigLayout("insets 0, gap 12, aligny center", "[52!][grow, fill][]"));
         top.add(new Badge(HexTownStyle.slotGlyph(relic.slot), 52, new Color(0x2a2416), GOLD_EDGE, 2f, GOLD_LIGHT), "w 52!, h 52!");
         final JPanel names = transparent(new MigLayout("insets 0, gap 2, wrap 1"));

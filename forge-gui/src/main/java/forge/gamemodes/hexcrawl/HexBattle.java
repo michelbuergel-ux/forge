@@ -189,6 +189,14 @@ public final class HexBattle {
             }
             hand += relic.hand;
             addStartCards(inPlay, relic.battlefield);
+            if (relic.avatar != null) {
+                // a Vanguard avatar: in the command zone, where its abilities work; its hand size is counted
+                // above, its life in the party's shared life (HexCampaign.fightLife)
+                final forge.item.PaperCard avatar = content.findAvatar(relic.avatar);
+                if (avatar != null) {
+                    rp.addExtraCardsInCommandZone(java.util.Collections.singletonList(avatar));
+                }
+            }
         }
         if (!inPlay.isEmpty()) {
             rp.addExtraCardsOnBattlefield(inPlay);
