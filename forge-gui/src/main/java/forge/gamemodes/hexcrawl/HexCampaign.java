@@ -1201,12 +1201,32 @@ public class HexCampaign {
         themeStockedAt.put(key + "|" + tab + "|relics", fights());
     }
 
+    /** How far a town looks for the regions of other colours: those it borders sell their colour pairs there. */
+    public static final int BORDER_REACH = 2;
+
+    /** The colours of the other regions within reach of a town (not the colourless centre): a border town's neighbours. */
+    public java.util.Set<HexColor> borderColours(final HexTile town) {
+        final java.util.Set<HexColor> result = java.util.EnumSet.noneOf(HexColor.class);
+        if (town.color == HexColor.COLORLESS) {
+            return result;
+        }
+        for (final HexTile t : map.tiles.values()) {
+            if (t.color != town.color && t.color != HexColor.COLORLESS && HexMap.distance(t.q, t.r, town.q, town.r) <= BORDER_REACH) {
+                result.add(t.color);
+            }
+        }
+        return result;
+    }
+
     /** New shelves for one theme tab of the town the party is in. */
     private void stockTab(final List<HexShopOffer> stock, final String tab, final String themeId) {
         final String key = tile().key();
         stock.removeIf(o -> tab.equals(o.tab));
-        for (final HexShopOffer o : HexContent.get().themeStock(tile().color, HexTheme.get(themeId), random())) {
+        for (final HexShopOffer o : HexContent.get().themeStock(tile().color, borderColours(tile()), HexTheme.get(themeId), random())) {
             o.tab = tab;
+            if (o.theme == null) {
+                o.theme = themeId; // the random tab's any cards: marked, or the stock would look like an old save's
+            }
             stock.add(o);
         }
         themeStockedAt.keySet().removeIf(k -> k.startsWith(key + "|" + tab + "|"));
