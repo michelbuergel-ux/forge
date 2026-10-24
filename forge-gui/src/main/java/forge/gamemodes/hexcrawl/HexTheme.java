@@ -92,7 +92,7 @@ public final class HexTheme {
                 || hints(r, DeckHints.Type.KEYWORD, "Flying")));
         for (final String tribe : new String[] { "Elf", "Goblin", "Zombie", "Vampire", "Dragon", "Human", "Spirit",
                 "Knight", "Soldier", "Wizard", "Merfolk", "Angel", "Beast", "Dinosaur", "Cat", "Elemental", "Faerie",
-                "Pirate", "Warrior", "Cleric", "Rogue" }) {
+                "Pirate", "Warrior", "Cleric", "Rogue", "Sliver" }) {
             all.add(new HexTheme("tribe." + tribe, "lblHexThemeTribe", tribe, r -> hasCreatureType(r.getType(), tribe)
                     || hints(r, DeckHints.Type.TYPE, tribe)));
         }
