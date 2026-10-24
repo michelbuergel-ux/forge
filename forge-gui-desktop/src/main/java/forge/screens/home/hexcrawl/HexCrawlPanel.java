@@ -1225,10 +1225,15 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
     /** What makes an enemy harder than its life total says: its followers and what it starts with. */
     static String enemyExtras(final HexCampaign campaign, final HexEncounter enc) {
+        return enemyExtras(campaign, enc, true);
+    }
+
+    /** The same, without the followers where every enemy has the same (the tasks on a notice board). */
+    static String enemyExtras(final HexCampaign campaign, final HexEncounter enc, final boolean withFollowers) {
         final Localizer loc = Localizer.getInstance();
         final StringBuilder sb = new StringBuilder();
         final int followers = campaign.enemyHeads() - 1;
-        if (followers > 0) {
+        if (withFollowers && followers > 0) {
             sb.append(' ').append(loc.getMessage(enc.headsAlike() ? "lblHexEnemyCopies" : "lblHexEnemyFollowers", String.valueOf(followers)));
         }
         if (!enc.startCards.isEmpty()) {

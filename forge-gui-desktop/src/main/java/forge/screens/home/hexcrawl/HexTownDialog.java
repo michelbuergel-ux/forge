@@ -896,7 +896,7 @@ final class HexTownDialog {
         final int far = HexMap.distance(quest.q, quest.r, c.partyQ, c.partyR);
         final HexEncounter enc = content.questEncounter(quest);
         return t("lblHexQuestDetail", quest.enemyName, String.valueOf(c.enemyLife(enc)), t(quest.color.getLabelKey()),
-                String.valueOf(far), String.valueOf(c.gold(quest.gold))) + "\n\n" + HexCrawlPanel.enemyExtras(c, enc).trim();
+                String.valueOf(far), String.valueOf(c.gold(quest.gold))) + "\n\n" + HexCrawlPanel.enemyExtras(c, enc, false).trim();
     }
 
     private void fillQuests(final HexCampaign c) {
@@ -941,24 +941,28 @@ final class HexTownDialog {
 
     /** A task on the notice board: who is wanted, where, and the bounty. */
     private JPanel notice(final HexCampaign c, final HexQuest quest, final boolean offer) {
-        final Notice notice = new Notice(new MigLayout("insets 22 24 28 24, gap 14, aligny center", "[56!][grow, fill][140!, right]"));
+        // the bounty and the button on the right, as wide as they need (the German label is long)
+        final JLabel reward = label(t("lblHexGoldAmount", String.valueOf(c.gold(quest.gold))), display(19f), REWARD);
+        final GoldButton take = new GoldButton(offer ? t("lblHexQuestAccept") : t("lblHexQuestTaken"), GoldButton.Kind.NOTICE, 12f);
+        final int rightW = Math.max(reward.getPreferredSize().width, take.getPreferredSize().width);
+        final Notice notice = new Notice(new MigLayout("insets 22 24 28 24, gap 14, aligny center", "[56!][grow, fill][" + rightW + "!, right]"));
         notice.add(new Badge(Glyph.BELL, 56, new Color(0x3a2a22), new Color(0x7a4a2a), 3f, new Color(0xe7b48f)), "w 56!, h 56!");
         final HexEncounter enc = content.questEncounter(quest);
-        final int textW = questW - 48 - 56 - 28 - 140 - 8; // what is left for the text
+        final int textW = questW - 48 - 56 - 28 - rightW - 8; // what is left for the text
         final JPanel text = transparent(new MigLayout("insets 0, gap 3, wrap 1"));
         text.add(label(caps(t("lblHexWanted")), tracked(display(12f), 0.25f), WANTED));
         text.add(wrapped(quest.enemyName, display(19f), PARCHMENT_INK, textW));
         final int far = HexMap.distance(quest.q, quest.r, c.partyQ, c.partyR);
         text.add(wrapped(t("lblHexQuestWhere", t(quest.color.getLabelKey()), String.valueOf(far), String.valueOf(c.enemyLife(enc))),
                 body(Font.PLAIN, 13f), PARCHMENT_SOFT, textW));
-        final String extras = HexCrawlPanel.enemyExtras(c, enc).trim();
+        // what the enemy starts with and the like; not its followers, every enemy has as many
+        final String extras = HexCrawlPanel.enemyExtras(c, enc, false).trim();
         if (!extras.isEmpty()) {
             text.add(wrapped(extras, body(Font.PLAIN, 12f), PARCHMENT_SOFT, textW));
         }
         notice.add(text, "wmin 0");
         final JPanel right = transparent(new MigLayout("insets 0, gap 8, wrap 1", "[right]"));
-        right.add(label(t("lblHexGoldAmount", String.valueOf(c.gold(quest.gold))), display(19f), REWARD));
-        final GoldButton take = new GoldButton(offer ? t("lblHexQuestAccept") : t("lblHexQuestTaken"), GoldButton.Kind.NOTICE, 12f);
+        right.add(reward);
         if (offer) {
             take.addActionListener(e -> {
                 if (campaign().quests.size() >= HexCampaign.MAX_ACTIVE_QUESTS) {
@@ -973,7 +977,7 @@ final class HexTownDialog {
             take.setSpent(true);
             take.setCursor(Cursor.getDefaultCursor());
         }
-        right.add(take, "h 40!");
+        right.add(take, "h 40!, w " + take.getPreferredSize().width + "!");
         notice.add(right);
         notice.setToolTipText(html(describe(quest)));
         return notice;
