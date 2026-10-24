@@ -77,6 +77,27 @@ public class HexShopThemesTest extends AITest {
     }
 
     @Test
+    public void testExpensiveCardsTheme() {
+        final HexContent content = HexContent.get();
+        final HexTheme valuable = HexTheme.get("valuable");
+        AssertJUnit.assertNotNull(valuable);
+        AssertJUnit.assertTrue(valuable.isStrict());
+        AssertJUnit.assertTrue(valuable.fits(content.getCard("Sol Ring").getRules()));
+        AssertJUnit.assertFalse(valuable.fits(content.getCard("Grizzly Bears").getRules()));
+
+        // every town can offer it, and its shelves hold only cards of 500 gold or more (no ordinary cards to fill up)
+        for (final HexColor color : HexColor.COLORS) {
+            AssertJUnit.assertTrue(color + " offers the theme", content.themesFor(color).contains(valuable));
+            final List<HexShopOffer> stock = content.themeStock(color, valuable, new Random(11));
+            AssertJUnit.assertFalse(color + " has expensive cards", stock.isEmpty());
+            for (final HexShopOffer o : stock) {
+                AssertJUnit.assertTrue(o.card + " costs " + o.price, o.price >= HexTheme.VALUABLE_PRICE);
+                AssertJUnit.assertEquals("valuable", o.theme);
+            }
+        }
+    }
+
+    @Test
     public void testTownRandomAndPickedThemes() {
         final HexCampaign c = newCampaign();
         final List<HexShopOffer> stock = c.shop();

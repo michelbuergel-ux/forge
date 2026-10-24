@@ -22,12 +22,30 @@ public final class HexTheme {
     private final String labelKey;
     private final String labelArg;
     private final Predicate<CardRules> fits;
+    /** Only cards that fit, never topped up with ordinary ones: a shop of this theme may hold fewer cards. */
+    private final boolean strict;
+
+    /** Cards of at least this price fit the theme of expensive cards. */
+    public static final int VALUABLE_PRICE = 500;
 
     private HexTheme(final String id0, final String labelKey0, final String labelArg0, final Predicate<CardRules> fits0) {
+        this(id0, labelKey0, labelArg0, fits0, false);
+    }
+
+    private HexTheme(final String id0, final String labelKey0, final String labelArg0, final Predicate<CardRules> fits0, final boolean strict0) {
         id = id0;
         labelKey = labelKey0;
         labelArg = labelArg0;
         fits = fits0;
+        strict = strict0;
+    }
+
+    /**
+     * Whether only fitting cards are sold in this theme's tab. Such a theme also counts the colourless cards
+     * when it decides whether a town can offer it (most expensive cards are colourless).
+     */
+    public boolean isStrict() {
+        return strict;
     }
 
     public boolean fits(final CardRules rules) {
@@ -78,6 +96,9 @@ public final class HexTheme {
             all.add(new HexTheme("tribe." + tribe, "lblHexThemeTribe", tribe, r -> hasCreatureType(r.getType(), tribe)
                     || hints(r, DeckHints.Type.TYPE, tribe)));
         }
+        // expensive cards: what costs 500 gold or more (the price list's treasures); last, so the indices above stay
+        all.add(new HexTheme("valuable", "lblHexTheme_valuable", null,
+                r -> HexContent.get().price(r.getName()) >= VALUABLE_PRICE, true));
         ALL = Collections.unmodifiableList(all);
     }
 

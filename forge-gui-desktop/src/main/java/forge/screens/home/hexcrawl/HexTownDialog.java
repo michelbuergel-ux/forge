@@ -675,7 +675,10 @@ final class HexTownDialog {
         tilesShown = shown.toString();
         pnlTiles.removeAll();
         if (list.isEmpty()) {
-            pnlTiles.add(label(t("lblHexNothingOnOffer"), body(Font.PLAIN, 14f), MUTED), "span");
+            // a theme that sells only fitting cards may simply have none of this kind here
+            final HexTheme theme = HexTheme.get(themeId(themeTab));
+            pnlTiles.add(label(t(theme != null && theme.isStrict() ? "lblHexNothingInTheme" : "lblHexNothingOnOffer"),
+                    body(Font.PLAIN, 14f), MUTED), "span");
         }
         for (final HexShopOffer o : list) {
             final int price = price(buyer, o);

@@ -791,7 +791,7 @@ public final class HexContent {
         for (final HexShopType shop : HexShopType.CARD_SHOPS) {
             final Set<String> names = new HashSet<>();
             stockShop(offers, names, shop, color, theme, theme, rnd);
-            if (theme != null && names.size() < CARDS_PER_SHOP) {
+            if (theme != null && !theme.isStrict() && names.size() < CARDS_PER_SHOP) {
                 stockShop(offers, names, shop, color, null, theme, rnd); // a thin theme: fill up with what the town has
             }
         }
@@ -872,6 +872,10 @@ public final class HexContent {
                 for (final HexShopType shop : HexShopType.CARD_SHOPS) {
                     final List<PaperCard> any = shelf(shop, color, theme).get(null);
                     cards += any == null ? 0 : any.size();
+                    if (theme.isStrict() && color != HexColor.COLORLESS) { // the shops sell colourless cards too
+                        final List<PaperCard> colourless = shelf(shop, HexColor.COLORLESS, theme).get(null);
+                        cards += colourless == null ? 0 : colourless.size();
+                    }
                 }
                 if (cards >= THEME_MIN_CARDS) {
                     result.add(theme);

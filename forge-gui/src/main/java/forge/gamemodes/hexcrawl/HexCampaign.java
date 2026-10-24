@@ -1260,6 +1260,9 @@ public class HexCampaign {
         if (choices.size() > 1) {
             choices.removeIf(t -> t.id.equals(except));
         }
+        if (choices.stream().anyMatch(t -> !t.isStrict())) {
+            choices.removeIf(HexTheme::isStrict); // a town is not renowned for expensive cards; heads may still pick that theme
+        }
         return choices.get(random().nextInt(choices.size()));
     }
 
