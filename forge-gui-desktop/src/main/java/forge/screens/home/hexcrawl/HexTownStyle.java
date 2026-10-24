@@ -163,7 +163,28 @@ final class HexTownStyle {
         final JLabel l = new JLabel(text);
         l.setFont(font);
         l.setForeground(color);
+        final int room = accentRoom(font);
+        if (room > 0) {
+            l.setBorder(javax.swing.BorderFactory.createEmptyBorder(room, 0, 0, 0));
+        }
         return l;
+    }
+
+    private static final Map<Font, Integer> ACCENT_ROOM = new java.util.HashMap<>();
+
+    /**
+     * How far the accents of capitals (the dots of an Ü) reach above the font's ascent: room a text needs
+     * on top so that a component's edge doesn't cut them off. 0 for most body fonts.
+     */
+    static int accentRoom(final Font font) {
+        return ACCENT_ROOM.computeIfAbsent(font, f -> {
+            final java.awt.font.FontRenderContext frc = new java.awt.font.FontRenderContext(null, true, true);
+            final double top = -f.createGlyphVector(frc, "ÄÖÜÅ").getVisualBounds().getY();
+            final java.awt.Graphics2D g = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB).createGraphics();
+            final int ascent = g.getFontMetrics(f).getAscent();
+            g.dispose();
+            return Math.max(0, (int) Math.ceil(top - ascent));
+        });
     }
 
     /** Text that wraps at the given width (in real pixels, unlike the widths of Swing's html). */
@@ -195,7 +216,7 @@ final class HexTownStyle {
 
         @Override
         public Dimension getPreferredSize() {
-            return new Dimension(width, lines.size() * getFontMetrics(getFont()).getHeight());
+            return new Dimension(width, accentRoom(getFont()) + lines.size() * getFontMetrics(getFont()).getHeight());
         }
 
         @Override
@@ -209,7 +230,7 @@ final class HexTownStyle {
             g2.setFont(getFont());
             g2.setColor(getForeground());
             final FontMetrics fm = g2.getFontMetrics();
-            int y = fm.getAscent();
+            int y = accentRoom(getFont()) + fm.getAscent();
             for (final String line : lines) {
                 g2.drawString(line, 0, y);
                 y += fm.getHeight();
@@ -520,14 +541,14 @@ final class HexTownStyle {
         @Override
         public Dimension getPreferredSize() {
             final FontMetrics fm = getFontMetrics(getFont());
-            return new Dimension(fm.stringWidth(text) + 4, fm.getHeight() + 2);
+            return new Dimension(fm.stringWidth(text) + 4, accentRoom(getFont()) + fm.getHeight() + 2);
         }
 
         @Override
         protected void paintComponent(final Graphics g) {
             final Graphics2D g2 = smooth(g);
             g2.setFont(getFont());
-            final int base = g2.getFontMetrics().getAscent();
+            final int base = accentRoom(getFont()) + g2.getFontMetrics().getAscent();
             g2.setColor(new Color(0, 0, 0, 128));
             g2.drawString(text, 0, base + 2);
             g2.setColor(getForeground());
