@@ -84,7 +84,7 @@ import net.miginfocom.swing.MigLayout;
 final class HexDeckDialog {
     private static final String TAB_SIDE = "side";
     private static final String TAB_RELICS = "relics";
-    private static final String[] SLOTS = { "Left", "Right", "Neck", "Body", "Boots", HexContent.AVATAR_SLOT };
+    private static final String[] SLOTS = { "Head", "Left", "Right", "Neck", "Body", "Boots", HexContent.AVATAR_SLOT };
     private static final String[] COLOR_KEYS = { "lblWhite", "lblBlue", "lblBlack", "lblRed", "lblGreen" };
     /** The colours of the gems and bars: white, blue, black, red, green. */
     private static final Color[] GEMS = { new Color(0xe8dcae), new Color(0x4f8fd6), new Color(0x9a6bc0), new Color(0xd9603f), new Color(0x6aa863) };
@@ -728,7 +728,7 @@ final class HexDeckDialog {
                 text.add(label(t("lblHexSlotEmpty"), body(Font.ITALIC, 13f), HexTownStyle.FAINT));
             } else {
                 text.add(wrapped(relic.name, display(15.5f), TEXT_BRIGHT, relicTextW - 50 * pictures.size()));
-                String effects = HexCrawlPanel.relicEffects(relic);
+                String effects = HexCrawlPanel.relicEffects(relic, campaign().cycle);
                 if (relic.description != null && !relic.description.isEmpty()) {
                     effects += relic.description;
                 }
@@ -737,7 +737,7 @@ final class HexDeckDialog {
                 }
                 life += relic.life;
                 hand += relic.hand;
-                inPlay += relic.battlefield.size();
+                inPlay += relic.battlefield.size() + relic.randomPerCycle * campaign().cycle;
                 enemyLife += relic.enemyLife;
             }
             box.add(text, "wmin 0");

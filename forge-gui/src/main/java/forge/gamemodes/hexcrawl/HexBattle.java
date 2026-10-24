@@ -72,7 +72,7 @@ public final class HexBattle {
             rp.setPlayer(lobbyPlayer);
             rp.setTeamNumber(PARTY_TEAM);
             rp.setStartingLife(campaign.fightLife());
-            applyRelics(p, rp);
+            applyRelics(campaign, p, rp);
             applyPerksAndEvents(campaign, p, rp);
             players.add(rp);
         }
@@ -178,7 +178,7 @@ public final class HexBattle {
     }
 
     /** What the relics of a head do at the start of a fight: cards in play and a different hand size. */
-    private static void applyRelics(final HexPlayer p, final RegisteredPlayer rp) {
+    private static void applyRelics(final HexCampaign campaign, final HexPlayer p, final RegisteredPlayer rp) {
         final HexContent content = HexContent.get();
         final List<forge.item.IPaperCard> inPlay = new ArrayList<>();
         int hand = 0;
@@ -189,6 +189,15 @@ public final class HexBattle {
             }
             hand += relic.hand;
             addStartCards(inPlay, relic.battlefield);
+            if (!relic.randomCards.isEmpty()) {
+                // New Game Plus: some of these cards, new ones every fight, more with every cycle
+                final List<String> drawn = new ArrayList<>();
+                final java.util.Random rnd = java.util.concurrent.ThreadLocalRandom.current();
+                for (int i = 0; i < relic.randomPerCycle * campaign.cycle; i++) {
+                    drawn.add(relic.randomCards.get(rnd.nextInt(relic.randomCards.size())));
+                }
+                addStartCards(inPlay, drawn);
+            }
             if (relic.avatar != null) {
                 // a Vanguard avatar: in the command zone, where its abilities work; its hand size is counted
                 // above, its life in the party's shared life (HexCampaign.fightLife)
@@ -334,7 +343,7 @@ public final class HexBattle {
             avatar++;
             rp.setTeamNumber(PARTY_TEAM);
             rp.setStartingLife(campaign.fightLife());
-            applyRelics(p, rp);
+            applyRelics(campaign, p, rp);
             applyPerksAndEvents(campaign, p, rp);
             players.add(rp);
         }

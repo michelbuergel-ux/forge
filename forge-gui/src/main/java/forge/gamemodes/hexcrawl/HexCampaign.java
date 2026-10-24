@@ -1016,7 +1016,7 @@ public class HexCampaign {
         final Random rnd = random();
         if (event == HexEvent.RUINED_SHRINE) {
             final List<HexRelic> free = new ArrayList<>();
-            for (final HexRelic relic : content.ordinaryRelics()) {
+            for (final HexRelic relic : content.ordinaryRelics(cycle)) {
                 if (!p.relics.contains(relic.name) && relicInSlot(p, relic.slot) == null) {
                     free.add(relic);
                 }

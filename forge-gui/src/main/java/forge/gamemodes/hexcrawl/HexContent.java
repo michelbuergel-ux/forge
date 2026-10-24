@@ -51,7 +51,7 @@ public final class HexContent {
     public static final int RELICS_PER_TOWN = 3;
     /** The slot of the Vanguard avatars: one per head, worn in the command zone. */
     public static final String AVATAR_SLOT = "Avatar";
-    private static final Set<String> RELIC_SLOTS = new HashSet<>(java.util.Arrays.asList("Left", "Right", "Neck", "Body", "Boots", AVATAR_SLOT));
+    private static final Set<String> RELIC_SLOTS = new HashSet<>(java.util.Arrays.asList("Head", "Left", "Right", "Neck", "Body", "Boots", AVATAR_SLOT));
     /** The highest tier of a relic (II and III are the stronger ones of New Game Plus). */
     public static final int MAX_RELIC_TIER = 3;
 
@@ -329,6 +329,9 @@ public final class HexContent {
                 for (final String card : relic.enemyBattlefield) {
                     known &= findStartCard(card) != null;
                 }
+                for (final String card : relic.randomCards) {
+                    known &= findStartCard(card) != null;
+                }
                 if (!known) {
                     continue;
                 }
@@ -413,6 +416,7 @@ public final class HexContent {
             }
         }
         final List<String> cards = new ArrayList<>(relic.battlefield);
+        cards.addAll(relic.randomCards);
         cards.addAll(relic.enemyBattlefield);
         for (final String id : cards) {
             final forge.item.IPaperCard card = findStartCard(id);
@@ -423,11 +427,19 @@ public final class HexContent {
         return result;
     }
 
-    /** The ordinary relics (tier 1, no avatars), in a stable order: what shops, shrines and wanted enemies draw from. */
+    /** The ordinary relics of the first cycle (see {@link #ordinaryRelics(int)}). */
     public List<HexRelic> ordinaryRelics() {
+        return ordinaryRelics(1);
+    }
+
+    /**
+     * The ordinary relics (tier 1, no avatars) offered in this cycle of the campaign, in a stable order: what shops,
+     * shrines and wanted enemies draw from.
+     */
+    public List<HexRelic> ordinaryRelics(final int cycle) {
         final List<HexRelic> result = new ArrayList<>();
         for (final HexRelic relic : allRelics()) {
-            if (relic.tier <= 1 && relic.avatar == null) {
+            if (relic.tier <= 1 && relic.avatar == null && relic.fromCycle <= cycle) {
                 result.add(relic);
             }
         }
@@ -655,7 +667,7 @@ public final class HexContent {
         quest.gold = 60 + quest.life;
         // a wanted enemy carries a relic that helps it (never one that also helps the party)
         final List<HexRelic> helpful = new ArrayList<>();
-        for (final HexRelic relic : ordinaryRelics()) {
+        for (final HexRelic relic : ordinaryRelics(cycle)) {
             if (relic.life >= 0 && relic.hand >= 0 && relic.enemyLife == 0 && relic.enemyBattlefield.isEmpty()
                     && (relic.life > 0 || !relic.battlefield.isEmpty())) {
                 helpful.add(relic);
@@ -1103,7 +1115,7 @@ public final class HexContent {
      */
     public List<HexShopOffer> relicStock(final Random rnd, final int cycle, final boolean aiHead) {
         final List<HexShopOffer> offers = new ArrayList<>();
-        final List<HexRelic> all = ordinaryRelics();
+        final List<HexRelic> all = ordinaryRelics(cycle);
         final Set<String> relicNames = new HashSet<>();
         int guard = 200;
         while (relicNames.size() < Math.min(RELICS_PER_TOWN, all.size()) && guard-- > 0) {

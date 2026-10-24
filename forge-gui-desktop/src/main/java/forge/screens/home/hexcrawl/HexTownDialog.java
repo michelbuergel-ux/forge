@@ -841,7 +841,7 @@ final class HexTownDialog {
                     HexDeckParts.WARN, relicW - 40), "gaptop 12, wmin 0");
         }
 
-        final StringBuilder sb = new StringBuilder(HexCrawlPanel.relicEffects(relic));
+        final StringBuilder sb = new StringBuilder(HexCrawlPanel.relicEffects(relic, campaign().cycle));
         if (relic.description != null && !relic.description.isEmpty()) {
             sb.append(relic.description).append('\n');
         }

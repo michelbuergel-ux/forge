@@ -321,7 +321,7 @@ final class HexTownStyle {
     }
 
     /** The small glyphs of the window, drawn in a box of 24 units like the icons of the design. */
-    enum Glyph { NONE, CLOSE, RESTOCK, BELL, LEFT, RIGHT, NECK, BODY, BOOTS, AVATAR }
+    enum Glyph { NONE, CLOSE, RESTOCK, BELL, HEAD, LEFT, RIGHT, NECK, BODY, BOOTS, AVATAR }
 
     static void glyph(final Graphics2D g0, final Glyph glyph, final double x, final double y, final double size, final Color color, final float stroke) {
         if (glyph == Glyph.NONE) {
@@ -365,6 +365,10 @@ final class HexTownStyle {
                 break;
             case BOOTS:
                 p.moveTo(7, 3); p.lineTo(12, 3); p.lineTo(12, 12); p.lineTo(19, 15); p.lineTo(19, 20); p.lineTo(5, 20); p.lineTo(5, 3); p.closePath();
+                break;
+            case HEAD: // a helmet with a nose guard
+                p.moveTo(5, 17); p.curveTo(5, 8, 8, 4, 12, 4); p.curveTo(16, 4, 19, 8, 19, 17); p.lineTo(5, 17); p.closePath();
+                p.moveTo(12, 9); p.lineTo(12, 20);
                 break;
             case AVATAR: // a crown
                 p.moveTo(4, 18); p.lineTo(4, 8); p.lineTo(9, 12); p.lineTo(12, 5); p.lineTo(15, 12); p.lineTo(20, 8); p.lineTo(20, 18); p.closePath();

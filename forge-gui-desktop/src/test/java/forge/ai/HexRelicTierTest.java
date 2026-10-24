@@ -31,7 +31,7 @@ public class HexRelicTierTest extends AITest {
         AssertJUnit.assertTrue("the old relics are all there: " + content.ordinaryRelics().size(), content.ordinaryRelics().size() >= 80);
         AssertJUnit.assertTrue("avatars: " + content.avatars(false).size(), content.avatars(false).size() >= 90);
         for (final HexRelic relic : content.allRelics()) {
-            AssertJUnit.assertTrue(relic.name + " has a slot", Arrays.asList("Left", "Right", "Neck", "Body", "Boots", HexContent.AVATAR_SLOT).contains(relic.slot));
+            AssertJUnit.assertTrue(relic.name + " has a slot", Arrays.asList("Head", "Left", "Right", "Neck", "Body", "Boots", HexContent.AVATAR_SLOT).contains(relic.slot));
             AssertJUnit.assertTrue(relic.name + " has a price", relic.price > 0);
             for (final String card : relic.battlefield) {
                 AssertJUnit.assertNotNull(relic.name + ": " + card, content.findStartCard(card));
@@ -123,6 +123,58 @@ public class HexRelicTierTest extends AITest {
                 AssertJUnit.assertTrue("an avatar the AI plays well", content.getRelic(o.card).aiPlayable);
             }
         }
+    }
+
+    @Test
+    public void testHelmOfAwakeningForTheHead() {
+        final HexContent content = HexContent.get();
+        final HexRelic helm = content.getRelic("Helm of Awakening");
+        AssertJUnit.assertNotNull(helm);
+        AssertJUnit.assertEquals("Head", helm.slot);
+        AssertJUnit.assertTrue("offered from the first cycle", content.ordinaryRelics(1).contains(helm));
+        AssertJUnit.assertEquals(2, content.getRelic("Helm of Awakening II").battlefield.size());
+        final HexCampaign c = party();
+        c.player("Ann").relics.add(helm.name);
+        final RegisteredPlayer ann = seat(c, "Ann");
+        int helms = 0;
+        for (final IPaperCard card : ann.getCardsOnBattlefield()) {
+            helms += card.getName().equals("Helm of Awakening") ? 1 : 0;
+        }
+        AssertJUnit.assertEquals(1, helms);
+    }
+
+    @Test
+    public void testMoxenOfTheCyclesGrowWithTheCycle() {
+        final HexContent content = HexContent.get();
+        final HexRelic moxen = content.getRelic("Moxen of the Cycles");
+        AssertJUnit.assertNotNull(moxen);
+        AssertJUnit.assertFalse("not in the first cycle", content.ordinaryRelics(1).contains(moxen));
+        AssertJUnit.assertTrue("from New Game Plus on", content.ordinaryRelics(2).contains(moxen));
+        for (int seed = 0; seed < 60; seed++) {
+            for (final HexShopOffer offer : content.relicStock(new Random(seed), 1, false)) {
+                AssertJUnit.assertFalse(moxen.name.equals(offer.card));
+            }
+        }
+        for (final int cycle : new int[] { 2, 3, 5 }) {
+            final HexCampaign c = party();
+            c.cycle = cycle;
+            c.player("Ann").relics.add(moxen.name);
+            int moxes = 0;
+            for (final IPaperCard card : seat(c, "Ann").getCardsOnBattlefield()) {
+                AssertJUnit.assertTrue(card.getName(), moxen.randomCards.contains(card.getName()));
+                moxes++;
+            }
+            AssertJUnit.assertEquals("one Mox per cycle", cycle, moxes);
+        }
+    }
+
+    private static RegisteredPlayer seat(final HexCampaign c, final String head) {
+        for (final RegisteredPlayer rp : HexBattle.createPlayers(c, HexContent.get().randomEncounter(HexColor.RED, 0.5, new Random(2)), true)) {
+            if (head.equals(rp.getPlayer().getName())) {
+                return rp;
+            }
+        }
+        throw new AssertionError(head);
     }
 
     @Test

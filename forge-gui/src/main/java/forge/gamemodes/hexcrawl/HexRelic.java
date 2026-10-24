@@ -10,7 +10,7 @@ import java.util.List;
  */
 public class HexRelic {
     public String name;
-    /** Where it is worn: Left, Right, Neck, Body, Boots or Avatar. */
+    /** Where it is worn: Head, Left, Right, Neck, Body, Boots or Avatar. */
     public String slot;
     /** 1 for an ordinary relic; 2 and 3 for the stronger ones of New Game Plus (offered from that cycle on). */
     public int tier = 1;
@@ -20,6 +20,12 @@ public class HexRelic {
     public String avatar;
     /** False for an avatar the AI cannot play well: not offered to AI heads. */
     public boolean aiPlayable = true;
+    /** The first cycle of the campaign in which the relic is offered (New Game Plus relics: 2). */
+    public int fromCycle = 1;
+    /** Cards of which some, drawn at random for every fight, start in play with the head. */
+    public List<String> randomCards = new ArrayList<>();
+    /** How many of the random cards start in play per cycle of the campaign (cycle 3, 1 per cycle: 3 cards). */
+    public int randomPerCycle;
     public int price;
     public String description;
     /** Added to the shared life of the party. */

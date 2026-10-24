@@ -1267,8 +1267,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         return sb.toString();
     }
 
-    /** What a relic does, one effect per line. */
-    static String relicEffects(final HexRelic relic) {
+    /** What a relic does in this cycle of the campaign, one effect per line. */
+    static String relicEffects(final HexRelic relic, final int cycle) {
         final Localizer loc = Localizer.getInstance();
         final HexContent content = HexContent.get();
         final StringBuilder sb = new StringBuilder();
@@ -1280,6 +1280,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         if (!relic.battlefield.isEmpty()) {
             sb.append(loc.getMessage("lblHexRelicStart", cardNames(content, relic.battlefield))).append('\n');
+        }
+        if (!relic.randomCards.isEmpty()) {
+            sb.append(loc.getMessage("lblHexRelicRandomStart", String.valueOf(relic.randomPerCycle * cycle),
+                    cardNames(content, relic.randomCards), String.valueOf(relic.randomPerCycle))).append('\n');
         }
         if (relic.enemyLife != 0) {
             sb.append(loc.getMessage("lblHexRelicEnemyLife", signed(relic.enemyLife))).append('\n');

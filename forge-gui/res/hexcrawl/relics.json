@@ -2690,6 +2690,51 @@
     ]
   },
   {
+    "name": "Helm of Awakening",
+    "slot": "Head",
+    "price": 600,
+    "battlefield": [
+      "Helm of Awakening"
+    ]
+  },
+  {
+    "name": "Helm of Awakening II",
+    "slot": "Head",
+    "price": 1350,
+    "tier": 2,
+    "base": "Helm of Awakening",
+    "battlefield": [
+      "Helm of Awakening",
+      "Helm of Awakening"
+    ]
+  },
+  {
+    "name": "Helm of Awakening III",
+    "slot": "Head",
+    "price": 3038,
+    "tier": 3,
+    "base": "Helm of Awakening",
+    "battlefield": [
+      "Helm of Awakening",
+      "Helm of Awakening",
+      "Helm of Awakening"
+    ]
+  },
+  {
+    "name": "Moxen of the Cycles",
+    "slot": "Neck",
+    "price": 1125,
+    "fromCycle": 2,
+    "randomCards": [
+      "Mox Pearl",
+      "Mox Sapphire",
+      "Mox Jet",
+      "Mox Ruby",
+      "Mox Emerald"
+    ],
+    "randomPerCycle": 1
+  },
+  {
     "name": "Akroma, Angel of Wrath Avatar",
     "slot": "Avatar",
     "price": 1100,
