@@ -496,7 +496,7 @@ final class HexTownDialog {
         }
         switch (tabIndex) {
             case 0: return c.tile().theme;
-            case 1: return c.randomThemes.get(c.tile().key());
+            case 1: return HexCampaign.ANY_CARDS;
             default: return p == null ? null : p.themes[tabIndex - 2];
         }
     }
@@ -541,6 +541,12 @@ final class HexTownDialog {
             themeTab = HexCampaign.TAB_TOWN; // the tab shown has no theme (another head, a save from before): back to the town's
         }
         for (int i = 0; i < themePills.length; i++) {
+            if (i == HexCampaign.TAB_RANDOM) { // no theme: any cards of the town
+                themePills[i].set(t("lblHexThemeAnyCards"), i == themeTab, false);
+                themePills[i].setEnabled(true);
+                themePills[i].setToolTipText(t("lblHexThemeAnyCardsHint"));
+                continue;
+            }
             final HexTheme theme = HexTheme.get(ids[i]);
             final boolean picked = i >= HexCampaign.TAB_PICKED;
             String text = theme == null ? (picked ? t("lblHexThemeChooseShort") : "–") : theme.getName();

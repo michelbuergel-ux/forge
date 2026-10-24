@@ -102,17 +102,27 @@ public class HexShopThemesTest extends AITest {
         final HexCampaign c = newCampaign();
         final List<HexShopOffer> stock = c.shop();
         final HexTheme town = c.townTheme();
-        final HexTheme random = c.randomTheme();
         AssertJUnit.assertNotNull(c.tile().theme);
-        AssertJUnit.assertFalse("the random theme differs from the town's", town.equals(random));
+        AssertJUnit.assertFalse("a town is not renowned for expensive cards", town.isStrict());
         AssertJUnit.assertFalse(c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_TOWN).isEmpty());
-        AssertJUnit.assertFalse(c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_RANDOM).isEmpty());
+        // the random tab: no theme, any cards of the town's colour (or colourless), and full shelves
+        AssertJUnit.assertEquals(HexCampaign.ANY_CARDS, c.tabTheme("Ann", HexCampaign.TAB_RANDOM));
+        final List<HexShopOffer> any = c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_RANDOM);
+        AssertJUnit.assertEquals(HexContent.CARDS_PER_SHOP, any.size());
+        for (final HexShopOffer o : any) {
+            AssertJUnit.assertEquals(HexCampaign.ANY_CARDS, o.theme);
+            final byte color = HexContent.get().getCard(o.card).getRules().getColor().getColor();
+            AssertJUnit.assertTrue(o.card + " suits the town", color == forge.card.MagicColor.COLORLESS
+                    || HexContent.get().getCard(o.card).getRules().getColor().hasAnyColor(
+                            forge.card.MagicColor.fromName(c.tile().color.getSymbol())));
+        }
+        AssertJUnit.assertSame("the stock is kept (not taken for an old save's)", c.shop(), c.shop());
         AssertJUnit.assertFalse(c.shop(HexShopType.RELIC, "Ann", HexCampaign.TAB_TOWN).isEmpty() && stock.isEmpty());
 
         // pick a theme: its shelves are stocked, and it is locked until the next fight
         HexTheme pick = null;
         for (final HexTheme t : c.themeChoices()) {
-            if (!t.equals(town) && !t.equals(random)) {
+            if (!t.equals(town)) {
                 pick = t;
                 break;
             }
@@ -137,11 +147,12 @@ public class HexShopThemesTest extends AITest {
         AssertJUnit.assertEquals(gold - cheapest.price, c.player("Ann").gold);
         AssertJUnit.assertTrue(c.player("Ann").deck.contains(cheapest.card));
 
-        // after a fight: the pick may change again and the random theme is rolled anew
+        // after a fight: the pick may change again and the random tab has new cards
         c.battlesWon++;
         AssertJUnit.assertTrue(c.mayPickTheme("Ann", 0));
         c.shop();
-        AssertJUnit.assertEquals(Integer.valueOf(c.fights()), c.randomThemeAt.get(c.tile().key()));
+        final String randomShelf = c.tile().key() + "|" + HexCampaign.tabKey("Ann", HexCampaign.TAB_RANDOM) + "|" + HexCampaign.ANY_CARDS;
+        AssertJUnit.assertEquals(Integer.valueOf(c.fights()), c.themeStockedAt.get(randomShelf));
         AssertJUnit.assertEquals("the town keeps its theme", town, c.townTheme());
     }
 

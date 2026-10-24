@@ -126,10 +126,6 @@ public class HexCampaign {
     public Map<String, List<HexShopOffer>> shops = new HashMap<>();
     /** Number of won fights at the time a town was stocked, by field key. */
     public Map<String, Integer> stockedAt = new HashMap<>();
-    /** The random shop theme of a town, by field key; it changes after every fight. */
-    public Map<String, String> randomThemes = new HashMap<>();
-    /** Number of fights fought when the random theme of a town was rolled, by field key. */
-    public Map<String, Integer> randomThemeAt = new HashMap<>();
     /** Number of fights fought when a theme's shelves of a town were stocked, by "field key|theme id". */
     public Map<String, Integer> themeStockedAt = new HashMap<>();
     /** Tasks on the notice boards of the towns, by field key. */
@@ -247,8 +243,6 @@ public class HexCampaign {
         pendingRewards.clear();
         shops.clear();
         stockedAt.clear();
-        randomThemes.clear();
-        randomThemeAt.clear();
         themeStockedAt.clear();
         questOffers.clear();
         quests.clear();
@@ -1090,6 +1084,11 @@ public class HexCampaign {
     public static final int TAB_TOWN = 0;
     public static final int TAB_RANDOM = 1;
     public static final int TAB_PICKED = 2;
+    /**
+     * The "theme" of the random tab: no theme at all, any cards of the town's colour (and a few colourless
+     * ones), so that cards that fit no theme can be bought too.
+     */
+    public static final String ANY_CARDS = "any";
 
     /**
      * The key of a theme tab of a head in the stock (HexShopOffer.tab). Every head has shelves of
@@ -1128,7 +1127,7 @@ public class HexCampaign {
             return townTheme().id;
         }
         if (tab == TAB_RANDOM) {
-            return randomTheme().id;
+            return ANY_CARDS;
         }
         final HexPlayer p = player(head);
         final int slot = tab - TAB_PICKED;
@@ -1173,7 +1172,7 @@ public class HexCampaign {
             }
             // the random tab and the picked ones get fresh shelves after every fight, and when their theme changes
             final Map<String, String> wanted = new java.util.LinkedHashMap<>();
-            wanted.put(tabKey(p.name, TAB_RANDOM), randomTheme().id);
+            wanted.put(tabKey(p.name, TAB_RANDOM), ANY_CARDS);
             for (int slot = 0; slot < PICKED_THEMES; slot++) {
                 final String id = tabTheme(p.name, TAB_PICKED + slot);
                 if (id != null) {
@@ -1273,19 +1272,6 @@ public class HexCampaign {
         if (theme == null) {
             theme = rollTheme(t, null); // a save from before the shops had themes
             t.theme = theme.id;
-        }
-        return theme;
-    }
-
-    /** The random theme of the town the party is in; a new one after every fight. */
-    public HexTheme randomTheme() {
-        final String key = tile().key();
-        HexTheme theme = HexTheme.get(randomThemes.get(key));
-        final Integer at = randomThemeAt.get(key);
-        if (theme == null || at == null || at != fights()) {
-            theme = rollTheme(tile(), townTheme().id);
-            randomThemes.put(key, theme.id);
-            randomThemeAt.put(key, fights());
         }
         return theme;
     }
