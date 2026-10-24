@@ -62,7 +62,6 @@ import forge.screens.home.CHomeUI;
 import forge.toolbox.FLabel;
 import forge.toolbox.FOptionPane;
 import forge.toolbox.FScrollPane;
-import forge.toolbox.FSkin;
 import forge.util.Localizer;
 import forge.screens.home.hexcrawl.HexSidebarParts.BossTrack;
 import forge.screens.home.hexcrawl.HexSidebarParts.Heading;
@@ -96,6 +95,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     private final GoldButton btnEvent = new GoldButton("", GoldButton.Kind.GOLD, 13f);
     private final GoldButton btnShop = new GoldButton("", GoldButton.Kind.GOLD, 14f);
     private final GoldButton btnDecks = new GoldButton("", GoldButton.Kind.OUTLINE, 13f);
+    private final GoldButton btnStats = new GoldButton("", GoldButton.Kind.OUTLINE, 13f);
     private final GoldButton btnInvite = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
     private final GoldButton btnJoin = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
     private final GoldButton btnLeave = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
@@ -179,6 +179,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnEvent.setText(t("lblHexEventChooseButton"));
         btnShop.setText(t("lblHexShop"));
         btnDecks.setText(t("lblHexDecks"));
+        btnStats.setText(t("lblHexChronicle"));
         btnInvite.setText(t("lblHexInvite"));
         btnNew.setText(t("lblHexNewCampaign"));
         btnLoad.setText(t("lblHexLoadCampaign"));
@@ -197,6 +198,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         actions.add(voteBox);
         actions.add(btnShop, "h 44!");
         actions.add(btnDecks, "h 38!");
+        actions.add(btnStats, "h 34!");
         side.add(actions, "gaptop 12");
 
         // the party and the campaign so far, then the journal: scrolls when there is a lot of it
@@ -245,6 +247,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnEvent.addActionListener(e -> promptEvent());
         btnShop.addActionListener(e -> openShop());
         btnDecks.addActionListener(e -> showDeck());
+        btnStats.addActionListener(e -> showStats(false));
         btnInvite.addActionListener(e -> invite());
         btnJoin.setText(t("lblHexJoinButton"));
         btnLeave.setText(t("lblHexLeave"));
@@ -609,6 +612,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnLeave.setVisible(HexNet.isGuest());
         showConnection(guest);
         btnDecks.setVisible(has);
+        btnStats.setVisible(has);
         btnNewGamePlus.setVisible(has && !guest && getCampaign().won);
         if (has) {
             btnNewGamePlus.setText(t("lblHexNewGamePlus", String.valueOf(getCampaign().cycle)));
@@ -1012,6 +1016,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             return;
         }
         newGamePlusPromptedCycle = campaign.cycle;
+        showStats(true); // the chronicle of the cycle first
         if (isGuest() || HexNet.isGuest()) {
             FOptionPane.showMessageDialog(t("lblHexVictoryGuest", HexContent.get().getBossName(HexColor.COLORLESS)), campaign.name);
             return;
@@ -1198,6 +1203,14 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         new HexDeckDialog(session).show(refresher -> deckRefresher = refresher);
         refresh();
+    }
+
+    /** The chronicle of the campaign: what every head did, and the enemies beaten. */
+    private void showStats(final boolean victory) {
+        if (getCampaign() == null) {
+            return;
+        }
+        new HexStatsDialog(getCampaign(), victory).show();
     }
 
     /** After the victory: the host starts the next cycle, with stronger enemies on a new map. */

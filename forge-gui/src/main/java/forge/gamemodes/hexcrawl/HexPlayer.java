@@ -26,6 +26,9 @@ public class HexPlayer {
     public List<String> perks = new ArrayList<>();
     /** The perks the head may choose from right now (empty if no choice is due). */
     public List<String> perkOffer = new ArrayList<>();
+    /** What the head did in this cycle of the campaign (New Game Plus starts it anew), and in the whole campaign. */
+    public HexHeadStats stats = new HexHeadStats();
+    public HexHeadStats totalStats = new HexHeadStats();
 
     public HexPlayer() { }
 

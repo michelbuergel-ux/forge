@@ -49,6 +49,7 @@ public final class HexFight {
     void begin(final Game game0) {
         game = game0;
         if (game0 != null) {
+            stats.setGame(game0);
             game0.subscribeToEvents(stats);
         }
         current = this;
@@ -61,6 +62,7 @@ public final class HexFight {
         }
         final Game g = game;
         final int turns = g == null ? 0 : g.getPhaseHandler().getTurn();
+        stats.countTurn(); // the last turn's draws and life gain
         return stats.summary(enemyName, result.name(), turns);
     }
 

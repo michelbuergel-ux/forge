@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import forge.util.Localizer;
 
@@ -139,6 +140,12 @@ public class HexCampaign {
     /** Tasks the party has taken on. */
     public List<HexQuest> quests = new ArrayList<>();
     public int questsDone;
+    /** The enemies the party has beaten in this cycle, in order. */
+    public List<HexDefeat> defeated = new ArrayList<>();
+    /** Enemies beaten in the whole campaign. */
+    public int defeatedTotal;
+    /** The numbers of every finished cycle (New Game Plus). */
+    public List<HexCycleRecord> cycleHistory = new ArrayList<>();
     private int nextQuestId = 1;
     public List<String> journal = new ArrayList<>();
     private long rngCounter;
@@ -241,6 +248,19 @@ public class HexCampaign {
             final HexAdvantage a = open.get(rnd.nextInt(open.size()));
             enemyAdvantages.put(a.name(), advantage(a) + 1);
             newAdvantages.add(a.name());
+        }
+
+        final HexCycleRecord record = new HexCycleRecord();
+        record.cycle = cycle - 1;
+        record.battlesWon = cycleBattles(HexBattle.Result.WON);
+        record.battlesLost = cycleBattles(HexBattle.Result.LOST);
+        record.battlesFled = cycleBattles(HexBattle.Result.FLED);
+        record.questsDone = cycleQuests();
+        record.defeated = defeated.size();
+        cycleHistory.add(record);
+        defeated.clear();
+        for (final HexPlayer p : players) {
+            p.stats = new HexHeadStats();
         }
 
         won = false;
@@ -627,6 +647,42 @@ public class HexCampaign {
         return MoveResult.ENCOUNTER;
     }
 
+    /** Gold a head gets (rewards, bounties, finds, sales): counted in its statistics. Gifts of other heads are not. */
+    private static void earn(final HexPlayer p, final int amount) {
+        p.gold += amount;
+        tally(p, s -> s.goldEarned += amount);
+    }
+
+    /** Gold a head pays (shops, travel, fleeing): counted in its statistics. */
+    private static void spend(final HexPlayer p, final int amount) {
+        p.gold -= amount;
+        tally(p, s -> s.goldSpent += amount);
+    }
+
+    /** Counts something in the head's statistics of this cycle and of the whole campaign. */
+    private static void tally(final HexPlayer p, final Consumer<HexHeadStats> count) {
+        count.accept(p.stats);
+        count.accept(p.totalStats);
+    }
+
+    /** Fights won, lost or fled in this cycle. */
+    public int cycleBattles(final HexBattle.Result result) {
+        int total = result == HexBattle.Result.WON ? battlesWon : result == HexBattle.Result.LOST ? battlesLost : battlesFled;
+        for (final HexCycleRecord r : cycleHistory) {
+            total -= result == HexBattle.Result.WON ? r.battlesWon : result == HexBattle.Result.LOST ? r.battlesLost : r.battlesFled;
+        }
+        return Math.max(0, total);
+    }
+
+    /** Tasks done in this cycle. */
+    public int cycleQuests() {
+        int total = questsDone;
+        for (final HexCycleRecord r : cycleHistory) {
+            total -= r.questsDone;
+        }
+        return Math.max(0, total);
+    }
+
     /** Applies a won or lost fight (see {@link #resolveBattle(HexBattle.Result)}). */
     public void resolveBattle(final boolean partyWon) {
         resolveBattle(partyWon ? HexBattle.Result.WON : HexBattle.Result.LOST);
@@ -639,6 +695,13 @@ public class HexCampaign {
         }
         summary.serial = lastFight == null ? 1 : lastFight.serial + 1;
         lastFight = summary;
+        for (final HexFightSummary.Head h : summary.heads) {
+            final HexPlayer p = player(h.name);
+            if (p != null) {
+                final boolean mvp = h.name.equals(summary.mvp);
+                tally(p, s -> s.add(h, summary.enemyName, mvp));
+            }
+        }
         if (summary.mvp != null && players.size() > 1) {
             final HexFightSummary.Head h = summary.head(summary.mvp);
             log(h.topCard == null
@@ -663,13 +726,16 @@ public class HexCampaign {
             battlesFled++;
             final int price = gold(HexFight.FLEE_GOLD);
             for (final HexPlayer p : players) {
-                p.gold -= Math.min(p.gold, price);
+                spend(p, Math.min(p.gold, price));
             }
             log(msg("lblHexJournalFled", enc.enemyName, String.valueOf(price)));
             partyQ = prevQ;
             partyR = prevR;
         } else if (result == HexBattle.Result.WON) {
             battlesWon++;
+            defeated.add(new HexDefeat(enc.enemyName, HexDefeat.kindOf(enc), enc.color, cycle,
+                    lastFight != null && enc.enemyName.equals(lastFight.enemyName) ? lastFight.turns : 0));
+            defeatedTotal++;
             log(msg("lblHexJournalWon", enc.enemyName));
             for (final HexPlayer p : players) {
                 final HexReward reward = new HexReward();
@@ -692,7 +758,7 @@ public class HexCampaign {
                 quests.remove(quest);
                 questsDone++;
                 for (final HexPlayer p : players) {
-                    p.gold += withGoldBonus(p, gold(quest.gold)); // the bounty: the same for every head (plus perks)
+                    earn(p, withGoldBonus(p, gold(quest.gold))); // the bounty: the same for every head (plus perks)
                 }
                 log(msg("lblHexJournalQuestDone", quest.enemyName, String.valueOf(gold(quest.gold))));
             }
@@ -788,7 +854,7 @@ public class HexCampaign {
             p.deck.add(options.get(cardIndex));
             log(msg("lblHexJournalRewardCard", p.name, options.get(cardIndex)));
         } else {
-            p.gold += reward.gold;
+            earn(p, reward.gold);
             log(msg("lblHexJournalRewardGold", p.name, String.valueOf(reward.gold)));
         }
     }
@@ -888,7 +954,7 @@ public class HexCampaign {
                 break;
             case CHEST:
                 for (final HexPlayer p : players) {
-                    p.gold += gold(HexEvent.CHEST_GOLD);
+                    earn(p, gold(HexEvent.CHEST_GOLD));
                 }
                 text.append(' ').append(msg("lblHexEventGold", String.valueOf(gold(HexEvent.CHEST_GOLD))));
                 break;
@@ -956,7 +1022,7 @@ public class HexCampaign {
                 }
             }
             if (free.isEmpty()) {
-                p.gold += gold(HexEvent.CHEST_GOLD);
+                earn(p, gold(HexEvent.CHEST_GOLD));
                 log(msg("lblHexJournalShrineGold", p.name, card, String.valueOf(gold(HexEvent.CHEST_GOLD))));
             } else {
                 final HexRelic relic = content.upgrade(free.get(rnd.nextInt(free.size())), cycle, rnd); // New Game Plus: maybe a stronger one
@@ -1067,7 +1133,7 @@ public class HexCampaign {
             return false;
         }
         for (final HexPlayer p : players) {
-            p.gold -= FAST_TRAVEL_GOLD;
+            spend(p, FAST_TRAVEL_GOLD);
         }
         prevQ = partyQ;
         prevR = partyR;
@@ -1260,7 +1326,7 @@ public class HexCampaign {
         }
         final List<HexShopOffer> stock = shop();
         final String key = tile().key();
-        p.gold -= RESTOCK_PRICE;
+        spend(p, RESTOCK_PRICE);
         stock.removeIf(o -> playerName.equals(ownerOfTab(o.tab)));
         themeStockedAt.keySet().removeIf(k -> k.startsWith(key + "|") && playerName.equals(ownerOfTab(k.substring(key.length() + 1))));
         shop(); // the shelves of this head, new
@@ -1341,7 +1407,8 @@ public class HexCampaign {
         if (p.gold < price) {
             return false;
         }
-        p.gold -= price;
+        spend(p, price);
+        tally(p, s -> s.cardsBought++);
         p.deck.add(offer.card);
         stock.remove(offer);
         log(msg("lblHexJournalBought", p.name, offer.card, String.valueOf(price)));
@@ -1398,7 +1465,9 @@ public class HexCampaign {
             p.relics.remove(old.name);
             log(msg("lblHexJournalSold", p.name, old.name, String.valueOf(refund)));
         }
-        p.gold += refund - price;
+        earn(p, refund);
+        spend(p, price);
+        tally(p, s -> s.relicsBought++);
         p.relics.add(relic.name);
         stock.remove(offer);
         log(msg("lblHexJournalBought", p.name, relic.name, String.valueOf(price)));
@@ -1411,7 +1480,7 @@ public class HexCampaign {
             return false;
         }
         final int price = HexContent.get().relicSellPrice(relicName);
-        p.gold += price;
+        earn(p, price);
         log(msg("lblHexJournalSold", p.name, relicName, String.valueOf(price)));
         return true;
     }
@@ -1595,7 +1664,7 @@ public class HexCampaign {
         if (!inTown() || p == null || p.gold < BASIC_LAND_PRICE) {
             return false;
         }
-        p.gold -= BASIC_LAND_PRICE;
+        spend(p, BASIC_LAND_PRICE);
         p.deck.add(color.getBasicLand());
         return true;
     }
@@ -1615,7 +1684,8 @@ public class HexCampaign {
             return false;
         }
         final int price = sellPriceFor(p, card);
-        p.gold += price;
+        earn(p, price);
+        tally(p, s -> s.cardsSold++);
         log(msg("lblHexJournalSold", p.name, card, String.valueOf(price)));
         return true;
     }

@@ -8,9 +8,13 @@ public class HexFightSummary {
     /** One head's part in the fight. */
     public static class Head {
         public String name;
+        /** Damage dealt to the enemy side (its heads and creatures). */
         public int damage;
         public int spells;
         public int lands;
+        /** Cards drawn (the opening hand not counted). */
+        public int cardsDrawn;
+        public int lifeGained;
         /** The card of this head that dealt the most damage, or null. */
         public String topCard;
         public int topCardDamage;
