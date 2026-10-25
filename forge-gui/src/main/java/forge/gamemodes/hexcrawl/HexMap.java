@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.function.Predicate;
 
 /**
  * A hexagon shaped map of hex fields in axial coordinates. The centre is colourless and holds
@@ -13,6 +14,20 @@ import java.util.Random;
  */
 public class HexMap {
     public static final int[][] DIRECTIONS = { {1, 0}, {1, -1}, {0, -1}, {-1, 0}, {-1, 1}, {0, 1} };
+    /** How far from the centre the town near the centre of each colour lies, at most. */
+    public static final int CENTER_TOWN_REACH = 3;
+    /** How far from the border to the next colour the border town of each colour lies, at most (two fields between). */
+    public static final int BORDER_TOWN_REACH = 3;
+
+    /** The radius of a new map for a party of this many heads: a bigger party gets more room. */
+    public static int radiusFor(final int heads) {
+        return heads <= 2 ? 7 : 8;
+    }
+
+    /** How many towns each colour gets on a map of this radius: the one near the centre, the one near a border, more out there. */
+    public static int townsPerColor(final int radius) {
+        return Math.max(2, radius / 2);
+    }
 
     public int radius;
     public Map<String, HexTile> tiles = new LinkedHashMap<>();
@@ -58,6 +73,17 @@ public class HexMap {
             }
         }
         return result;
+    }
+
+    /** How far a field is from the nearest field of a colour (a large number if the map has none). */
+    public int distanceTo(final HexTile t, final HexColor color) {
+        int best = Integer.MAX_VALUE;
+        for (final HexTile other : tiles.values()) {
+            if (other.color == color) {
+                best = Math.min(best, distance(t.q, t.r, other.q, other.r));
+            }
+        }
+        return best;
     }
 
     public HexTile boss(final HexColor color) {
@@ -144,17 +170,51 @@ public class HexMap {
                 pois.add(boss);
             }
         }
-        for (final HexColor color : HexColor.COLORS) {
+        // towns: in every colour one near the centre, one near the border to the next colour (the
+        // colours go round in this order, so every border gets a town on one side), then more out there
+        for (final HexColor color : order) {
             final List<HexTile> region = map.region(color);
-            for (int i = 0; i < 2; i++) {
+            HexTile town = null;
+            // as close as it gets: rather a little crowded than further out
+            for (int reach = CENTER_TOWN_REACH; reach < radius && town == null; reach++) {
+                for (int spacing = 3; spacing >= 1 && town == null; spacing--) {
+                    town = pick(region, pois, rnd, 2, reach, spacing, t -> true);
+                }
+            }
+            addTown(town, pois);
+        }
+        for (int i = 0; i < order.length; i++) {
+            final List<HexTile> region = map.region(order[i]);
+            final HexColor next = order[(i + 1) % order.length];
+            final int minDist = Math.min(CENTER_TOWN_REACH + 1, radius - 1); // not the one near the centre
+            HexTile town = null;
+            // best with two fields between the town and the border, else closer
+            for (int far = BORDER_TOWN_REACH; far >= 1 && town == null; far--) {
+                final int want = far;
+                for (int spacing = 3; spacing >= 1 && town == null; spacing--) {
+                    town = pick(region, pois, rnd, minDist, radius - 1, spacing, t -> map.distanceTo(t, next) == want);
+                }
+            }
+            addTown(town, pois);
+        }
+        final int towns = townsPerColor(radius);
+        for (final HexColor color : order) {
+            final List<HexTile> region = map.region(color);
+            int have = 0;
+            for (final HexTile t : region) {
+                if (t.poi == HexPoi.TOWN) {
+                    have++;
+                }
+            }
+            for (; have < towns; have++) {
                 HexTile town = null;
                 for (int spacing = 3; spacing >= 1 && town == null; spacing--) {
-                    town = pick(region, pois, rnd, 2, radius - 1, spacing);
+                    town = pick(region, pois, rnd, 2, radius - 1, spacing, t -> true);
                 }
-                if (town != null) {
-                    town.poi = HexPoi.TOWN;
-                    pois.add(town);
+                if (town == null) {
+                    break;
                 }
+                addTown(town, pois);
             }
         }
 
@@ -175,12 +235,24 @@ public class HexMap {
         return map;
     }
 
+    private static void addTown(final HexTile town, final List<HexTile> pois) {
+        if (town != null) {
+            town.poi = HexPoi.TOWN;
+            pois.add(town);
+        }
+    }
+
     private static HexTile pick(final List<HexTile> region, final List<HexTile> taken, final Random rnd,
             final int minDistFromCenter, final int maxDistFromCenter, final int spacing) {
+        return pick(region, taken, rnd, minDistFromCenter, maxDistFromCenter, spacing, t -> true);
+    }
+
+    private static HexTile pick(final List<HexTile> region, final List<HexTile> taken, final Random rnd,
+            final int minDistFromCenter, final int maxDistFromCenter, final int spacing, final Predicate<HexTile> also) {
         final List<HexTile> candidates = new ArrayList<>();
         for (final HexTile t : region) {
             final int dist = distance(t.q, t.r, 0, 0);
-            if (t.poi != HexPoi.NONE || dist < minDistFromCenter || dist > maxDistFromCenter) {
+            if (t.poi != HexPoi.NONE || dist < minDistFromCenter || dist > maxDistFromCenter || !also.test(t)) {
                 continue;
             }
             boolean free = true;

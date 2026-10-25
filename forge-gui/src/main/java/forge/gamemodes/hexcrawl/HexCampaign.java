@@ -181,15 +181,12 @@ public class HexCampaign {
         partyR = prevR = map.startR;
         final HexContent content = HexContent.get();
         final Set<String> townNames = new java.util.HashSet<>();
+        final java.util.Map<String, Integer> partsUsed = new java.util.HashMap<>();
         for (final HexTile t : map.tiles.values()) {
             if (t.poi == HexPoi.BOSS) {
                 t.name = content.getBossName(t.color);
             } else if (t.poi == HexPoi.TOWN) {
-                String townName = townName(t, random());
-                for (int i = 0; i < 50 && !townNames.add(townName); i++) {
-                    townName = townName(t, random()); // every town its own name
-                }
-                t.name = townName;
+                t.name = townName(random(), townNames, partsUsed);
                 t.theme = rollTheme(t, null).id; // every town is known for something
             }
         }
@@ -282,7 +279,8 @@ public class HexCampaign {
         for (final HexPlayer p : players) {
             p.themes = new String[PICKED_THEMES]; // the towns of the new map have other colours
         }
-        newMap(seed * 31L + cycle * 7919L, map.radius);
+        // a party that grew meanwhile gets a bigger map; a map never shrinks
+        newMap(seed * 31L + cycle * 7919L, Math.max(map.radius, HexMap.radiusFor(players.size())));
         tile().explored = true;
         scout();
         final List<String> added = new ArrayList<>();
@@ -296,11 +294,39 @@ public class HexCampaign {
         return true;
     }
 
-    private static final String[] TOWN_A = { "Alt", "Neu", "Hoch", "Nieder", "Grau", "Stein", "Wind", "Nebel", "Dorn", "Eichen", "Raben", "Silber" };
-    private static final String[] TOWN_B = { "furt", "hafen", "burg", "tal", "wacht", "heim", "brück", "feld", "hain", "stein", "markt", "quell" };
+    private static final String[] TOWN_A = { "Alt", "Neu", "Hoch", "Nieder", "Grau", "Stein", "Wind", "Nebel", "Dorn", "Eichen", "Raben", "Silber",
+        "Rosen", "Falken", "Wolfs", "Kupfer", "Gold", "Schatten", "Tannen", "Mond" };
+    private static final String[] TOWN_B = { "furt", "hafen", "burg", "tal", "wacht", "heim", "brück", "feld", "hain", "stein", "markt", "quell",
+        "au", "dorf", "eck", "rode", "kirch", "berg" };
 
-    private static String townName(final HexTile t, final Random rnd) {
-        return TOWN_A[rnd.nextInt(TOWN_A.length)] + TOWN_B[rnd.nextInt(TOWN_B.length)];
+    /**
+     * A name no other town of the map has, made of parts the other towns use as little as possible
+     * (not five towns called Eichen-something).
+     */
+    private static String townName(final Random rnd, final Set<String> taken, final java.util.Map<String, Integer> partsUsed) {
+        String best = null;
+        String bestA = null;
+        String bestB = null;
+        int bestUse = Integer.MAX_VALUE;
+        for (int i = 0; i < 60; i++) {
+            final String a = TOWN_A[rnd.nextInt(TOWN_A.length)];
+            final String b = TOWN_B[rnd.nextInt(TOWN_B.length)];
+            final int use = partsUsed.getOrDefault(a, 0) + partsUsed.getOrDefault("-" + b, 0);
+            if (!taken.contains(a + b) && use < bestUse) {
+                best = a + b;
+                bestA = a;
+                bestB = b;
+                bestUse = use;
+            }
+        }
+        if (best == null) { // cannot really happen: far more names than towns
+            best = TOWN_A[rnd.nextInt(TOWN_A.length)] + TOWN_B[rnd.nextInt(TOWN_B.length)] + " " + (taken.size() + 1);
+        } else {
+            partsUsed.merge(bestA, 1, Integer::sum);
+            partsUsed.merge("-" + bestB, 1, Integer::sum);
+        }
+        taken.add(best);
+        return best;
     }
 
     /** A new head joins the party (a friend connecting to a running campaign) with a starter deck. */

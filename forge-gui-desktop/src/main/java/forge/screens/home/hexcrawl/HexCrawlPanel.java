@@ -36,6 +36,7 @@ import forge.gamemodes.hexcrawl.HexCampaignIO;
 import forge.gamemodes.hexcrawl.HexColor;
 import forge.gamemodes.hexcrawl.HexContent;
 import forge.gamemodes.hexcrawl.HexEncounter;
+import forge.gamemodes.hexcrawl.HexMap;
 import forge.gamemodes.hexcrawl.HexNet;
 import forge.gamemodes.hexcrawl.HexPerk;
 import forge.gamemodes.hexcrawl.HexPlayer;
@@ -1427,7 +1428,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         for (int i = 1; i <= companions; i++) {
             players.add(new HexPlayer(t("lblHexCompanion") + " " + i, true));
         }
-        final HexCampaign campaign = HexCampaign.create(name.trim(), new Random().nextLong(), 6, players,
+        final HexCampaign campaign = HexCampaign.create(name.trim(), new Random().nextLong(), HexMap.radiusFor(players.size()), players,
                 HexCampaign.GOLD_MULTIPLIERS[goldChoice]);
         HexCampaignIO.save(campaign);
         setSession(new HexSession(campaign));

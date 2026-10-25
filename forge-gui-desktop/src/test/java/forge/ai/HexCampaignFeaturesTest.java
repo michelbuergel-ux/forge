@@ -162,7 +162,10 @@ public class HexCampaignFeaturesTest extends AITest {
         AssertJUnit.assertEquals(life, c.fightLife());
         AssertJUnit.assertTrue(c.fightBoosts().isEmpty());
 
-        // a chest: gold for everybody
+        // a chest: gold for everybody (no enemy around that could step in the way)
+        for (final HexTile any : c.map.tiles.values()) {
+            any.enemy = null;
+        }
         final HexTile next = emptyNeighbour(c);
         next.event = HexEvent.CHEST.name();
         final int gold = c.player("Bob").gold;
