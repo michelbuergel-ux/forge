@@ -29,17 +29,37 @@ import forge.util.Localizer;
 @SuppressWarnings("serial")
 public class HexMapPanel extends JPanel {
     private static final double SQRT3 = Math.sqrt(3);
+    /** Fields are drawn as big as on a map of this radius filling the panel; a bigger map scrolls instead. */
+    private static final int FIT_RADIUS = 6;
+    /** How much of the way to its goal the view glides per frame. */
+    private static final double GLIDE = 0.16;
 
     private HexCampaign campaign;
     private Consumer<HexTile> onTileClicked;
     private HexTile hover;
     private java.util.Map<String, String> votes;
 
+    // the view: the map point in its middle, in units of a field's size (see centerX)
+    private double camX;
+    private double camY;
+    /** Where the view glides to: the party's field, or where the player dragged it. */
+    private double goalX;
+    private double goalY;
+    private final javax.swing.Timer glide = new javax.swing.Timer(15, e -> glideStep());
+    /** The map and the party's field shown last: a new map jumps to the party, a step glides after it. */
+    private String shownMap;
+    private String shownParty;
+    private java.awt.Point dragFrom;
+    private boolean dragged;
+
     public HexMapPanel() {
         setOpaque(false);
         ToolTipManager.sharedInstance().registerComponent(this);
         final MouseAdapter mouse = new MouseAdapter() {
             @Override public void mouseClicked(final MouseEvent e) {
+                if (dragged) {
+                    return;
+                }
                 final HexTile t = tileAt(e.getX(), e.getY());
                 if (t != null && onTileClicked != null) {
                     onTileClicked.accept(t);
@@ -56,13 +76,123 @@ public class HexMapPanel extends JPanel {
                 hover = null;
                 repaint();
             }
+            // a map bigger than the panel: drag it (or turn the wheel, with Shift sideways) to look around
+            @Override public void mousePressed(final MouseEvent e) {
+                dragFrom = e.getPoint();
+                dragged = false;
+            }
+            @Override public void mouseDragged(final MouseEvent e) {
+                if (dragFrom == null) {
+                    return;
+                }
+                final int dx = e.getX() - dragFrom.x;
+                final int dy = e.getY() - dragFrom.y;
+                if (!dragged && dx * dx + dy * dy < 25) {
+                    return; // a shaky click, not a drag
+                }
+                dragged = true;
+                setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.MOVE_CURSOR));
+                final double size = hexSize();
+                panBy(-dx / size, -dy / size);
+                dragFrom = e.getPoint();
+            }
+            @Override public void mouseReleased(final MouseEvent e) {
+                dragFrom = null;
+                setCursor(java.awt.Cursor.getDefaultCursor());
+            }
+            @Override public void mouseWheelMoved(final java.awt.event.MouseWheelEvent e) {
+                final double step = e.getPreciseWheelRotation() * 1.5;
+                if (e.isShiftDown()) {
+                    panBy(step, 0);
+                } else {
+                    panBy(0, step);
+                }
+            }
         };
         addMouseListener(mouse);
         addMouseMotionListener(mouse);
+        addMouseWheelListener(mouse);
     }
 
     public void setCampaign(final HexCampaign campaign0) {
         campaign = campaign0;
+        if (campaign == null) {
+            shownMap = null;
+            shownParty = null;
+            glide.stop();
+            repaint();
+            return;
+        }
+        // the campaign object is new after every sync on a guest: tell the maps apart by name and cycle
+        final String mapKey = campaign.name + "#" + campaign.cycle;
+        final String partyKey = campaign.partyQ + "," + campaign.partyR;
+        final HexTile here = campaign.tile();
+        if (here != null && !mapKey.equals(shownMap)) {
+            goalX = camX = mapX(here);
+            goalY = camY = mapY(here);
+            glide.stop();
+        } else if (here != null && !partyKey.equals(shownParty)) {
+            goalX = mapX(here);
+            goalY = mapY(here);
+            glide.start();
+        }
+        shownMap = mapKey;
+        shownParty = partyKey;
+        repaint();
+    }
+
+    private static double mapX(final HexTile t) {
+        return SQRT3 * (t.q + t.r / 2.0);
+    }
+
+    private static double mapY(final HexTile t) {
+        return 1.5 * t.r;
+    }
+
+    /** How far the view's middle may move from the map's middle, sideways: no further than the map's edge. */
+    private double limitX(final double size) {
+        final double half = (getWidth() / 2.0 - 8) / size;
+        return campaign == null ? 0 : Math.max(0, SQRT3 * (campaign.map.radius + 0.5) - half);
+    }
+
+    /** The same up and down, with room for the names below the outer fields. */
+    private double limitY(final double size) {
+        final double half = (getHeight() / 2.0 - 8) / size;
+        return campaign == null ? 0 : Math.max(0, 1.5 * campaign.map.radius + 1.6 - half);
+    }
+
+    private static double clamp(final double v, final double limit) {
+        return Math.max(-limit, Math.min(limit, v));
+    }
+
+    private void panBy(final double dx, final double dy) {
+        if (campaign == null) {
+            return;
+        }
+        glide.stop();
+        final double size = hexSize();
+        goalX = camX = clamp(clamp(camX, limitX(size)) + dx, limitX(size));
+        goalY = camY = clamp(clamp(camY, limitY(size)) + dy, limitY(size));
+        repaint();
+    }
+
+    private void glideStep() {
+        if (campaign == null) {
+            glide.stop();
+            return;
+        }
+        final double size = hexSize();
+        final double gx = clamp(goalX, limitX(size));
+        final double gy = clamp(goalY, limitY(size));
+        camX = clamp(camX, limitX(size));
+        camY = clamp(camY, limitY(size));
+        camX += (gx - camX) * GLIDE;
+        camY += (gy - camY) * GLIDE;
+        if (Math.abs(gx - camX) < 0.01 && Math.abs(gy - camY) < 0.01) {
+            camX = gx;
+            camY = gy;
+            glide.stop();
+        }
         repaint();
     }
 
@@ -90,18 +220,19 @@ public class HexMapPanel extends JPanel {
         if (campaign == null) {
             return 20;
         }
-        final int n = campaign.map.radius * 2 + 1;
+        // as big as a small map needs to fill the panel; a bigger map does not shrink the fields, it scrolls
+        final int n = Math.min(campaign.map.radius, FIT_RADIUS) * 2 + 1;
         final double byWidth = (getWidth() - 16) / (SQRT3 * (n + 0.5));
         final double byHeight = (getHeight() - 16) / (1.5 * n + 0.5);
         return Math.max(8, Math.min(byWidth, byHeight));
     }
 
     private double centerX(final HexTile t, final double size) {
-        return getWidth() / 2.0 + size * SQRT3 * (t.q + t.r / 2.0);
+        return getWidth() / 2.0 + size * (mapX(t) - clamp(camX, limitX(size)));
     }
 
     private double centerY(final HexTile t, final double size) {
-        return getHeight() / 2.0 + size * 1.5 * t.r;
+        return getHeight() / 2.0 + size * (mapY(t) - clamp(camY, limitY(size)));
     }
 
     /** The screen position of the middle of a field (used by automated UI tests as well). */
