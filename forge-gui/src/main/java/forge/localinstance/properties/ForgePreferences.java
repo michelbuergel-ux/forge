@@ -135,7 +135,7 @@ public class ForgePreferences extends AbstractPreferences<ForgePreferences.FPref
         YIELD_INTERRUPT_ON_REVEAL ("false"),
         YIELD_INTERRUPT_ON_MASS_REMOVAL ("false"),
         YIELD_AUTO_PASS_NO_ACTIONS ("false"),
-        /** Team games with streamlined priority: OK a team mate's spells and abilities at once (set for one fight). */
+        /** Team games with streamlined priority: OK a team mate's spells and abilities at once (kept for later fights). */
         YIELD_AUTO_OK_PARTNER ("false"),
         YIELD_AUTO_PASS_RESPECTS_INTERRUPTS ("false"),
         YIELD_AVAILABLE_ACTIONS_BUDGET_MS ("0"),

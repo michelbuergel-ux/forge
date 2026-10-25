@@ -96,6 +96,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     private final GoldButton btnShop = new GoldButton("", GoldButton.Kind.GOLD, 14f);
     private final GoldButton btnDecks = new GoldButton("", GoldButton.Kind.OUTLINE, 13f);
     private final GoldButton btnStats = new GoldButton("", GoldButton.Kind.OUTLINE, 13f);
+    /** "Always OK my partner" in the fights, switched here as well (a saved setting of this computer). */
+    private final GoldButton btnAutoOk = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
     private final GoldButton btnInvite = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
     private final GoldButton btnJoin = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
     private final GoldButton btnLeave = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
@@ -206,6 +208,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         middle.add(hdParty);
         middle.add(cboLeader, "h 28!, gaptop 4");
         middle.add(pnlParty, "gaptop 6");
+        middle.add(btnAutoOk, "h 28!, gaptop 6");
         middle.add(hdBosses, "gaptop 12");
         middle.add(bossTrack, "gaptop 2");
         middle.add(lblRecord, "gaptop 2");
@@ -248,6 +251,12 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnShop.addActionListener(e -> openShop());
         btnDecks.addActionListener(e -> showDeck());
         btnStats.addActionListener(e -> showStats(false));
+        btnAutoOk.setToolTipText(t("lblAlwaysOkPartnerHint"));
+        btnAutoOk.addActionListener(e -> {
+            FModel.getPreferences().setPref(FPref.YIELD_AUTO_OK_PARTNER, String.valueOf(!alwaysOkPartner()));
+            FModel.getPreferences().save();
+            showAutoOk();
+        });
         btnInvite.addActionListener(e -> invite());
         btnJoin.setText(t("lblHexJoinButton"));
         btnLeave.setText(t("lblHexLeave"));
@@ -613,6 +622,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         showConnection(guest);
         btnDecks.setVisible(has);
         btnStats.setVisible(has);
+        btnAutoOk.setVisible(has && getCampaign().players.size() > 1);
+        showAutoOk();
         btnNewGamePlus.setVisible(has && !guest && getCampaign().won);
         if (has) {
             btnNewGamePlus.setText(t("lblHexNewGamePlus", String.valueOf(getCampaign().cycle)));
@@ -1203,6 +1214,14 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         new HexDeckDialog(session).show(refresher -> deckRefresher = refresher);
         refresh();
+    }
+
+    private static boolean alwaysOkPartner() {
+        return FModel.getPreferences().getPrefBoolean(FPref.YIELD_AUTO_OK_PARTNER);
+    }
+
+    private void showAutoOk() {
+        btnAutoOk.setText(t(alwaysOkPartner() ? "lblHexAutoOkOn" : "lblHexAutoOkOff"));
     }
 
     /** The chronicle of the campaign: what every head did, and the enemies beaten. */

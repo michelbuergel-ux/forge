@@ -239,7 +239,7 @@ public class InputPassPriority extends InputSyncronizedBase {
         return by == null || by.equals(me) || by.isOpponentOf(me) ? null : top;
     }
 
-    /** Is the player's "Always OK my partner" on (for this fight)? */
+    /** Is the player's "Always OK my partner" on? */
     private boolean alwaysOkPartner() {
         return getController().getYieldController().getBoolPref(FPref.YIELD_AUTO_OK_PARTNER);
     }

@@ -187,17 +187,18 @@ public class CPrompt implements ICDoc {
 
     /**
      * Team games with streamlined priority (Hex Campaign fights): shows "Always OK my partner",
-     * unticked at the start of every fight.
+     * ticked as the player left it in the last fight.
      */
     public void showPartnerOption(final boolean show) {
-        view.getChkAlwaysOkPartner().setSelected(false);
+        view.getChkAlwaysOkPartner().setSelected(FModel.getPreferences().getPrefBoolean(ForgePreferences.FPref.YIELD_AUTO_OK_PARTNER));
         view.getChkAlwaysOkPartner().setVisible(show);
         view.getChkAlwaysOkPartner().setToolTipText(forge.util.Localizer.getInstance().getMessage("lblAlwaysOkPartnerHint"));
     }
 
-    /** Just for this fight; the host (or this screen's own game) is told at once. */
+    /** Saved for later fights as well; the host (or this screen's own game) is told at once. */
     private void setAlwaysOkPartner(final boolean on) {
-        FModel.getPreferences().setTemporaryPref(ForgePreferences.FPref.YIELD_AUTO_OK_PARTNER, String.valueOf(on));
+        FModel.getPreferences().setPref(ForgePreferences.FPref.YIELD_AUTO_OK_PARTNER, String.valueOf(on));
+        FModel.getPreferences().save();
         if (matchUI.getGameController() != null) {
             matchUI.getGameController().setYieldPref(ForgePreferences.FPref.YIELD_AUTO_OK_PARTNER, String.valueOf(on));
         }

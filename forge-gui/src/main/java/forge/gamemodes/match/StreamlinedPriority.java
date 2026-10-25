@@ -33,8 +33,7 @@ public final class StreamlinedPriority {
         prefs.setTemporaryPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS, "true");
         prefs.setTemporaryPref(FPref.YIELD_SKIP_PHASE_DELAY, "true");
         prefs.setTemporaryPref(FPref.YIELD_SKIP_RESOLVE_DELAY, "true");
-        // "Always OK my partner" starts off in every fight
-        prefs.setTemporaryPref(FPref.YIELD_AUTO_OK_PARTNER, "false");
+        // "Always OK my partner" is a saved choice: it stays as the player left it in the last fight
 
         final PhaseType[] phases = PhaseType.values();
         for (int p = 1; p < phases.length; p++) {

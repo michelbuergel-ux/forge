@@ -153,8 +153,14 @@ public class VPrompt implements IVDoc<CPrompt> {
 
         container.add(btnOK, constraints);
         container.add(btnCancel, constraints);
+        // a green strip like the team mate's prompt above, so that it is seen at once
+        chkAlwaysOkPartner.setOpaque(true);
+        chkAlwaysOkPartner.setBackground(new java.awt.Color(0x1F6F43));
+        chkAlwaysOkPartner.setForeground(java.awt.Color.WHITE);
+        chkAlwaysOkPartner.setFont(FSkin.getBoldFont(13));
+        chkAlwaysOkPartner.setBorder(javax.swing.BorderFactory.createEmptyBorder(0, 6, 0, 6));
         chkAlwaysOkPartner.setVisible(false);
-        container.add(chkAlwaysOkPartner, "span 2, w 10:100%, h 22px!, gaptop 2px!, hidemode 3");
+        container.add(chkAlwaysOkPartner, "span 2, w 10:100%, h 26px!, gaptop 3px!, hidemode 3");
         if (pnlTeam.getComponentCount() == 0) {
             pnlTeam.setOpaque(false);
             for (final forge.gamemodes.match.TeamSignal signal : forge.gamemodes.match.TeamSignal.BUTTONS) {
