@@ -208,10 +208,10 @@ public class HexCampaignFeaturesTest extends AITest {
         AssertJUnit.assertTrue(c.deckChecked.isEmpty());
         c.pendingRewards.clear();
 
-        // fast travel to another town the party has been to
+        // fast travel to another town the party has been to (not a besieged one)
         HexTile other = null;
         for (final HexTile t : c.map.tilesWith(HexPoi.TOWN)) {
-            if (t != c.tile() && HexMap.distance(t.q, t.r, c.partyQ, c.partyR) > 1) {
+            if (t != c.tile() && t.siege == null && HexMap.distance(t.q, t.r, c.partyQ, c.partyR) > 1) {
                 other = t;
                 break;
             }

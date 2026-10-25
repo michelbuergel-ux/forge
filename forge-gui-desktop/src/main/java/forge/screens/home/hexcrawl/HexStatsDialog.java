@@ -271,7 +271,7 @@ final class HexStatsDialog {
         for (final HexDefeat d : campaign.defeated) {
             if (d.kind == HexDefeat.Kind.ARCHMAGE || d.kind == HexDefeat.Kind.BOSS) {
                 bosses.add(d);
-            } else if (d.kind == HexDefeat.Kind.TASK || d.kind == HexDefeat.Kind.ARCHENEMY) {
+            } else if (d.kind == HexDefeat.Kind.TASK || d.kind == HexDefeat.Kind.ARCHENEMY || d.kind == HexDefeat.Kind.SIEGE) {
                 special.add(d);
             } else {
                 ordinary.add(d.name);

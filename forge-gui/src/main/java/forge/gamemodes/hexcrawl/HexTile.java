@@ -20,6 +20,10 @@ public class HexTile {
     public String theme;
     /** Something the party finds here instead of an enemy (a HexEvent name), or null. */
     public String event;
+    /** Towns only: the enemy that besieges the town (beat it to enter), or null. Stays when the land around changes. */
+    public HexEncounter siege;
+    /** Towns only: the party lifted the town's siege in this cycle, and its shops sell cheaper. */
+    public boolean freed;
 
     public HexTile() { }
     public HexTile(final int q0, final int r0) { q = q0; r = r0; }

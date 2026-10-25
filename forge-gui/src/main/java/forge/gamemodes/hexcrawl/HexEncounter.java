@@ -26,12 +26,16 @@ public class HexEncounter {
     /** A boss's own words before the fight and after beating the party (Adventure data), or null. */
     public String intro;
     public String insult;
+    /** Besieges a town: the party has to beat it to enter (see {@link HexTile#siege}). */
+    public boolean siege;
+    /** A siege that began during the cycle (after a won fight), not with the map. */
+    public boolean lateSiege;
 
     /**
-     * Bosses and the enemies of tasks fight with copies of themselves as their other heads (the
-     * same deck and equipment); every other enemy brings followers of its colour.
+     * Bosses, the enemies of tasks and besiegers fight with copies of themselves as their other
+     * heads (the same deck and equipment); every other enemy brings followers of its colour.
      */
     public boolean headsAlike() {
-        return boss || questId != 0;
+        return boss || questId != 0 || siege;
     }
 }

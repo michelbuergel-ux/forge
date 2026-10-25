@@ -299,6 +299,9 @@ public class HexMapPanel extends JPanel {
             if (quest != null) {
                 sb.append(" – ").append(loc.getMessage(quest.archenemy ? "lblHexQuestMarkerArchenemy" : "lblHexQuestMarker",
                         quest.enemyName, life, String.valueOf(campaign.gold(quest.gold))));
+            } else if (enemy.siege) {
+                sb.append('\n').append(loc.getMessage("lblHexSiegeMarker", enemy.enemyName, life,
+                        String.valueOf(forge.gamemodes.hexcrawl.HexCampaign.SIEGE_DISCOUNT_PERCENT)));
             } else if (t.poi == HexPoi.BOSS) {
                 sb.append(" (").append(loc.getMessage("lblHexLifeShort", life)).append(')');
             } else {
@@ -317,7 +320,10 @@ public class HexMapPanel extends JPanel {
         if (rule != null && t.poi != HexPoi.TOWN) {
             sb.append('\n').append(loc.getMessage(rule.getLabelKey()));
         }
-        if (t.poi == HexPoi.TOWN && t.explored && t != campaign.tile() && !campaign.isAdjacent(t)) {
+        if (t.freed) {
+            sb.append('\n').append(loc.getMessage("lblHexTownFreed", String.valueOf(forge.gamemodes.hexcrawl.HexCampaign.SIEGE_DISCOUNT_PERCENT)));
+        }
+        if (t.poi == HexPoi.TOWN && t.explored && t.siege == null && t != campaign.tile() && !campaign.isAdjacent(t)) {
             sb.append('\n').append(loc.getMessage("lblHexFastTravelHint", String.valueOf(forge.gamemodes.hexcrawl.HexCampaign.FAST_TRAVEL_GOLD)));
         }
         final String text = sb.toString().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
@@ -363,7 +369,7 @@ public class HexMapPanel extends JPanel {
             if (t.poi == HexPoi.NONE) {
                 continue;
             }
-            final int cx = (int) Math.round(centerX(t, size));
+            final int cx = (int) Math.round(centerX(t, size) + (t.siege != null ? size * 0.2 : 0)); // room for a besieger before the gates
             final int cy = (int) Math.round(centerY(t, size));
             final int s = (int) Math.round(size * 0.42);
             if (t.poi == HexPoi.TOWN) {
@@ -371,12 +377,36 @@ public class HexMapPanel extends JPanel {
                 final Polygon house = new Polygon(
                         new int[] { cx - s, cx - s, cx, cx + s, cx + s },
                         new int[] { cy + s, cy - s / 4, cy - s, cy - s / 4, cy + s }, 5);
-                g.setColor(new Color(0xF6F1E4));
+                if (t.siege != null) {
+                    // besieged: a glowing red edge
+                    g.setColor(new Color(200, 30, 45, 150));
+                    g.setStroke(new BasicStroke(Math.max(3f, (float) size / 6)));
+                    g.drawPolygon(house);
+                }
+                g.setColor(t.siege != null ? new Color(0xD9C9B4) : new Color(0xF6F1E4));
                 g.fillPolygon(house);
                 g.setColor(new Color(0x3A2E20));
                 g.setStroke(new BasicStroke(1.6f));
                 g.drawPolygon(house);
                 g.fillRect(cx - s / 4, cy + s / 4, s / 2, s * 3 / 4);
+                if (t.siege != null) {
+                    // and flames on the roof
+                    for (int i = -1; i <= 1; i++) {
+                        final int fx = cx + i * s * 2 / 3;
+                        final int fy = cy - s / 4 - (i == 0 ? s * 3 / 4 : 0);
+                        final int fh = (int) Math.round(s * (i == 0 ? 0.9 : 0.7));
+                        final Polygon flame = new Polygon(
+                                new int[] { fx - fh / 3, fx - fh / 6, fx, fx + fh / 6, fx + fh / 3 },
+                                new int[] { fy, fy - fh * 2 / 3, fy - fh, fy - fh * 2 / 3, fy }, 5);
+                        g.setColor(new Color(0xF2741B));
+                        g.fillPolygon(flame);
+                        g.setColor(new Color(0xFFD23F));
+                        g.fillOval(fx - fh / 8, fy - fh / 2, fh / 4, fh / 2);
+                    }
+                }
+                if (t.freed) {
+                    drawDiscount(g, cx + s, cy - s, size);
+                }
             } else {
                 // a star for a boss, grey once it is beaten
                 final Polygon star = new Polygon();
@@ -395,7 +425,7 @@ public class HexMapPanel extends JPanel {
                 g.setFont(small);
                 final FontMetrics fm = g.getFontMetrics();
                 final int w = fm.stringWidth(t.name);
-                final int tx = cx - w / 2;
+                final int tx = (int) Math.round(centerX(t, size)) - w / 2;
                 final int ty = (int) Math.round(cy + size * 0.95);
                 g.setColor(new Color(0, 0, 0, 170));
                 g.fillRoundRect(tx - 3, ty - fm.getAscent(), w + 6, fm.getHeight(), 6, 6);
@@ -410,11 +440,21 @@ public class HexMapPanel extends JPanel {
             if (enemy == null) {
                 continue;
             }
-            final int cx = (int) Math.round(centerX(t, size));
-            final int cy = (int) Math.round(centerY(t, size));
+            // a besieger's heart on its own side, so the flames on the roof show
+            final int heartX = (int) Math.round(centerX(t, size) + size * (t.poi == HexPoi.TOWN ? -0.62 : 0.5));
+            final int heartY = (int) Math.round(centerY(t, size) - size * 0.48);
+            int cx = (int) Math.round(centerX(t, size));
+            int cy = (int) Math.round(centerY(t, size));
+            double figure = 1;
             final HexQuest quest = campaign.questAt(t.q, t.r);
             if (t.poi != HexPoi.BOSS) {
                 final BufferedImage sprite = HexSprites.get(enemy.enemyName);
+                if (t.poi == HexPoi.TOWN) {
+                    // a besieger stands before the gates, a little smaller, so the burning house and the name show
+                    cx -= (int) Math.round(size * 0.42);
+                    cy += (int) Math.round(size * 0.06);
+                    figure = 0.8;
+                }
                 if (enemy.roaming) {
                     // a hunter: a red ring under it
                     final int ring = (int) Math.round(size * 0.66);
@@ -433,7 +473,7 @@ public class HexMapPanel extends JPanel {
                     g.drawPolygon(diamond);
                 }
                 if (sprite != null) {
-                    final double scale = Math.min(size * 1.15 / sprite.getHeight(), size * 1.25 / sprite.getWidth());
+                    final double scale = figure * Math.min(size * 1.15 / sprite.getHeight(), size * 1.25 / sprite.getWidth());
                     final int w = (int) Math.round(sprite.getWidth() * scale);
                     final int h = (int) Math.round(sprite.getHeight() * scale);
                     final Object before = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
@@ -462,7 +502,7 @@ public class HexMapPanel extends JPanel {
                     g.drawString(quest.enemyName, tx, ty);
                 }
             }
-            drawLife(g, campaign.enemyLife(enemy), (int) Math.round(cx + size * 0.5), (int) Math.round(cy - size * 0.48), size);
+            drawLife(g, campaign.enemyLife(enemy), heartX, heartY, size);
         }
 
         // events in plain sight: a golden coin with a question mark
@@ -550,6 +590,20 @@ public class HexMapPanel extends JPanel {
     }
 
     /** A red heart with the life total of an enemy. */
+    /** A freed town's mark: a gold coin with its discount. */
+    private void drawDiscount(final Graphics2D g, final int cx, final int cy, final double size) {
+        final int r = (int) Math.round(Math.max(8, size * 0.36));
+        g.setColor(new Color(0xE8C04A));
+        g.fillOval(cx - r, cy - r, 2 * r, 2 * r);
+        g.setColor(new Color(0x5A3E00));
+        g.setStroke(new BasicStroke(1.4f));
+        g.drawOval(cx - r, cy - r, 2 * r, 2 * r);
+        final String text = "-" + forge.gamemodes.hexcrawl.HexCampaign.SIEGE_DISCOUNT_PERCENT + "%";
+        g.setFont(getFont().deriveFont(Font.BOLD, (float) Math.max(7, r * 0.78)));
+        final FontMetrics fm = g.getFontMetrics();
+        g.drawString(text, cx - fm.stringWidth(text) / 2, cy + (fm.getAscent() - fm.getDescent()) / 2);
+    }
+
     private void drawLife(final Graphics2D g, final int life, final int cx, final int cy, final double size) {
         final int r = (int) Math.round(Math.max(7, size * 0.3));
         final java.awt.geom.Path2D heart = new java.awt.geom.Path2D.Double();

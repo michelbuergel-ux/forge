@@ -698,6 +698,21 @@ public final class HexContent {
         return enc;
     }
 
+    /**
+     * An enemy that besieges a town of a colour: a named enemy like a wanted one, with its relic
+     * (stronger in New Game Plus), and the reward of a task's enemy. Null without named enemies.
+     */
+    public HexEncounter siegeEncounter(final HexColor color, final Random rnd, final int cycle) {
+        final HexQuest besieger = questEnemy(color, rnd, cycle);
+        if (besieger == null) {
+            return null;
+        }
+        final HexEncounter enc = questEncounter(besieger);
+        enc.questId = 0;
+        enc.siege = true;
+        return enc;
+    }
+
     /** How many schemes an archenemy brings (the size of an Archenemy scheme deck). */
     public static final int SCHEMES_PER_ARCHENEMY = 20;
 

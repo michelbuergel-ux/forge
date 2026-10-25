@@ -138,6 +138,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     private int shownEventSerial = -1;
     /** The last fight summary this screen has shown (-1: none yet, take the campaign's as seen). */
     private int shownSummarySerial = -1;
+    /** The last freed town this screen thanked the party for (see {@link #showThanksIfNew()}). */
+    private int shownFreedSerial = -1;
     /** Host or single player: a fight of the campaign is on the match screen (until its result is closed). */
     private volatile boolean fightOnScreen;
     private Runnable shopRefresher;
@@ -359,6 +361,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         shownEventSerial = session == null || session.getCampaign() == null ? -1 : session.getCampaign().eventSerial;
         shownSummarySerial = session == null || session.getCampaign() == null || session.getCampaign().lastFight == null
                 ? -1 : session.getCampaign().lastFight.serial;
+        shownFreedSerial = session == null || session.getCampaign() == null ? -1 : session.getCampaign().freedSerial;
         refresh();
     }
 
@@ -430,6 +433,23 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         final String title = t("lblHexSummary_" + s.result, s.enemyName, String.valueOf(s.turns));
         FOptionPane.showOptionDialog(null, title, null, panel, Arrays.asList(t("lblHexClose")), 0);
+    }
+
+    /** The party freed a besieged town: its people thank it, once on every screen. */
+    private void showThanksIfNew() {
+        final HexCampaign campaign = getCampaign();
+        if (campaign == null || !isShowing() || session.isFightRunning()) {
+            return;
+        }
+        if (shownFreedSerial < 0 && isGuest()) {
+            shownFreedSerial = campaign.freedSerial; // a guest's first state: nothing to repeat
+            return;
+        }
+        if (campaign.freedSerial <= shownFreedSerial) {
+            return;
+        }
+        shownFreedSerial = campaign.freedSerial;
+        new HexThanksDialog(campaign, campaign.freedTown, campaign.freedFrom).show();
     }
 
     private void showEventIfNew() {
@@ -1005,7 +1025,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     // ------------------------------------------------------------------ rewards
 
     private void promptRewardIfWaiting() {
-        showSummaryIfNew(); // first what happened in the fight, then the reward
+        showSummaryIfNew(); // first what happened in the fight, then the thanks of a freed town, then the reward
+        showThanksIfNew();
         final HexCampaign campaign = getCampaign();
         if (campaign == null || rewardPromptOpen || !isShowing() || session.isFightRunning()
                 || campaign.pendingEncounter != null || campaign.pendingReward(session.getMyHead()) == null) {

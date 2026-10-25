@@ -2,8 +2,8 @@ package forge.gamemodes.hexcrawl;
 
 /** An enemy the party has beaten, for the statistics. */
 public class HexDefeat {
-    /** What it was: an ordinary enemy, the enemy of a task, an archenemy, an archmage or the last enemy. */
-    public enum Kind { ENEMY, TASK, ARCHENEMY, ARCHMAGE, BOSS }
+    /** What it was: an ordinary enemy, the enemy of a task, an archenemy, an archmage, the last enemy or a town's besieger. */
+    public enum Kind { ENEMY, TASK, ARCHENEMY, ARCHMAGE, BOSS, SIEGE }
 
     public String name;
     public Kind kind;
@@ -25,6 +25,9 @@ public class HexDefeat {
     public static Kind kindOf(final HexEncounter enc) {
         if (enc.boss) {
             return enc.color == HexColor.COLORLESS ? Kind.BOSS : Kind.ARCHMAGE;
+        }
+        if (enc.siege) {
+            return Kind.SIEGE;
         }
         if (enc.archenemy) {
             return Kind.ARCHENEMY;

@@ -297,6 +297,10 @@ final class HexTownDialog {
             subtitle = t("lblHexTownRenowned", subtitle, theme.getName());
         }
         names.add(label(caps(subtitle), tracked(display(13f), 0.15f), palette.light()));
+        if (town.freed) {
+            // the people the party freed sell cheaper for the rest of the cycle
+            names.add(label(t("lblHexTownFreed", String.valueOf(HexCampaign.SIEGE_DISCOUNT_PERCENT)), body(Font.BOLD, 12f), GOLD_LIGHT));
+        }
         banner.add(names);
 
         final PillTray tray = new PillTray();
@@ -428,7 +432,7 @@ final class HexTownDialog {
             row.add(pill, "h 46!");
         }
         btnRestock = new GoldButton(t("lblHexRestockShort"), GoldButton.Kind.OUTLINE, 13f).withGlyph(Glyph.RESTOCK);
-        btnRestock.setSuffix(String.valueOf(HexCampaign.RESTOCK_PRICE));
+        btnRestock.setSuffix(String.valueOf(campaign().townPrice(HexCampaign.RESTOCK_PRICE)));
         btnRestock.setToolTipText(t("lblHexRestockHint"));
         btnRestock.addActionListener(e -> onRestock());
         row.add(btnRestock, "pushx, alignx right, h 42!");
@@ -477,9 +481,9 @@ final class HexTownDialog {
         if (p == null) {
             return;
         }
-        if (p.gold < HexCampaign.RESTOCK_PRICE) {
+        if (p.gold < campaign().townPrice(HexCampaign.RESTOCK_PRICE)) {
             setMessage(t("lblHexNotEnoughGold"), true);
-        } else if (FOptionPane.showConfirmDialog(t("lblHexRestockConfirm", p.name, String.valueOf(HexCampaign.RESTOCK_PRICE)), t("lblHexTown"))) {
+        } else if (FOptionPane.showConfirmDialog(t("lblHexRestockConfirm", p.name, String.valueOf(campaign().townPrice(HexCampaign.RESTOCK_PRICE))), t("lblHexTown"))) {
             setMessage("", false);
             previewOffer = null;
             session.restock(p.name);
@@ -617,13 +621,13 @@ final class HexTownDialog {
         pnlBasics.add(label(t("lblHexBasicLands"), body(Font.PLAIN, 13f), MUTED));
         for (final HexColor color : HexColor.COLORS) {
             final GoldButton b = new GoldButton(color.getBasicLand(), GoldButton.Kind.OUTLINE, 12f);
-            b.setSuffix(String.valueOf(HexCampaign.BASIC_LAND_PRICE));
+            b.setSuffix(String.valueOf(campaign().townPrice(HexCampaign.BASIC_LAND_PRICE)));
             b.addActionListener(e -> {
                 final HexPlayer p = head();
-                if (p != null && p.gold < HexCampaign.BASIC_LAND_PRICE) {
+                if (p != null && p.gold < campaign().townPrice(HexCampaign.BASIC_LAND_PRICE)) {
                     setMessage(t("lblHexNotEnoughGold"), true);
                 } else if (p != null) {
-                    setMessage(t("lblHexBoughtCard", p.name, color.getBasicLand(), String.valueOf(HexCampaign.BASIC_LAND_PRICE)), false);
+                    setMessage(t("lblHexBoughtCard", p.name, color.getBasicLand(), String.valueOf(campaign().townPrice(HexCampaign.BASIC_LAND_PRICE))), false);
                     session.buyLand(p.name, color);
                 }
                 fill();

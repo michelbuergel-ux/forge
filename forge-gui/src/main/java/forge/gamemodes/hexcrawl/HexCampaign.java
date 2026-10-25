@@ -69,6 +69,14 @@ public class HexCampaign {
     public static final int ADVANTAGES_PER_CYCLE = 2;
     /** New Game Plus: more gold per cycle after the first, in percent. */
     public static final int GOLD_PERCENT_PER_CYCLE = 25;
+    /** A freed town's shops sell this much cheaper for the rest of the cycle, in percent. */
+    public static final int SIEGE_DISCOUNT_PERCENT = 25;
+    /** A besieger has this much more life for every head of the party. */
+    public static final int SIEGE_LIFE_PER_HEAD = 5;
+    /** Chance in percent, after every won fight, that an army besieges one more town. */
+    public static final int SIEGE_CHANCE_PERCENT = 17;
+    /** At most this many sieges that began during the cycle are open at once. */
+    public static final int MAX_LATE_SIEGES = 2;
 
     public enum MoveResult { NOTHING, TOWN, ENCOUNTER, NOT_ADJACENT, LOCKED, BUSY }
 
@@ -146,6 +154,12 @@ public class HexCampaign {
     public int defeatedTotal;
     /** The numbers of every finished cycle (New Game Plus). */
     public List<HexCycleRecord> cycleHistory = new ArrayList<>();
+    /** The towns of this map got their sieges (false in saves from before there were sieges). */
+    public boolean siegesPlaced;
+    /** The last town the party freed (thanked once on every screen), and a counter for it. */
+    public String freedTown;
+    public String freedFrom;
+    public int freedSerial;
     private int nextQuestId = 1;
     public List<String> journal = new ArrayList<>();
     private long rngCounter;
@@ -190,6 +204,106 @@ public class HexCampaign {
                 t.theme = rollTheme(t, null).id; // every town is known for something
             }
         }
+        siegesPlaced = false;
+        placeSieges(new Random(mapSeed * 131L + 17L)); // its own random: the map's other rolls stay as they were
+    }
+
+    // ------------------------------------------------------------------ sieges
+
+    /**
+     * Every colour gets a besieged town, once per map: one the party has not been to, preferably
+     * not the colour's town near the centre, so the first steps stay open. Saves from before
+     * there were sieges get theirs the first time they are played on.
+     */
+    void placeSieges(final Random rnd) {
+        if (siegesPlaced) {
+            return;
+        }
+        siegesPlaced = true;
+        for (final HexColor color : HexColor.COLORS) {
+            final List<HexTile> towns = new ArrayList<>();
+            final List<HexTile> outer = new ArrayList<>();
+            for (final HexTile t : map.region(color)) {
+                if (t.poi == HexPoi.TOWN && !t.explored && t.siege == null && !t.freed && t != tile()
+                        && !(t.q == map.startQ && t.r == map.startR)) {
+                    towns.add(t);
+                    if (HexMap.distance(t.q, t.r, 0, 0) > HexMap.CENTER_TOWN_REACH) {
+                        outer.add(t);
+                    }
+                }
+            }
+            towns.sort((a, b) -> a.key().compareTo(b.key())); // a stable order, so seeds are reproducible
+            outer.sort((a, b) -> a.key().compareTo(b.key()));
+            final List<HexTile> pool = outer.isEmpty() ? towns : outer;
+            if (!pool.isEmpty()) {
+                besiege(pool.get(rnd.nextInt(pool.size())), rnd, false);
+            }
+        }
+    }
+
+    /** An enemy of the town's colour sets up camp before its gates. */
+    private boolean besiege(final HexTile town, final Random rnd, final boolean late) {
+        final HexEncounter enc = HexContent.get().siegeEncounter(town.color, rnd, cycle);
+        if (enc == null) {
+            return false;
+        }
+        enc.q = town.q;
+        enc.r = town.r;
+        enc.lateSiege = late;
+        town.siege = enc;
+        return true;
+    }
+
+    /** The towns besieged right now, in a stable order. */
+    public List<HexTile> besiegedTowns() {
+        final List<HexTile> result = new ArrayList<>();
+        for (final HexTile t : map.tilesWith(HexPoi.TOWN)) {
+            if (t.siege != null) {
+                result.add(t);
+            }
+        }
+        result.sort((a, b) -> a.key().compareTo(b.key()));
+        return result;
+    }
+
+    /**
+     * After a won fight: now and then an army besieges one more town, never one the party stands
+     * in or next to, and never one it freed in this cycle.
+     */
+    private void maybeBesiegeAnotherTown(final Random rnd) {
+        int late = 0;
+        for (final HexTile t : besiegedTowns()) {
+            if (t.siege.lateSiege) {
+                late++;
+            }
+        }
+        if (late >= MAX_LATE_SIEGES || rnd.nextInt(100) >= SIEGE_CHANCE_PERCENT) {
+            return;
+        }
+        final List<HexTile> towns = new ArrayList<>();
+        for (final HexTile t : map.tilesWith(HexPoi.TOWN)) {
+            if (t.siege == null && !t.freed && HexMap.distance(t.q, t.r, partyQ, partyR) >= 2) {
+                towns.add(t);
+            }
+        }
+        towns.sort((a, b) -> a.key().compareTo(b.key()));
+        if (!towns.isEmpty()) {
+            final HexTile town = towns.get(rnd.nextInt(towns.size()));
+            if (besiege(town, rnd, true)) {
+                log(msg("lblHexJournalNewSiege", town.name, town.siege.enemyName));
+            }
+        }
+    }
+
+    /** A random of its own for the sieges, so they do not change the other rolls of the campaign. */
+    private Random siegeRandom() {
+        return new Random(seed * 131L + cycle * 7919L + battlesWon * 31L + steps);
+    }
+
+    /** What a head pays in the town the party is in: a freed town sells cheaper. */
+    public int townPrice(final int price) {
+        final HexTile t = tile();
+        return t != null && t.freed ? Math.max(1, price * (100 - SIEGE_DISCOUNT_PERCENT) / 100) : price;
     }
 
     // ------------------------------------------------------------------ New Game Plus
@@ -401,10 +515,13 @@ public class HexCampaign {
         return Math.min(1.0, fromStart / (double) Math.max(1, map.radius + 2));
     }
 
-    /** The enemy the party would have to fight on this field (boss, wanted enemy or roaming enemy), or null. */
+    /** The enemy the party would have to fight on this field (boss, besieger, wanted enemy or roaming enemy), or null. */
     public HexEncounter enemyAt(final HexTile t) {
         if (t == null) {
             return null;
+        }
+        if (t.poi == HexPoi.TOWN) {
+            return t.siege;
         }
         if (t.poi == HexPoi.BOSS) {
             return t.cleared ? null : HexContent.get().bossEncounter(t.color);
@@ -628,19 +745,30 @@ public class HexCampaign {
         if (finalBoss && !allArchmagesDefeated()) {
             return MoveResult.LOCKED;
         }
+        placeSieges(siegeRandom()); // a save from before there were sieges gets them now
         prevQ = partyQ;
         prevR = partyR;
         partyQ = q;
         partyR = r;
         steps++;
         target.explored = true;
-        if (target.poi == HexPoi.TOWN) {
+        final boolean besieged = target.poi == HexPoi.TOWN && target.siege != null;
+        if (target.poi == HexPoi.TOWN && !besieged) {
             reshuffleEnemies(); // while the party rests in town, the land around changes
         } else {
             scout();
             moveRoamers(); // the hunters close in (one that reaches the party fights it below)
         }
 
+        if (besieged) {
+            // the gates stay shut until the besieger is beaten
+            deckChecked.clear();
+            pendingEncounter = target.siege;
+            pendingEncounter.q = q;
+            pendingEncounter.r = r;
+            log(msg("lblHexJournalBesieged", target.name, pendingEncounter.enemyName));
+            return MoveResult.ENCOUNTER;
+        }
         if (target.poi == HexPoi.TOWN) {
             log(msg("lblHexJournalTown", target.name));
             shop(); // stock the shelves now, so everybody at the table sees the same offers
@@ -763,6 +891,18 @@ public class HexCampaign {
                     lastFight != null && enc.enemyName.equals(lastFight.enemyName) ? lastFight.turns : 0));
             defeatedTotal++;
             log(msg("lblHexJournalWon", enc.enemyName));
+            final HexTile besieged = enc.siege ? map.get(enc.q, enc.r) : null;
+            if (besieged != null && besieged.siege != null) {
+                // the town is free: its people thank the party, and its shops sell cheaper
+                besieged.siege = null;
+                besieged.freed = true;
+                freedTown = besieged.name;
+                freedFrom = enc.enemyName;
+                freedSerial++;
+                log(msg("lblHexJournalFreed", besieged.name, String.valueOf(SIEGE_DISCOUNT_PERCENT)));
+            } else {
+                maybeBesiegeAnotherTown(siegeRandom());
+            }
             for (final HexPlayer p : players) {
                 final HexReward reward = new HexReward();
                 reward.playerName = p.name;
@@ -824,7 +964,16 @@ public class HexCampaign {
         boostDoubleGold = false;
         deckChecked.clear();
         reshuffleEnemies();
+        if (inTownField()) {
+            shop(); // a freed town: stock the shelves now, so everybody at the table sees the same offers
+        }
         offerPerks();
+    }
+
+    /** The party stands on a town's field (busy or not). */
+    private boolean inTownField() {
+        final HexTile t = tile();
+        return t != null && t.poi == HexPoi.TOWN && t.siege == null;
     }
 
     /** Removes a random card that is not a basic land; a deck at minimum size gets a basic land in return. */
@@ -954,9 +1103,9 @@ public class HexCampaign {
         return gold * (100 + HexPerk.GOLD_BONUS_PERCENT * HexPerk.GOLD_BONUS.count(p)) / 100;
     }
 
-    /** What a head pays for an offer in the shops, with its discount perks. */
+    /** What a head pays for an offer in the shops, with its discount perks (and less in a freed town). */
     public int priceFor(final HexPlayer p, final int price) {
-        return Math.max(1, price * (100 - HexPerk.DISCOUNT_PERCENT * HexPerk.DISCOUNT.count(p)) / 100);
+        return townPrice(Math.max(1, price * (100 - HexPerk.DISCOUNT_PERCENT * HexPerk.DISCOUNT.count(p)) / 100));
     }
 
     /** What a shop pays a head for a card, with its sell perks. */
@@ -1141,7 +1290,8 @@ public class HexCampaign {
 
     /** Can the party travel from the town it is in to this town it has been to before? Every head pays a little gold. */
     public boolean canFastTravel(final HexTile target) {
-        if (target == null || !inTown() || won || target == tile() || target.poi != HexPoi.TOWN || !target.explored) {
+        if (target == null || !inTown() || won || target == tile() || target.poi != HexPoi.TOWN || !target.explored
+                || target.siege != null) {
             return false;
         }
         for (final HexPlayer p : players) {
@@ -1347,16 +1497,17 @@ public class HexCampaign {
     /** A head pays for new shelves of its own in the town the party is in: new cards in every tab, new relics. */
     public boolean restock(final String playerName) {
         final HexPlayer p = player(playerName);
-        if (!inTown() || p == null || p.gold < RESTOCK_PRICE) {
+        final int price = townPrice(RESTOCK_PRICE);
+        if (!inTown() || p == null || p.gold < price) {
             return false;
         }
         final List<HexShopOffer> stock = shop();
         final String key = tile().key();
-        spend(p, RESTOCK_PRICE);
+        spend(p, price);
         stock.removeIf(o -> playerName.equals(ownerOfTab(o.tab)));
         themeStockedAt.keySet().removeIf(k -> k.startsWith(key + "|") && playerName.equals(ownerOfTab(k.substring(key.length() + 1))));
         shop(); // the shelves of this head, new
-        log(msg("lblHexJournalRestock", p.name, String.valueOf(RESTOCK_PRICE)));
+        log(msg("lblHexJournalRestock", p.name, String.valueOf(price)));
         return true;
     }
 
@@ -1649,6 +1800,9 @@ public class HexCampaign {
         if (enc.archenemy) {
             life += ARCHENEMY_LIFE_PER_MISSING_HEAD * (enemyHeads() - 1); // alone instead of with heads
         }
+        if (enc.siege) {
+            life += SIEGE_LIFE_PER_HEAD * players.size(); // a besieger is tougher than a wanted enemy
+        }
         final HexBiomeRule biome = HexBiomeRule.forFight(this, enc);
         if (biome != null) {
             life += biome.enemyLife; // New Game Plus: the wastes
@@ -1687,10 +1841,11 @@ public class HexCampaign {
 
     public boolean buyBasicLand(final String playerName, final HexColor color) {
         final HexPlayer p = player(playerName);
-        if (!inTown() || p == null || p.gold < BASIC_LAND_PRICE) {
+        final int price = townPrice(BASIC_LAND_PRICE);
+        if (!inTown() || p == null || p.gold < price) {
             return false;
         }
-        spend(p, BASIC_LAND_PRICE);
+        spend(p, price);
         p.deck.add(color.getBasicLand());
         return true;
     }
