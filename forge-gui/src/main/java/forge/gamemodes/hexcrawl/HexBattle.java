@@ -71,7 +71,7 @@ public final class HexBattle {
             avatar++;
             rp.setPlayer(lobbyPlayer);
             rp.setTeamNumber(PARTY_TEAM);
-            rp.setStartingLife(campaign.fightLife());
+            rp.setStartingLife(campaign.partyStartLife());
             applyRelics(campaign, p, rp);
             applyPerksAndEvents(campaign, p, rp);
             players.add(rp);
@@ -342,7 +342,7 @@ public final class HexBattle {
             }
             avatar++;
             rp.setTeamNumber(PARTY_TEAM);
-            rp.setStartingLife(campaign.fightLife());
+            rp.setStartingLife(campaign.partyStartLife());
             applyRelics(campaign, p, rp);
             applyPerksAndEvents(campaign, p, rp);
             players.add(rp);

@@ -137,6 +137,8 @@ public class ForgePreferences extends AbstractPreferences<ForgePreferences.FPref
         YIELD_AUTO_PASS_NO_ACTIONS ("false"),
         /** Team games with streamlined priority: OK a team mate's spells and abilities at once (kept for later fights). */
         YIELD_AUTO_OK_PARTNER ("false"),
+        /** Hex Campaign: the map's legend is open. */
+        HEXCRAWL_LEGEND_OPEN ("false"),
         YIELD_AUTO_PASS_RESPECTS_INTERRUPTS ("false"),
         YIELD_AVAILABLE_ACTIONS_BUDGET_MS ("0"),
         YIELD_SKIP_PHASE_DELAY ("false"),

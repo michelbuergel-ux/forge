@@ -30,7 +30,7 @@ public final class HexNet {
      * Changes whenever the campaign's network messages change; host and guests have to use
      * the same build. Shown as a warning when they differ.
      */
-    public static final String BUILD_ID = "hex-2026-10-25a";
+    public static final String BUILD_ID = "hex-2026-10-28a";
 
     /** What fleeing from the current fight costs every head (gold multiplier included), for the match screen. */
     private static volatile int fleePrice = HexFight.FLEE_GOLD;
@@ -71,6 +71,19 @@ public final class HexNet {
     public static void setFightHooks(final java.util.function.BooleanSupplier isCampaignFight, final Runnable onResultClosed) {
         campaignFight = isCampaignFight;
         resultClosed = onResultClosed;
+    }
+
+    private static volatile java.util.function.Supplier<HexFightInfo> fightInfo;
+
+    /** The campaign screen tells what to show of the coming fight in the match screen's banner. */
+    public static void setFightInfo(final java.util.function.Supplier<HexFightInfo> info) {
+        fightInfo = info;
+    }
+
+    /** What the match screen's banner shows of the campaign fight on screen, or null. */
+    public static HexFightInfo getFightInfo() {
+        final java.util.function.Supplier<HexFightInfo> info = fightInfo;
+        return info == null || !isCampaignFight() ? null : info.get();
     }
 
     /** Is the match that is on screen (or just ended) a fight of the hex campaign? */

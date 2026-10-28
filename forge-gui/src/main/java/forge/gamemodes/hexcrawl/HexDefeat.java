@@ -3,7 +3,7 @@ package forge.gamemodes.hexcrawl;
 /** An enemy the party has beaten, for the statistics. */
 public class HexDefeat {
     /** What it was: an ordinary enemy, the enemy of a task, an archenemy, an archmage, the last enemy or a town's besieger. */
-    public enum Kind { ENEMY, TASK, ARCHENEMY, ARCHMAGE, BOSS, SIEGE }
+    public enum Kind { ENEMY, TASK, ARCHENEMY, ARCHMAGE, BOSS, SIEGE, DUNGEON }
 
     public String name;
     public Kind kind;
@@ -28,6 +28,9 @@ public class HexDefeat {
         }
         if (enc.siege) {
             return Kind.SIEGE;
+        }
+        if (enc.isGuardian()) {
+            return Kind.DUNGEON;
         }
         if (enc.archenemy) {
             return Kind.ARCHENEMY;

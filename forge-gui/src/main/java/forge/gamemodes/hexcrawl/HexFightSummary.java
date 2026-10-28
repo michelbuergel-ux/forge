@@ -24,6 +24,8 @@ public class HexFightSummary {
     /** WON, LOST or FLED (HexBattle.Result). */
     public String result;
     public int turns;
+    /** The party's life when the fight ended (a dungeon's next fight starts with it). */
+    public int partyLife;
     public List<Head> heads = new ArrayList<>();
     /** The head that dealt the most damage (spells cast break a tie), or null if nobody did anything. */
     public String mvp;

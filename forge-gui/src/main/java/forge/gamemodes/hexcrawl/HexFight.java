@@ -63,7 +63,15 @@ public final class HexFight {
         final Game g = game;
         final int turns = g == null ? 0 : g.getPhaseHandler().getTurn();
         stats.countTurn(); // the last turn's draws and life gain
-        return stats.summary(enemyName, result.name(), turns);
+        final HexFightSummary summary = stats.summary(enemyName, result.name(), turns);
+        if (g != null) {
+            for (final forge.game.player.Player p : g.getRegisteredPlayers()) {
+                if (p.getTeam() == HexBattle.PARTY_TEAM) {
+                    summary.partyLife = Math.max(summary.partyLife, p.getLife()); // the team shares one life
+                }
+            }
+        }
+        return summary;
     }
 
     boolean hasFled() {

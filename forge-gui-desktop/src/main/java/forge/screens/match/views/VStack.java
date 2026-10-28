@@ -302,6 +302,9 @@ public class VStack implements IVDoc<CStack> {
         private final JCheckBoxMenuItem jmiAlwaysNo;
         private final JMenuItem jmiYieldToStack;
         private final JMenuItem jmiYieldToEntireStack;
+        /** Team games: point the team mates at the card of the item. */
+        private final JMenuItem jmiPoint;
+        private forge.game.card.CardView pointAt;
         private String yieldKey = "";
         private boolean abilityScope;
 
@@ -346,10 +349,16 @@ public class VStack implements IVDoc<CStack> {
                 controller.getMatchUI().getGameController().sendYieldUpdate(new YieldUpdate.StackYield(local, true, false));
             });
             add(jmiYieldToEntireStack);
+
+            jmiPoint = new JMenuItem(Localizer.getInstance().getMessage("lblPointAtThis"));
+            jmiPoint.addActionListener(arg0 -> controller.getMatchUI().pingCard(pointAt));
+            add(jmiPoint);
         }
 
         public void setStackInstance(final StackItemView item0) {
             yieldKey = item0.getKey();
+            pointAt = item0.getSourceCard();
+            jmiPoint.setVisible(pointAt != null && controller.getMatchUI().isTeamGame());
             abilityScope = controller.getMatchUI().getGameController().getYieldController().isAbilityScope();
 
             jmiAutoYield.setVisible(item0.isAbility());

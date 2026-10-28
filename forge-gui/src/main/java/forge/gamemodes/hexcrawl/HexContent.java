@@ -302,6 +302,11 @@ public final class HexContent {
         return null; // multicoloured cards are not sold in the single coloured towns
     }
 
+    /** The card that wakes a boss at half its life (its phase two), or null for any other enemy. */
+    public String phaseTwoCard(final HexEncounter enc) {
+        return enc == null || !enc.boss ? null : BOSS_PHASE_TWO.get(enc.color);
+    }
+
     /** The relics of the Hex Campaign: its own file, so that nothing here depends on (or changes) the Adventure mode's items. */
     public static final String RELICS_FILE = ForgeConstants.RES_DIR + "hexcrawl" + File.separator + "relics.json";
 
@@ -439,18 +444,34 @@ public final class HexContent {
     public List<HexRelic> ordinaryRelics(final int cycle) {
         final List<HexRelic> result = new ArrayList<>();
         for (final HexRelic relic : allRelics()) {
-            if (relic.tier <= 1 && relic.avatar == null && relic.fromCycle <= cycle) {
+            if (relic.tier <= 1 && relic.avatar == null && relic.trophy == null && relic.fromCycle <= cycle) {
                 result.add(relic);
             }
         }
         return result;
     }
 
+    /** The trophy a boss of this colour leaves, at a tier from 1 to 3; null if there is none. */
+    public HexRelic trophy(final HexColor color, final int tier) {
+        for (final HexRelic relic : allRelics()) {
+            if (color.name().equals(relic.trophy) && relic.tier == tier) {
+                return relic;
+            }
+        }
+        return null;
+    }
+
+    /** A boss's trophy: never sold, only won (and worn or put away). */
+    public boolean isTrophy(final String relicName) {
+        final HexRelic relic = relics.get(relicName);
+        return relic != null && relic.trophy != null;
+    }
+
     /** The avatars, in a stable order; only those the AI plays well for an AI head. */
     public List<HexRelic> avatars(final boolean forAi) {
         final List<HexRelic> result = new ArrayList<>();
         for (final HexRelic relic : allRelics()) {
-            if (relic.avatar != null && (relic.aiPlayable || !forAi)) {
+            if (relic.avatar != null && relic.trophy == null && (relic.aiPlayable || !forAi)) {
                 result.add(relic);
             }
         }
@@ -711,6 +732,56 @@ public final class HexContent {
         enc.questId = 0;
         enc.siege = true;
         return enc;
+    }
+
+    /**
+     * The guardian of a dungeon of a colour: a named enemy like a wanted one, with its relic (stronger in
+     * New Game Plus). Without named enemies, the toughest ordinary enemy of the colour.
+     */
+    public HexEncounter dungeonGuardian(final HexColor color, final Random rnd, final int cycle) {
+        final HexQuest guardian = questEnemy(color, rnd, cycle);
+        final HexEncounter enc = guardian == null ? randomEncounter(color, 1.0, rnd) : questEncounter(guardian);
+        enc.questId = 0;
+        enc.dungeonStage = HexDungeon.FIGHTS;
+        return enc;
+    }
+
+    /** The cheapest card a dungeon's chest holds. */
+    public static final int TREASURE_PRICE = 1000;
+
+    /**
+     * What a dungeon's chest may hold: the cards of the colour and the colourless artifacts worth at least
+     * {@link #TREASURE_PRICE} gold, in a stable order. Should there be fewer than wanted, the dearest
+     * cards of the colour and the artifacts below that price fill up the list.
+     */
+    public List<String> treasureCards(final HexColor color, final int wanted) {
+        final Set<String> all = new java.util.TreeSet<>();
+        for (final Map.Entry<HexShopType, Map<HexColor, Map<CardRarity, List<PaperCard>>>> shop : cardsByShop.entrySet()) {
+            final boolean artifacts = shop.getKey() == HexShopType.ARTIFACT;
+            for (final Map.Entry<HexColor, Map<CardRarity, List<PaperCard>>> byColor : shop.getValue().entrySet()) {
+                if (byColor.getKey() != color && !(artifacts && byColor.getKey() == HexColor.COLORLESS)) {
+                    continue;
+                }
+                for (final List<PaperCard> cards : byColor.getValue().values()) {
+                    for (final PaperCard card : cards) {
+                        all.add(card.getName());
+                    }
+                }
+            }
+        }
+        final List<String> result = new ArrayList<>();
+        for (final String name : all) {
+            if (price(name) >= TREASURE_PRICE) {
+                result.add(name);
+            }
+        }
+        if (result.size() < wanted) {
+            final List<String> rest = new ArrayList<>(all);
+            rest.removeAll(result);
+            rest.sort((a, b) -> price(a) != price(b) ? Integer.compare(price(b), price(a)) : a.compareTo(b));
+            result.addAll(rest.subList(0, Math.min(rest.size(), wanted - result.size())));
+        }
+        return result;
     }
 
     /** How many schemes an archenemy brings (the size of an Archenemy scheme deck). */

@@ -306,6 +306,7 @@ public class FControlGameEventHandler extends IGameEventVisitor.Base<Void> {
     @Override
     public Void visit(final GameEventSpellAbilityCast event) {
         evaluateYieldInterruptForSpellCast(event);
+        GuiBase.getInterface().invokeInEdtLater(() -> matchController.noteTeamCast(event));
 
         needStackUpdate = true;
         if (matchController.isLibgdxPort() ||

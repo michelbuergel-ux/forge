@@ -173,6 +173,10 @@ public class VPrompt implements IVDoc<CPrompt> {
             btnFightOn.setFont(FSkin.getFont(11));
             pnlTeam.add(btnFlee, "newline, h 22px!, growx, span 2, hidemode 3");
             pnlTeam.add(btnFightOn, "h 22px!, growx, hidemode 3");
+            // how to point a team mate at a card: easy to forget, so it stays in sight
+            final FLabel pingHint = new FLabel.Builder().text(localizer.getMessage("lblPingHint")).fontSize(11)
+                    .fontAlign(SwingConstants.CENTER).build();
+            pnlTeam.add(pingHint, "newline, span, growx, h 16px!");
             pnlTeam.setVisible(false);
         }
         container.add(pnlTeam, "span 2, w 10:100%, gaptop 2px!, hidemode 3");

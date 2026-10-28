@@ -85,6 +85,8 @@ public interface IGuiGame {
     /** A team mate sent a quick message; detail is extra text (the state of a flee vote) or null. */
     default void showTeamSignal(PlayerView from, forge.gamemodes.match.TeamSignal signal, String detail) { }
     default boolean isPinged(CardView card) { return false; }
+    /** A spell or ability was cast (any player's; called on every screen): a team game may note its team mates' ones. */
+    default void noteTeamCast(GameEventSpellAbilityCast event) { }
 
     default void updateButtons(final PlayerView owner, final boolean okEnabled, final boolean cancelEnabled, final boolean focusOk) {
         updateButtons(owner, Localizer.getInstance().getMessage("lblOK"), Localizer.getInstance().getMessage("lblCancel"), okEnabled, cancelEnabled, focusOk);

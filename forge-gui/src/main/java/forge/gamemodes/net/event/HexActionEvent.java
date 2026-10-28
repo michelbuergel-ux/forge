@@ -30,6 +30,8 @@ public final class HexActionEvent implements NetEvent {
     public static final String EVENT_CHOICE = "EVENT_CHOICE";
     /** The host names the head whose vote decides where to go (text; null = everybody votes). */
     public static final String LEADER = "LEADER";
+    /** A head wears one of its trophies: text = the boss's colour (HexColor name), or null to wear none. */
+    public static final String WEAR = "WEAR";
 
     private final String type;
     private final int q;

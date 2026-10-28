@@ -38,4 +38,6 @@ public class HexRelic {
     public int enemyLife;
     /** Cards and tokens the enemy starts with on the battlefield. */
     public List<String> enemyBattlefield = new ArrayList<>();
+    /** A boss's trophy: the colour (HexColor name) of the boss that leaves it. Never sold or found, only won. */
+    public String trophy;
 }

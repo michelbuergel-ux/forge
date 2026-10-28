@@ -18,6 +18,8 @@ public class HexPlayer {
     public HexColor eventColor;
     /** Names of the relics the head carries, at most one per slot. */
     public List<String> relics = new ArrayList<>();
+    /** The trophies of the bosses the head has beaten: the boss's colour (HexColor name) to the trophy's tier (1 to 3). */
+    public java.util.Map<String, Integer> trophies = new java.util.LinkedHashMap<>();
     /** The two shop themes the head picked (HexTheme ids, null if none yet). */
     public String[] themes = new String[HexCampaign.PICKED_THEMES];
     /** For each picked theme: the number of fights fought when it was picked (it can change after the next fight). */

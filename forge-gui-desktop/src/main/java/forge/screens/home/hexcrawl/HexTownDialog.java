@@ -840,8 +840,9 @@ final class HexTownDialog {
             top.add(thumbs);
         }
         panel.add(top);
-        if (old != null) { // the head wears a relic in this slot already: buying swaps them
-            panel.add(new HexTownStyle.NoteBox(t("lblHexRelicReplaces", old.name, String.valueOf(content.relicSellPrice(old.name))),
+        if (old != null) { // the head wears a relic in this slot already: buying swaps them (a trophy is only put away)
+            panel.add(new HexTownStyle.NoteBox(old.trophy != null ? t("lblHexRelicPutsAwayTrophy", old.name)
+                    : t("lblHexRelicReplaces", old.name, String.valueOf(content.relicSellPrice(old.name))),
                     HexDeckParts.WARN, relicW - 40), "gaptop 12, wmin 0");
         }
 
@@ -854,10 +855,14 @@ final class HexTownDialog {
         final GoldButton button;
         if (offer != null) {
             final int price = price(p, offer);
-            final int refund = old == null ? 0 : content.relicSellPrice(old.name);
+            final int refund = old == null || old.trophy != null ? 0 : content.relicSellPrice(old.name);
             button = new GoldButton(t("lblHexBuyForGold", String.valueOf(price)), GoldButton.Kind.GOLD, 13f);
             button.setDear(p.gold + refund < price);
             button.addActionListener(e -> buyRelic(relic));
+        } else if (relic.trophy != null) {
+            // a boss's trophy is not for sale: it is put on and taken off in the deck window
+            button = new GoldButton(t("lblHexTrophyNotForSale"), GoldButton.Kind.OUTLINE, 13f);
+            button.setEnabled(false);
         } else {
             button = new GoldButton(t("lblHexSellFor", String.valueOf(content.relicSellPrice(relic.name))), GoldButton.Kind.OUTLINE, 13f);
             button.addActionListener(e -> {
@@ -879,7 +884,7 @@ final class HexTownDialog {
             return;
         }
         final HexRelic old = campaign().relicInSlot(p, relic.slot);
-        final int refund = old == null ? 0 : content.relicSellPrice(old.name);
+        final int refund = old == null || old.trophy != null ? 0 : content.relicSellPrice(old.name);
         final int price = campaign().priceFor(p, relic.price);
         if (p.gold + refund < price) {
             setMessage(t("lblHexNotEnoughGold"), true);

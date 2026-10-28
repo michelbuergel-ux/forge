@@ -338,10 +338,17 @@ public class CardPanel extends SkinnedPanel implements CardContainer, IDisposabl
             g2d.fillRoundRect(cardXOffset - n2, (cardYOffset - n2) + offset, cardWidth + (n2 * 2), cardHeight + (n2 * 2), cornerSize + n2, cornerSize + n2);
         }
 
-        // Orange outline for a card a team mate pointed at
+        // Orange outline for a card a team mate pointed at, with a glow that pulses around it
         if (matchUI.isPinged(getCard())) {
-            g2d.setColor(Color.orange);
+            final double beat = (Math.sin(System.currentTimeMillis() / 140.0) + 1) / 2; // 0..1, about two beats a second
             final int n3 = Math.max(2, Math.round(3 * cardWidth * CardPanel.SELECTED_BORDER_SIZE));
+            final int glow = n3 + (int) Math.round(beat * n3 * 2);
+            for (int layer = 3; layer >= 1; layer--) {
+                final int n = n3 + (glow - n3) * layer / 3;
+                g2d.setColor(new Color(1f, 0.6f, 0.1f, (float) (0.12 + 0.18 * beat) / layer));
+                g2d.fillRoundRect(cardXOffset - n, (cardYOffset - n) + offset, cardWidth + (n * 2), cardHeight + (n * 2), cornerSize + n, cornerSize + n);
+            }
+            g2d.setColor(Color.orange);
             g2d.fillRoundRect(cardXOffset - n3, (cardYOffset - n3) + offset, cardWidth + (n3 * 2), cardHeight + (n3 * 2), cornerSize + n3, cornerSize + n3);
         }
 

@@ -219,6 +219,7 @@ final class HexStatsDialog {
         addRow(table, t("lblHexChronicleBestFight"), heads, p -> cell(String.valueOf(p.stats.bestFight),
                 p.stats.bestFightEnemy == null ? null : t("lblHexChronicleAgainst", p.stats.bestFightEnemy)));
         addRow(table, t("lblHexChronicleFavourite"), heads, p -> favourite(p.stats));
+        addRow(table, t("lblHexTrophies"), heads, p -> cell(String.valueOf(p.trophies.size()), trophyNames(p)));
         final FScrollPane scroll = scroller(table);
         panel.add(scroll, "wmin 0, hmin 0");
         return panel;
@@ -229,6 +230,23 @@ final class HexStatsDialog {
         for (final HexPlayer p : heads) {
             table.add(value.apply(p), "gaptop 4, gapbottom 4, aligny center");
         }
+    }
+
+    /** The trophies a head has won, each at its tier; null if none. */
+    private String trophyNames(final HexPlayer p) {
+        final List<String> names = new java.util.ArrayList<>();
+        for (final java.util.Map.Entry<String, Integer> e : p.trophies.entrySet()) {
+            try {
+                final forge.gamemodes.hexcrawl.HexRelic trophy = forge.gamemodes.hexcrawl.HexContent.get()
+                        .trophy(forge.gamemodes.hexcrawl.HexColor.valueOf(e.getKey()), e.getValue());
+                if (trophy != null) {
+                    names.add(trophy.name);
+                }
+            } catch (final IllegalArgumentException ignored) {
+                // not a colour
+            }
+        }
+        return names.isEmpty() ? null : String.join(", ", names);
     }
 
     /** A number of this cycle, and small beside it the whole campaign's (or a note). */
@@ -271,7 +289,8 @@ final class HexStatsDialog {
         for (final HexDefeat d : campaign.defeated) {
             if (d.kind == HexDefeat.Kind.ARCHMAGE || d.kind == HexDefeat.Kind.BOSS) {
                 bosses.add(d);
-            } else if (d.kind == HexDefeat.Kind.TASK || d.kind == HexDefeat.Kind.ARCHENEMY || d.kind == HexDefeat.Kind.SIEGE) {
+            } else if (d.kind == HexDefeat.Kind.TASK || d.kind == HexDefeat.Kind.ARCHENEMY || d.kind == HexDefeat.Kind.SIEGE
+                    || d.kind == HexDefeat.Kind.DUNGEON) {
                 special.add(d);
             } else {
                 ordinary.add(d.name);

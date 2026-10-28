@@ -3553,5 +3553,227 @@
     "aiPlayable": false,
     "life": 3,
     "hand": 1
+  },
+  {
+    "name": "Akroma's Halo",
+    "slot": "Head",
+    "price": 500,
+    "trophy": "WHITE",
+    "life": 4,
+    "battlefield": [
+      "Glorious Anthem"
+    ]
+  },
+  {
+    "name": "Akroma's Halo II",
+    "slot": "Head",
+    "price": 1125,
+    "tier": 2,
+    "base": "Akroma's Halo",
+    "trophy": "WHITE",
+    "life": 6,
+    "battlefield": [
+      "Glorious Anthem",
+      "Glorious Anthem"
+    ]
+  },
+  {
+    "name": "Akroma's Halo III",
+    "slot": "Head",
+    "price": 2531,
+    "tier": 3,
+    "base": "Akroma's Halo",
+    "trophy": "WHITE",
+    "life": 8,
+    "battlefield": [
+      "Glorious Anthem",
+      "Glorious Anthem",
+      "Glorious Anthem"
+    ]
+  },
+  {
+    "name": "Lorthos' Pearl",
+    "slot": "Head",
+    "price": 500,
+    "trophy": "BLUE",
+    "hand": 1,
+    "battlefield": [
+      "Mind Stone"
+    ]
+  },
+  {
+    "name": "Lorthos' Pearl II",
+    "slot": "Head",
+    "price": 1125,
+    "tier": 2,
+    "base": "Lorthos' Pearl",
+    "trophy": "BLUE",
+    "hand": 1,
+    "battlefield": [
+      "Mind Stone",
+      "Mind Stone"
+    ]
+  },
+  {
+    "name": "Lorthos' Pearl III",
+    "slot": "Head",
+    "price": 2531,
+    "tier": 3,
+    "base": "Lorthos' Pearl",
+    "trophy": "BLUE",
+    "hand": 2,
+    "battlefield": [
+      "Mind Stone",
+      "Mind Stone",
+      "Mind Stone"
+    ]
+  },
+  {
+    "name": "Griselbrand's Pact",
+    "slot": "Head",
+    "price": 500,
+    "trophy": "BLACK",
+    "life": -2,
+    "battlefield": [
+      "Phyrexian Arena"
+    ]
+  },
+  {
+    "name": "Griselbrand's Pact II",
+    "slot": "Head",
+    "price": 1125,
+    "tier": 2,
+    "base": "Griselbrand's Pact",
+    "trophy": "BLACK",
+    "life": -3,
+    "battlefield": [
+      "Phyrexian Arena",
+      "Phyrexian Arena"
+    ]
+  },
+  {
+    "name": "Griselbrand's Pact III",
+    "slot": "Head",
+    "price": 2531,
+    "tier": 3,
+    "base": "Griselbrand's Pact",
+    "trophy": "BLACK",
+    "life": -4,
+    "battlefield": [
+      "Phyrexian Arena",
+      "Phyrexian Arena",
+      "Phyrexian Arena"
+    ]
+  },
+  {
+    "name": "Lathliss' Fang",
+    "slot": "Head",
+    "price": 500,
+    "trophy": "RED",
+    "battlefield": [
+      "r_4_4_dragon_flying"
+    ]
+  },
+  {
+    "name": "Lathliss' Fang II",
+    "slot": "Head",
+    "price": 1125,
+    "tier": 2,
+    "base": "Lathliss' Fang",
+    "trophy": "RED",
+    "battlefield": [
+      "r_4_4_dragon_flying",
+      "r_4_4_dragon_flying"
+    ]
+  },
+  {
+    "name": "Lathliss' Fang III",
+    "slot": "Head",
+    "price": 2531,
+    "tier": 3,
+    "base": "Lathliss' Fang",
+    "trophy": "RED",
+    "battlefield": [
+      "r_4_4_dragon_flying",
+      "r_4_4_dragon_flying",
+      "r_4_4_dragon_flying"
+    ]
+  },
+  {
+    "name": "Ghalta's Tooth",
+    "slot": "Head",
+    "price": 500,
+    "trophy": "GREEN",
+    "life": 2,
+    "battlefield": [
+      "g_4_4_beast_trample"
+    ]
+  },
+  {
+    "name": "Ghalta's Tooth II",
+    "slot": "Head",
+    "price": 1125,
+    "tier": 2,
+    "base": "Ghalta's Tooth",
+    "trophy": "GREEN",
+    "life": 4,
+    "battlefield": [
+      "g_4_4_beast_trample",
+      "g_4_4_beast_trample"
+    ]
+  },
+  {
+    "name": "Ghalta's Tooth III",
+    "slot": "Head",
+    "price": 2531,
+    "tier": 3,
+    "base": "Ghalta's Tooth",
+    "trophy": "GREEN",
+    "life": 6,
+    "battlefield": [
+      "g_4_4_beast_trample",
+      "g_4_4_beast_trample",
+      "g_4_4_beast_trample"
+    ]
+  },
+  {
+    "name": "Shard of Emrakul",
+    "slot": "Head",
+    "price": 500,
+    "trophy": "COLORLESS",
+    "battlefield": [
+      "c_1_1_eldrazi_scion_sac",
+      "c_1_1_eldrazi_scion_sac"
+    ]
+  },
+  {
+    "name": "Shard of Emrakul II",
+    "slot": "Head",
+    "price": 1125,
+    "tier": 2,
+    "base": "Shard of Emrakul",
+    "trophy": "COLORLESS",
+    "battlefield": [
+      "c_1_1_eldrazi_scion_sac",
+      "c_1_1_eldrazi_scion_sac",
+      "c_1_1_eldrazi_scion_sac",
+      "c_1_1_eldrazi_scion_sac"
+    ]
+  },
+  {
+    "name": "Shard of Emrakul III",
+    "slot": "Head",
+    "price": 2531,
+    "tier": 3,
+    "base": "Shard of Emrakul",
+    "trophy": "COLORLESS",
+    "battlefield": [
+      "c_1_1_eldrazi_scion_sac",
+      "c_1_1_eldrazi_scion_sac",
+      "c_1_1_eldrazi_scion_sac",
+      "c_1_1_eldrazi_scion_sac",
+      "c_1_1_eldrazi_scion_sac",
+      "c_1_1_eldrazi_scion_sac"
+    ]
   }
 ]

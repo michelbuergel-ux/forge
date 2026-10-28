@@ -30,12 +30,20 @@ public class HexEncounter {
     public boolean siege;
     /** A siege that began during the cycle (after a won fight), not with the map. */
     public boolean lateSiege;
+    /** A fight of a dungeon: its number there (1 to 3, the guardian last), or 0. */
+    public int dungeonStage;
 
     /**
-     * Bosses, the enemies of tasks and besiegers fight with copies of themselves as their other
-     * heads (the same deck and equipment); every other enemy brings followers of its colour.
+     * Bosses, the enemies of tasks, besiegers and the guardians of dungeons fight with copies of
+     * themselves as their other heads (the same deck and equipment); every other enemy brings
+     * followers of its colour.
      */
     public boolean headsAlike() {
-        return boss || questId != 0 || siege;
+        return boss || questId != 0 || siege || isGuardian();
+    }
+
+    /** The last enemy of a dungeon, which guards its chest. */
+    public boolean isGuardian() {
+        return dungeonStage == HexDungeon.FIGHTS;
     }
 }

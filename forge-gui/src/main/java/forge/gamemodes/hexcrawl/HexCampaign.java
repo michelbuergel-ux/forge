@@ -71,12 +71,21 @@ public class HexCampaign {
     public static final int GOLD_PERCENT_PER_CYCLE = 25;
     /** A freed town's shops sell this much cheaper for the rest of the cycle, in percent. */
     public static final int SIEGE_DISCOUNT_PERCENT = 25;
+    /** The slot the bosses' trophies are worn in. */
+    public static final String TROPHY_SLOT = "Head";
     /** A besieger has this much more life for every head of the party. */
     public static final int SIEGE_LIFE_PER_HEAD = 5;
     /** Chance in percent, after every won fight, that an army besieges one more town. */
     public static final int SIEGE_CHANCE_PERCENT = 17;
     /** At most this many sieges that began during the cycle are open at once. */
     public static final int MAX_LATE_SIEGES = 2;
+    /** A dungeon's second fight is tougher by this much life; its guardian by this much per head. */
+    public static final int DUNGEON_SECOND_LIFE = 10;
+    public static final int DUNGEON_GUARDIAN_LIFE_PER_HEAD = 5;
+    /** Between two fights of a dungeon the party catches its breath: this much life back (up to its full life). */
+    public static final int DUNGEON_HEAL = 5;
+    /** The gold in a dungeon's chest, for every head. */
+    public static final int DUNGEON_CHEST_GOLD = 150;
 
     public enum MoveResult { NOTHING, TOWN, ENCOUNTER, NOT_ADJACENT, LOCKED, BUSY }
 
@@ -156,6 +165,8 @@ public class HexCampaign {
     public List<HexCycleRecord> cycleHistory = new ArrayList<>();
     /** The towns of this map got their sieges (false in saves from before there were sieges). */
     public boolean siegesPlaced;
+    /** The dungeons of this map are placed (false in saves from before there were dungeons). */
+    public boolean dungeonsPlaced;
     /** The last town the party freed (thanked once on every screen), and a counter for it. */
     public String freedTown;
     public String freedFrom;
@@ -206,6 +217,168 @@ public class HexCampaign {
         }
         siegesPlaced = false;
         placeSieges(new Random(mapSeed * 131L + 17L)); // its own random: the map's other rolls stay as they were
+        dungeonsPlaced = false;
+        placeDungeons(new Random(mapSeed * 131L + 29L));
+    }
+
+    // ------------------------------------------------------------------ dungeons
+
+    /**
+     * Every colour gets a dungeon, once per map: on an empty field half way out or further, never next to a
+     * town or a stronghold, and on none the party has been to (saves from before there were dungeons get
+     * theirs the first time they are played on). A small region without such a field takes one nearer
+     * the centre, and at last one next to its stronghold (never next to a town).
+     */
+    void placeDungeons(final Random rnd) {
+        if (dungeonsPlaced) {
+            return;
+        }
+        dungeonsPlaced = true;
+        final HexContent content = HexContent.get();
+        for (final HexColor color : HexColor.COLORS) {
+            final List<HexTile> fields = new ArrayList<>();
+            for (int pass = 0; pass < 3 && fields.isEmpty(); pass++) {
+                for (final HexTile t : map.region(color)) {
+                    final int out = HexMap.distance(t.q, t.r, 0, 0);
+                    final boolean far = pass == 0 ? out >= map.radius / 2 && out <= map.radius - 1 : out >= 2;
+                    if (t.poi == HexPoi.NONE && !t.explored && t != tile() && questAt(t.q, t.r) == null
+                            && far && farFromPlaces(t, pass < 2)) {
+                        fields.add(t);
+                    }
+                }
+            }
+            fields.sort((a, b) -> a.key().compareTo(b.key())); // a stable order, so seeds are reproducible
+            if (fields.isEmpty()) {
+                continue;
+            }
+            final HexTile t = fields.get(rnd.nextInt(fields.size()));
+            final HexDungeon dungeon = new HexDungeon();
+            dungeon.color = color;
+            final HexEncounter first = content.randomEncounter(color, 0.7, rnd);
+            final HexEncounter second = content.randomEncounter(color, 1.0, rnd);
+            second.life += DUNGEON_SECOND_LIFE;
+            second.gold += DUNGEON_SECOND_LIFE;
+            final HexEncounter guardian = content.dungeonGuardian(color, rnd, cycle);
+            for (final HexEncounter enc : java.util.Arrays.asList(first, second, guardian)) {
+                dungeon.stages.add(enc);
+                enc.dungeonStage = dungeon.stages.size();
+                enc.color = color;
+                enc.q = t.q;
+                enc.r = t.r;
+            }
+            t.poi = HexPoi.DUNGEON;
+            t.dungeon = dungeon;
+            t.enemy = null;
+            t.event = null;
+        }
+    }
+
+    /** No town or other dungeon next to this field (nor a stronghold, if asked). */
+    private boolean farFromPlaces(final HexTile t, final boolean strongholds) {
+        for (final HexTile other : map.tiles.values()) {
+            if (other.poi != HexPoi.NONE && (strongholds || other.poi != HexPoi.BOSS) && HexMap.distance(t.q, t.r, other.q, other.r) < 2) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The dungeons of the map, in a stable order. */
+    public List<HexTile> dungeons() {
+        final List<HexTile> result = new ArrayList<>(map.tilesWith(HexPoi.DUNGEON));
+        result.sort((a, b) -> a.key().compareTo(b.key()));
+        return result;
+    }
+
+    /** The dungeon of the party's field, or null. */
+    public HexDungeon dungeonHere() {
+        final HexTile t = tile();
+        return t == null ? null : t.dungeon;
+    }
+
+    /** The party is inside a dungeon, between two of its fights: it may go deeper, or leave. */
+    public boolean canGoDeeper() {
+        final HexDungeon d = dungeonHere();
+        return d != null && d.inRun() && d.stage < HexDungeon.FIGHTS && !isBusy() && !won;
+    }
+
+    /** The next fight of the dungeon the party is in. */
+    public MoveResult goDeeper() {
+        if (!canGoDeeper()) {
+            return MoveResult.BUSY;
+        }
+        final HexDungeon d = dungeonHere();
+        deckChecked.clear();
+        pendingEncounter = d.next();
+        pendingEncounter.ambush = false; // the decks are locked in here: nothing to look at first
+        pendingEncounter.q = partyQ;
+        pendingEncounter.r = partyR;
+        log(msg(pendingEncounter.isGuardian() ? "lblHexJournalDungeonGuardian" : "lblHexJournalDungeonDeeper",
+                pendingEncounter.enemyName, String.valueOf(d.stage + 1), String.valueOf(HexDungeon.FIGHTS)));
+        return MoveResult.ENCOUNTER;
+    }
+
+    /** Inside a dungeon the decks stay as they are: no cards change between deck and sideboard. */
+    public boolean deckLocked() {
+        final HexDungeon d = dungeonHere();
+        return d != null && d.inRun();
+    }
+
+    /** The party's life at the start of the next fight: what it has left in a dungeon, else its full life. */
+    public int partyStartLife() {
+        final HexEncounter enc = pendingEncounter;
+        final HexTile t = enc == null || enc.dungeonStage <= 1 ? null : map.get(enc.q, enc.r);
+        if (t != null && t.dungeon != null && t.dungeon.lifeLeft > 0) {
+            return t.dungeon.lifeLeft;
+        }
+        return fightLife();
+    }
+
+    /** A run ends (the party left, lost or fled): the dungeon waits for the next one, with all its fights. */
+    private void endRun(final HexDungeon d, final String why) {
+        if (d != null && d.inRun()) {
+            log(msg(why));
+        }
+        if (d != null && !d.cleared) {
+            d.stage = 0;
+            d.lifeLeft = 0;
+        }
+    }
+
+    /** A random of its own for dungeons placed later (old saves), so they do not change the other rolls. */
+    private Random dungeonRandom() {
+        return new Random(seed * 131L + cycle * 7919L + 29L + steps);
+    }
+
+    /**
+     * The chest of a cleared dungeon, for one head: a very valuable card of the colour (or an artifact) that no
+     * other head got, gold, and a relic for a free slot (else its worth in gold).
+     */
+    private void openChest(final HexPlayer p, final HexReward reward, final HexColor color, final Random rnd, final Set<String> taken) {
+        final HexContent content = HexContent.get();
+        final List<String> pool = new ArrayList<>(content.treasureCards(color, players.size()));
+        pool.removeAll(taken);
+        if (!pool.isEmpty()) {
+            final String card = pool.get(rnd.nextInt(pool.size()));
+            taken.add(card);
+            p.sideboard.add(card);
+            reward.chestCard = card;
+        }
+        reward.chestGold = withGoldBonus(p, gold(DUNGEON_CHEST_GOLD));
+        earn(p, reward.chestGold);
+        final List<HexRelic> relics = content.ordinaryRelics(cycle);
+        if (!relics.isEmpty()) {
+            final HexRelic relic = content.upgrade(relics.get(rnd.nextInt(relics.size())), cycle, rnd);
+            reward.chestRelic = relic.name;
+            if (!p.relics.contains(relic.name) && relicInSlot(p, relic.slot) == null) {
+                p.relics.add(relic.name);
+            } else {
+                reward.chestRelicGold = content.relicSellPrice(relic.name);
+                earn(p, reward.chestRelicGold);
+            }
+        }
+        log(msg("lblHexJournalChest", p.name, reward.chestCard == null ? "-" : reward.chestCard,
+                String.valueOf(reward.chestGold), reward.chestRelic == null ? "-" : reward.chestRelic));
     }
 
     // ------------------------------------------------------------------ sieges
@@ -456,6 +629,9 @@ public class HexCampaign {
 
     /** Can the party step onto this field right now? */
     public boolean canEnter(final HexTile target) {
+        if (target != null && target == tile()) {
+            return canGoDeeper(); // inside a dungeon: on to its next fight
+        }
         if (target == null || isBusy() || won || !isAdjacent(target)) {
             return false;
         }
@@ -525,6 +701,9 @@ public class HexCampaign {
         }
         if (t.poi == HexPoi.BOSS) {
             return t.cleared ? null : HexContent.get().bossEncounter(t.color);
+        }
+        if (t.poi == HexPoi.DUNGEON) {
+            return t.dungeon == null ? null : t.dungeon.next();
         }
         final HexQuest quest = questAt(t.q, t.r);
         if (quest != null) {
@@ -665,7 +844,8 @@ public class HexCampaign {
                 if (from.containsKey(n)) {
                     continue;
                 }
-                final boolean blocked = n.poi == HexPoi.BOSS && !n.cleared;
+                final boolean blocked = n.poi == HexPoi.BOSS && !n.cleared
+                        || n.poi == HexPoi.DUNGEON && n.dungeon != null && !n.dungeon.cleared; // marching never stumbles into one
                 if (blocked && n != goal) {
                     continue;
                 }
@@ -746,6 +926,8 @@ public class HexCampaign {
             return MoveResult.LOCKED;
         }
         placeSieges(siegeRandom()); // a save from before there were sieges gets them now
+        placeDungeons(dungeonRandom()); // the same for dungeons
+        endRun(dungeonHere(), "lblHexJournalDungeonLeft"); // stepping out of a dungeon ends the run
         prevQ = partyQ;
         prevR = partyR;
         partyQ = q;
@@ -773,6 +955,19 @@ public class HexCampaign {
             log(msg("lblHexJournalTown", target.name));
             shop(); // stock the shelves now, so everybody at the table sees the same offers
             return MoveResult.TOWN;
+        }
+        if (target.poi == HexPoi.DUNGEON) {
+            if (target.dungeon == null || target.dungeon.cleared) {
+                return MoveResult.NOTHING;
+            }
+            // the first fight: a last look at the decks before they are locked
+            deckChecked.clear();
+            pendingEncounter = target.dungeon.next();
+            pendingEncounter.ambush = true;
+            pendingEncounter.q = q;
+            pendingEncounter.r = r;
+            log(msg("lblHexJournalDungeonEnter", pendingEncounter.enemyName, String.valueOf(HexDungeon.FIGHTS)));
+            return MoveResult.ENCOUNTER;
         }
         final HexContent content = HexContent.get();
         final HexQuest quest = questAt(q, r);
@@ -883,6 +1078,7 @@ public class HexCampaign {
                 spend(p, Math.min(p.gold, price));
             }
             log(msg("lblHexJournalFled", enc.enemyName, String.valueOf(price)));
+            endRun(dungeonOf(enc), "lblHexJournalDungeonOut");
             partyQ = prevQ;
             partyR = prevR;
         } else if (result == HexBattle.Result.WON) {
@@ -903,6 +1099,20 @@ public class HexCampaign {
             } else {
                 maybeBesiegeAnotherTown(siegeRandom());
             }
+            final HexDungeon dungeon = dungeonOf(enc);
+            if (dungeon != null) {
+                // a fight of a dungeon won: on to the next, with the life the party has left (and a breath)
+                dungeon.stage = enc.dungeonStage;
+                final int left = lastFight != null && lastFight.partyLife > 0 ? lastFight.partyLife : fightLife();
+                dungeon.lifeLeft = Math.min(fightLife(), left + DUNGEON_HEAL);
+                if (dungeon.stage >= HexDungeon.FIGHTS) {
+                    dungeon.cleared = true;
+                    dungeon.lifeLeft = 0;
+                    log(msg("lblHexJournalDungeonCleared", enc.enemyName));
+                }
+            }
+            final Set<String> treasures = new java.util.HashSet<>();
+            final Random chestRandom = new Random(seed * 131L + cycle * 7919L + battlesWon * 53L);
             for (final HexPlayer p : players) {
                 final HexReward reward = new HexReward();
                 reward.playerName = p.name;
@@ -916,6 +1126,12 @@ public class HexCampaign {
                     if (!reward.cards.contains(card)) {
                         reward.cards.add(card);
                     }
+                }
+                if (enc.boss) {
+                    reward.trophy = awardTrophy(p, enc.color);
+                }
+                if (dungeon != null && dungeon.cleared) {
+                    openChest(p, reward, dungeon.color, chestRandom, treasures);
                 }
                 pendingRewards.add(reward);
             }
@@ -953,6 +1169,7 @@ public class HexCampaign {
                     log(msg("lblHexJournalAnteLost", p.name, lost));
                 }
             }
+            endRun(dungeonOf(enc), "lblHexJournalDungeonOut");
             partyQ = prevQ;
             partyR = prevR;
         }
@@ -968,6 +1185,12 @@ public class HexCampaign {
             shop(); // a freed town: stock the shelves now, so everybody at the table sees the same offers
         }
         offerPerks();
+    }
+
+    /** The dungeon a fight belongs to, or null. */
+    private HexDungeon dungeonOf(final HexEncounter enc) {
+        final HexTile t = enc.dungeonStage <= 0 ? null : map.get(enc.q, enc.r);
+        return t == null ? null : t.dungeon;
     }
 
     /** The party stands on a town's field (busy or not). */
@@ -1633,14 +1856,17 @@ public class HexCampaign {
             return false;
         }
         final HexRelic old = relicInSlot(p, relic.slot);
-        final int refund = old == null ? 0 : content.relicSellPrice(old.name);
+        final boolean trophy = old != null && old.trophy != null; // a trophy is put away, not sold
+        final int refund = old == null || trophy ? 0 : content.relicSellPrice(old.name);
         final int price = priceFor(p, offer.price);
         if (p.gold + refund < price) {
             return false;
         }
         if (old != null) {
             p.relics.remove(old.name);
-            log(msg("lblHexJournalSold", p.name, old.name, String.valueOf(refund)));
+            if (!trophy) {
+                log(msg("lblHexJournalSold", p.name, old.name, String.valueOf(refund)));
+            }
         }
         earn(p, refund);
         spend(p, price);
@@ -1653,12 +1879,85 @@ public class HexCampaign {
 
     public boolean sellRelic(final String playerName, final String relicName) {
         final HexPlayer p = player(playerName);
-        if (!inTown() || p == null || !p.relics.remove(relicName)) {
+        if (!inTown() || p == null || HexContent.get().isTrophy(relicName) || !p.relics.remove(relicName)) {
             return false;
         }
         final int price = HexContent.get().relicSellPrice(relicName);
         earn(p, price);
         log(msg("lblHexJournalSold", p.name, relicName, String.valueOf(price)));
+        return true;
+    }
+
+    // ------------------------------------------------------------------ trophies
+
+    /**
+     * A beaten boss leaves the head its trophy; beaten again in a later cycle, the trophy grows a tier (up to III).
+     * A head that wears the trophy wears the stronger one at once; a head with nothing on that slot puts it on, and
+     * an AI head always wears its newest trophy (but keeps a relic it bought). Returns the trophy's name, or null.
+     */
+    private String awardTrophy(final HexPlayer p, final HexColor color) {
+        final HexContent content = HexContent.get();
+        final int tier = Math.min(HexContent.MAX_RELIC_TIER, p.trophies.getOrDefault(color.name(), 0) + 1);
+        final HexRelic relic = content.trophy(color, tier);
+        if (relic == null) {
+            return null;
+        }
+        p.trophies.put(color.name(), tier);
+        final HexRelic worn = relicInSlot(p, relic.slot);
+        if (worn == null || color.name().equals(worn.trophy) || p.ai && worn.trophy != null) {
+            if (worn != null) {
+                p.relics.remove(worn.name);
+            }
+            p.relics.add(relic.name);
+        }
+        log(msg("lblHexJournalTrophy", p.name, relic.name));
+        return relic.name;
+    }
+
+    /** The trophy a head owns of this colour's boss (at its tier), or null. */
+    public HexRelic ownedTrophy(final HexPlayer p, final HexColor color) {
+        final Integer tier = p.trophies.get(color.name());
+        return tier == null ? null : HexContent.get().trophy(color, tier);
+    }
+
+    /**
+     * A head wears one of its trophies (colour name), or none (null). It goes on the trophies' slot: a trophy worn
+     * there is put away, a relic bought for it is sold to make room.
+     */
+    public boolean wearTrophy(final String playerName, final String color) {
+        final HexPlayer p = player(playerName);
+        if (p == null || pendingEncounter != null || deckLocked()) {
+            return false;
+        }
+        HexRelic relic = null;
+        if (color != null) {
+            try {
+                relic = ownedTrophy(p, HexColor.valueOf(color));
+            } catch (final IllegalArgumentException e) {
+                return false;
+            }
+            if (relic == null || p.relics.contains(relic.name)) {
+                return false;
+            }
+        }
+        final HexRelic worn = relicInSlot(p, relic != null ? relic.slot : TROPHY_SLOT);
+        if (worn != null) {
+            if (relic == null && worn.trophy == null) {
+                return false; // taking off a trophy: there is none on
+            }
+            p.relics.remove(worn.name);
+            if (worn.trophy == null) {
+                final int refund = HexContent.get().relicSellPrice(worn.name);
+                earn(p, refund);
+                log(msg("lblHexJournalSold", p.name, worn.name, String.valueOf(refund)));
+            }
+        } else if (relic == null) {
+            return false;
+        }
+        if (relic != null) {
+            p.relics.add(relic.name);
+            log(msg("lblHexJournalWearTrophy", p.name, relic.name));
+        }
         return true;
     }
 
@@ -1803,6 +2102,9 @@ public class HexCampaign {
         if (enc.siege) {
             life += SIEGE_LIFE_PER_HEAD * players.size(); // a besieger is tougher than a wanted enemy
         }
+        if (enc.isGuardian()) {
+            life += DUNGEON_GUARDIAN_LIFE_PER_HEAD * players.size(); // and so is a dungeon's guardian
+        }
         final HexBiomeRule biome = HexBiomeRule.forFight(this, enc);
         if (biome != null) {
             life += biome.enemyLife; // New Game Plus: the wastes
@@ -1822,7 +2124,7 @@ public class HexCampaign {
      */
     public boolean moveCard(final String playerName, final String card, final boolean toSideboard) {
         final HexPlayer p = player(playerName);
-        if (p == null) {
+        if (p == null || deckLocked()) {
             return false;
         }
         if (toSideboard) {

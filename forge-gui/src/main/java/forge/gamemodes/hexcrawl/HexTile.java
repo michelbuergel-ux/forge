@@ -24,6 +24,8 @@ public class HexTile {
     public HexEncounter siege;
     /** Towns only: the party lifted the town's siege in this cycle, and its shops sell cheaper. */
     public boolean freed;
+    /** Dungeons only: its fights, and how far the party got in it. */
+    public HexDungeon dungeon;
 
     public HexTile() { }
     public HexTile(final int q0, final int r0) { q = q0; r = r0; }

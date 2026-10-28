@@ -161,7 +161,7 @@ final class HexDeckDialog {
     }
 
     private boolean mayEdit(final HexPlayer p) {
-        return p != null && !session.isFightRunning() && session.mayActFor(session.getMyHead(), p.name);
+        return p != null && !session.isFightRunning() && !campaign().deckLocked() && session.mayActFor(session.getMyHead(), p.name);
     }
 
     private static JPanel transparent(final MigLayout layout) {
@@ -466,7 +466,8 @@ final class HexDeckDialog {
         fillAdvice(p, stats, editable);
         showPreview();
         if (!editable && message.isEmpty()) {
-            lblMessage.setText(session.isFightRunning() ? t("lblHexNoChangesInFight") : t("lblHexViewOnly", p.name));
+            lblMessage.setText(session.isFightRunning() ? t("lblHexNoChangesInFight")
+                    : campaign().deckLocked() ? t("lblHexDeckLocked") : t("lblHexViewOnly", p.name));
             lblMessage.setForeground(MUTED);
         } else {
             lblMessage.setText(message.isEmpty() ? t("lblHexDeckHint") : message);
@@ -665,6 +666,8 @@ final class HexDeckDialog {
         }
         if (session.isFightRunning()) {
             setMessage(t("lblHexNoChangesInFight"), true);
+        } else if (campaign().deckLocked()) {
+            setMessage(t("lblHexDeckLocked"), true);
         } else if (!mayEdit(p)) {
             setMessage(t("lblHexViewOnly", p.name), true);
         } else if (toSideboard && p.deck.size() <= HexCampaign.MIN_DECK_SIZE) {
@@ -699,7 +702,7 @@ final class HexDeckDialog {
     // ------------------------------------------------------------------ relics
 
     private void fillRelics(final HexPlayer p) {
-        final String shown = p.name + '|' + p.relics;
+        final String shown = p.name + '|' + p.relics + '|' + p.trophies + '|' + mayEdit(p);
         if (shown.equals(relicsShown)) {
             return;
         }
@@ -750,6 +753,9 @@ final class HexDeckDialog {
             }
             pnlRelics.add(box);
         }
+        if (!p.trophies.isEmpty()) {
+            pnlRelics.add(buildTrophies(p), "gaptop 4");
+        }
         pnlRelics.add(wrapped(t("lblHexRelicHint"), body(Font.PLAIN, 12f), HexTownStyle.FAINT, relicTextW + 58), "gaptop 2");
         final List<String> parts = new ArrayList<>();
         if (life != 0) {
@@ -774,6 +780,47 @@ final class HexDeckDialog {
 
     private static String signed(final int n) {
         return n > 0 ? "+" + n : "−" + Math.abs(n);
+    }
+
+    /** The trophies of the bosses the head has beaten: the one worn is lit, a click wears another (or takes it off). */
+    private JPanel buildTrophies(final HexPlayer p) {
+        final JPanel box = new TintBox(palette, new MigLayout("insets 10 14 12 14, gap 6 6, wrap 1", "[grow, fill]"));
+        box.add(label(caps(t("lblHexTrophies")), tracked(display(11f), 0.16f), HEADING));
+        final boolean editable = mayEdit(p);
+        final HexRelic worn = campaign().relicInSlot(p, HexCampaign.TROPHY_SLOT);
+        for (final Map.Entry<String, Integer> e : p.trophies.entrySet()) {
+            final HexColor color;
+            try {
+                color = HexColor.valueOf(e.getKey());
+            } catch (final IllegalArgumentException ex) {
+                continue;
+            }
+            final HexRelic trophy = content.trophy(color, e.getValue());
+            if (trophy == null) {
+                continue;
+            }
+            final boolean on = worn != null && worn.name.equals(trophy.name);
+            final GoldButton wear = new GoldButton(on ? t("lblHexTrophyWorn", trophy.name) : trophy.name,
+                    on ? GoldButton.Kind.GOLD : GoldButton.Kind.OUTLINE, 12.5f);
+            wear.setToolTipText(HexCrawlPanel.relicEffects(trophy, campaign().cycle).trim().replace("\n", " · "));
+            wear.setEnabled(editable);
+            wear.addActionListener(ev -> wearTrophy(p, on ? null : color.name(), worn, on ? null : trophy));
+            box.add(wear, "h 32!");
+        }
+        return box;
+    }
+
+    private void wearTrophy(final HexPlayer p, final String color, final HexRelic worn, final HexRelic trophy) {
+        if (!mayEdit(p)) {
+            return;
+        }
+        if (trophy != null && worn != null && worn.trophy == null && !forge.toolbox.FOptionPane.showConfirmDialog(
+                t("lblHexTrophySellsRelic", trophy.name, worn.name, String.valueOf(content.relicSellPrice(worn.name))), p.name)) {
+            return; // a relic bought for the slot would be sold to make room
+        }
+        session.wearTrophy(p.name, color);
+        setMessage(trophy == null ? t("lblHexTrophyOff") : t("lblHexTrophyOn", trophy.name), false);
+        fill();
     }
 
     // ------------------------------------------------------------------ numbers and advice

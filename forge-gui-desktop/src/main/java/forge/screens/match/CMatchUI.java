@@ -660,6 +660,7 @@ public final class CMatchUI
         for (final PlayerView p : livesUpdate) {
             getFieldViewFor(p).updateDetails();
         }
+        FThreads.invokeInEdtNowOrLater(this::refreshFightBanner);
     }
 
     @Override
@@ -990,6 +991,135 @@ public final class CMatchUI
         }
     }
 
+    // ------------------------------------------------------------------ Hex Campaign: banner, team log, pings
+
+    /** The strip above a campaign fight: the enemy, its life and the team mates' last actions; null in other matches. */
+    private forge.screens.home.hexcrawl.HexFightBanner fightBanner;
+
+    /** Puts the banner above the match (again: laying out a screen clears it). Only in campaign fights. */
+    void placeFightBanner() {
+        if (fightBanner == null) {
+            final forge.gamemodes.hexcrawl.HexFightInfo info = forge.gamemodes.hexcrawl.HexNet.getFightInfo();
+            if (info == null) {
+                return;
+            }
+            fightBanner = new forge.screens.home.hexcrawl.HexFightBanner(info, card -> setCard(card));
+        }
+        final JPanel insets = FView.SINGLETON_INSTANCE.getPnlInsets();
+        if (fightBanner.getParent() != insets) {
+            insets.add(fightBanner, java.awt.BorderLayout.NORTH);
+            insets.revalidate();
+            forge.gui.framework.SResizingUtil.resizeWindow();
+        }
+        refreshFightBanner();
+    }
+
+    /** Takes the banner away when another screen comes up. */
+    void removeFightBanner() {
+        if (fightBanner != null && fightBanner.getParent() != null) {
+            final java.awt.Container parent = fightBanner.getParent();
+            parent.remove(fightBanner);
+            parent.revalidate();
+            forge.gui.framework.SResizingUtil.resizeWindow();
+        }
+    }
+
+    /** The enemy team's life (the team shares it) and whether its boss has woken, into the banner. */
+    private void refreshFightBanner() {
+        final GameView gv = getGameView();
+        if (fightBanner == null || gv == null) {
+            return;
+        }
+        final forge.gamemodes.hexcrawl.HexFightInfo info = forge.gamemodes.hexcrawl.HexNet.getFightInfo();
+        final String phaseCard = info == null ? null : info.phaseCard;
+        Integer life = null;
+        boolean awakened = false;
+        for (final PlayerView p : gv.getPlayers()) {
+            if (!isEnemyOfTeam(p)) {
+                continue;
+            }
+            life = life == null ? p.getLife() : Math.max(life, p.getLife());
+            if (phaseCard != null && p.getCommand() != null) {
+                for (final CardView c : p.getCommand()) {
+                    if (phaseCard.equals(c.getName()) && c.getCounters(forge.game.card.CounterEnumType.AWAKENING) > 0) {
+                        awakened = true;
+                    }
+                }
+            }
+        }
+        if (life != null) {
+            fightBanner.setEnemy(life, awakened);
+        }
+    }
+
+    /** A player of the other side: not on this screen's team. */
+    private boolean isEnemyOfTeam(final PlayerView p) {
+        if (teamPlayers != null) {
+            return !teamPlayers.contains(p);
+        }
+        for (final PlayerView mine : getLocalPlayers()) {
+            if (mine.isOpponentOf(p)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A game of teams with several heads on this screen's side (the team signals and pings work). */
+    public boolean isTeamGame() {
+        return teamPlayers != null && teamPlayers.size() > 1;
+    }
+
+    /** A team mate, not one of this screen's own players. */
+    private boolean isTeamMate(final PlayerView p) {
+        return p != null && teamPlayers != null && teamPlayers.contains(p) && !isLocalPlayer(p);
+    }
+
+    @Override
+    public void noteTeamCast(final GameEventSpellAbilityCast event) {
+        final StackItemView si = event.si();
+        if (fightBanner == null || si == null || si.isTrigger() || !isTeamMate(si.getActivatingPlayer())) {
+            return;
+        }
+        final CardView card = si.getSourceCard();
+        String text = si.getActivatingPlayer().getName() + ": " + (card != null ? card.getName() : si.getText());
+        final String targets = event.targetDescription();
+        if (targets != null && !targets.isEmpty()) {
+            text += " → " + targets;
+        }
+        fightBanner.addTeamAction(text, card);
+    }
+
+    /** A team mate played a land: into the banner's log. */
+    private void noteTeamLand(final CardView land) {
+        if (fightBanner != null && land != null && isTeamMate(land.getController())) {
+            fightBanner.addTeamAction(Localizer.getInstance().getMessage("lblHexBannerLand", land.getController().getName(), land.getName()), land);
+        }
+    }
+
+    @Override
+    public void showPing(final PlayerView from, final CardView card) {
+        super.showPing(from, card);
+        if (card != null && from != null && !isLocalPlayer(from)) {
+            // a team mate points at a card: a chime, and who pointed at what
+            forge.sound.SoundSystem.instance.play(forge.sound.SoundEffectType.TakeShard, false);
+            final String text = Localizer.getInstance().getMessage("lblPingFrom", from.getName(), card.getName());
+            FThreads.invokeInEdtNowOrLater(() -> getCPrompt().showSignal(text, 4000));
+        }
+        // the lit card pulses while it is lit
+        FThreads.invokeInEdtNowOrLater(() -> {
+            final long until = System.currentTimeMillis() + 4100;
+            final javax.swing.Timer pulse = new javax.swing.Timer(70, null);
+            pulse.addActionListener(e -> {
+                repaintCardOverlays();
+                if (System.currentTimeMillis() > until) {
+                    pulse.stop();
+                }
+            });
+            pulse.start();
+        });
+    }
+
     /** Team signal buttons in team games; Flee in the first turns of a Hex Campaign fight. */
     private void updateTeamControls() {
         final GameView gv = getGameView();
@@ -1009,6 +1139,7 @@ public final class CMatchUI
     @Override
     public void updateTurn(final PlayerView player) {
         FThreads.invokeInEdtNowOrLater(this::updateTeamControls);
+        FThreads.invokeInEdtNowOrLater(this::refreshFightBanner);
         final VField nextField = getFieldViewFor(player);
         SDisplayUtil.showTab(nextField);
         cPrompt.updateText();
@@ -1757,6 +1888,7 @@ public final class CMatchUI
 
     @Override
     public void handleLandPlayed(CardView land) {
+        FThreads.invokeInEdtNowOrLater(() -> noteTeamLand(land));
         if (ForgeConstants.LAND_PLAYED_NOTIFICATION_NEVER.equals(FModel.getPreferences().getPref(FPref.UI_LAND_PLAYED_NOTIFICATION_POLICY))) {
             return;
         }

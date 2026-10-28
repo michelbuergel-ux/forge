@@ -240,7 +240,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         add(side, "grow");
 
         mapPanel.setOnTileClicked(this::onTileClicked);
-        btnFight.addActionListener(e -> { if (session != null) { session.readyToFight(); } });
+        bindKeys();
+        btnFight.addActionListener(e -> fightOrGoDeeper());
         btnNewGamePlus.addActionListener(e -> newGamePlus());
         cboLeader.addActionListener(e -> {
             final int i = cboLeader.getSelectedIndex();
@@ -297,6 +298,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         HexNet.setGuestListener(state -> SwingUtilities.invokeLater(() -> onStateFromHost(state)));
         connectionTimer.start();
         voteTimer.start();
+        HexNet.setFightInfo(() -> fightInfo(getCampaign()));
         HexNet.setFightHooks(
                 () -> fightOnScreen || (session != null && session.isGuest() && HexNet.isGuest() && session.getCampaign() != null),
                 () -> SwingUtilities.invokeLater(() -> {
@@ -681,10 +683,17 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
         // what there is to do now
         fillThreat(campaign);
-        btnFight.setVisible(campaign.pendingEncounter != null);
+        final boolean deeper = campaign.pendingEncounter == null && campaign.canGoDeeper();
+        btnFight.setVisible(campaign.pendingEncounter != null || deeper);
         if (session.isFightRunning()) {
             btnFight.setText(t("lblHexFightRunning"));
             btnFight.setEnabled(false);
+        } else if (deeper) {
+            // inside a dungeon, between its fights: on to the next one (a vote, like a step), or out by any step
+            final boolean voted = campaign.tile().key().equals(votes.get(me));
+            btnFight.setText(t(voted ? "lblHexDeeperVoted" : "lblHexDeeper",
+                    String.valueOf(campaign.dungeonHere().stage + 1), String.valueOf(forge.gamemodes.hexcrawl.HexDungeon.FIGHTS)));
+            btnFight.setEnabled(!voted);
         } else if (ready.contains(me)) {
             btnFight.setText(t("lblHexFightWaiting", String.valueOf(ready.size()), String.valueOf(humans)));
             btnFight.setEnabled(false);
@@ -898,6 +907,46 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
     private static final String[] COLOR_NAME_KEYS = { "lblWhite", "lblBlue", "lblBlack", "lblRed", "lblGreen" };
 
+    /** What the match screen's banner shows of the coming (or running) fight, or null if there is none. */
+    public static forge.gamemodes.hexcrawl.HexFightInfo fightInfo(final HexCampaign campaign) {
+        final HexEncounter enc = campaign == null ? null : campaign.pendingEncounter;
+        if (enc == null) {
+            return null;
+        }
+        final Localizer loc = Localizer.getInstance();
+        final forge.gamemodes.hexcrawl.HexFightInfo info = new forge.gamemodes.hexcrawl.HexFightInfo();
+        info.enemyName = enc.enemyName;
+        final String fights = String.valueOf(forge.gamemodes.hexcrawl.HexDungeon.FIGHTS);
+        if (enc.boss) {
+            info.kind = loc.getMessage(enc.color == HexColor.COLORLESS ? "lblHexFightKindBoss" : "lblHexFightKindArchmage");
+        } else if (enc.isGuardian()) {
+            info.kind = loc.getMessage("lblHexFightKindGuardian", fights, fights);
+        } else if (enc.dungeonStage > 0) {
+            info.kind = loc.getMessage("lblHexFightKindDungeon", String.valueOf(enc.dungeonStage), fights);
+        } else if (enc.siege) {
+            info.kind = loc.getMessage("lblHexFightKindSiege");
+        } else if (enc.archenemy) {
+            info.kind = loc.getMessage("lblHexFightKindArchenemy");
+        } else if (enc.questId != 0) {
+            info.kind = loc.getMessage("lblHexFightKindTask");
+        } else {
+            info.kind = loc.getMessage(enc.roaming ? "lblHexFightKindHunter" : "lblHexFightKindEnemy");
+        }
+        info.startLife = campaign.enemyLife(enc);
+        info.phaseCard = HexContent.get().phaseTwoCard(enc);
+        if (enc.dungeonStage > 1) {
+            info.pills.add(loc.getMessage("lblHexFightPillDungeonLife", String.valueOf(campaign.partyStartLife())));
+        }
+        final forge.gamemodes.hexcrawl.HexBiomeRule biome = forge.gamemodes.hexcrawl.HexBiomeRule.forFight(campaign, enc);
+        if (biome != null) {
+            info.pills.add(loc.getMessage(biome.getLabelKey()));
+        }
+        info.pills.addAll(campaign.cycleAdvantages());
+        final String scout = (scoutReport(campaign, enc) + "\n" + enemyExtras(campaign, enc).trim()).trim();
+        info.scout = scout.isEmpty() ? null : scout;
+        return info;
+    }
+
     /** Before a fight: the enemy deck's colours, its most valuable cards and the reward. */
     static String scoutReport(final HexCampaign campaign, final HexEncounter enc) {
         final Localizer loc = Localizer.getInstance();
@@ -973,9 +1022,90 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
     }
 
+    /**
+     * The keys that step to a neighbouring field, as {dq, dr} (see {@link HexMap#DIRECTIONS}): on the screen
+     * Q goes up left, E up right, A left, D right, Z down left and C down right; Y too goes down left, as it sits
+     * where Z does on a German keyboard.
+     */
+    public static final Map<Character, int[]> STEP_KEYS;
+    static {
+        final Map<Character, int[]> keys = new java.util.LinkedHashMap<>();
+        keys.put('Q', new int[] { 0, -1 });
+        keys.put('E', new int[] { 1, -1 });
+        keys.put('A', new int[] { -1, 0 });
+        keys.put('D', new int[] { 1, 0 });
+        keys.put('Z', new int[] { -1, 1 });
+        keys.put('Y', new int[] { -1, 1 });
+        keys.put('C', new int[] { 0, 1 });
+        STEP_KEYS = Collections.unmodifiableMap(keys);
+    }
+
+    /** Steering with the keyboard: a step does what a click on the field does; F fights, T opens the town, Space finds the party, H the legend. */
+    private void bindKeys() {
+        final javax.swing.InputMap keys = getInputMap(WHEN_IN_FOCUSED_WINDOW);
+        final javax.swing.ActionMap actions = getActionMap();
+        for (final Map.Entry<Character, int[]> step : STEP_KEYS.entrySet()) {
+            final int dq = step.getValue()[0];
+            final int dr = step.getValue()[1];
+            bindKey(keys, actions, step.getKey(), "hexStep" + step.getKey(), () -> {
+                final HexCampaign campaign = getCampaign();
+                final HexTile target = campaign == null ? null : campaign.map.get(campaign.partyQ + dq, campaign.partyR + dr);
+                if (target != null) {
+                    onTileClicked(target);
+                }
+            });
+        }
+        bindKey(keys, actions, 'F', "hexFight", () -> {
+            if (btnFight.isVisible() && btnFight.isEnabled()) {
+                btnFight.doClick();
+            }
+        });
+        bindKey(keys, actions, 'T', "hexTown", () -> {
+            if (btnShop.isVisible() && btnShop.isEnabled()) {
+                btnShop.doClick();
+            }
+        });
+        bindKey(keys, actions, ' ', "hexParty", mapPanel::centerOnParty);
+        bindKey(keys, actions, 'H', "hexLegend", mapPanel::toggleLegend);
+    }
+
+    private void bindKey(final javax.swing.InputMap keys, final javax.swing.ActionMap actions, final char key, final String name,
+            final Runnable action) {
+        final int code = key == ' ' ? java.awt.event.KeyEvent.VK_SPACE : key; // VK_A to VK_Z are the capital letters
+        keys.put(javax.swing.KeyStroke.getKeyStroke(code, 0), name);
+        actions.put(name, new javax.swing.AbstractAction() {
+            @Override
+            public void actionPerformed(final java.awt.event.ActionEvent e) {
+                if (isShowing() && session != null) {
+                    action.run();
+                }
+            }
+        });
+    }
+
+    /** The gold button: ready for the fight ahead, or (inside a dungeon) on to its next fight. */
+    private void fightOrGoDeeper() {
+        final HexCampaign campaign = getCampaign();
+        if (session == null || campaign == null) {
+            return;
+        }
+        if (campaign.pendingEncounter == null && campaign.canGoDeeper()) {
+            onTileClicked(campaign.tile());
+        } else {
+            session.readyToFight();
+        }
+    }
+
     private void onTileClicked(final HexTile target) {
         final HexCampaign campaign = getCampaign();
-        if (campaign == null || session.isFightRunning() || target == campaign.tile()) {
+        if (campaign == null || session.isFightRunning()) {
+            return;
+        }
+        if (target == campaign.tile()) {
+            if (campaign.canGoDeeper()) {
+                session.vote(target.q, target.r); // a dungeon's next fight
+                refresh();
+            }
             return;
         }
         if (!campaign.isAdjacent(target) && target.poi == HexPoi.TOWN && target.explored && !campaign.canRoute(target)) {
@@ -1092,9 +1222,42 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 }
                 pictures.add(picture, "w 230!, h 322!");
             }
-            final String message = t(cards.size() > 1 ? "lblHexRewardChooseOne" : "lblHexRewardFor", reward.playerName);
-            final int choice = FOptionPane.showOptionDialog(message, campaign.name, cards.isEmpty() ? FOptionPane.QUESTION_ICON : null,
-                    cards.isEmpty() ? null : pictures, options, 0);
+            String message = t(cards.size() > 1 ? "lblHexRewardChooseOne" : "lblHexRewardFor", reward.playerName);
+            final HexRelic trophy = reward.trophy == null ? null : HexContent.get().getRelic(reward.trophy);
+            if (trophy != null) {
+                // a beaten boss's trophy comes on top of the choice
+                final HexPlayer mine = campaign.player(reward.playerName);
+                final boolean worn = mine != null && mine.relics.contains(trophy.name);
+                message += "\n\n" + t(worn ? "lblHexRewardTrophyWorn" : "lblHexRewardTrophy", trophy.name) + "\n"
+                        + relicEffects(trophy, campaign.cycle).trim();
+            }
+            if (reward.chestCard != null || reward.chestRelic != null) {
+                // a dungeon's chest, opened already: its card stands first, apart from the choice
+                message += "\n\n" + t("lblHexRewardChest", reward.chestCard == null ? "-" : reward.chestCard,
+                        String.valueOf(HexContent.get().price(reward.chestCard)), String.valueOf(reward.chestGold));
+                if (reward.chestRelic != null) {
+                    message += "\n" + (reward.chestRelicGold > 0
+                            ? t("lblHexRewardChestRelicSold", reward.chestRelic, String.valueOf(reward.chestRelicGold))
+                            : t("lblHexRewardChestRelic", reward.chestRelic));
+                }
+                final PaperCard treasure = reward.chestCard == null ? null : HexContent.get().getCard(reward.chestCard);
+                if (treasure != null) {
+                    final CardPicturePanel picture = new CardPicturePanel();
+                    picture.setOpaque(false);
+                    picture.setItem(treasure);
+                    final JPanel chest = new JPanel(new MigLayout("insets 0, gap 0, wrap 1"));
+                    chest.setOpaque(false);
+                    chest.add(label(caps(t("lblHexChest")), tracked(display(12f), 0.16f), GOLD_LIGHT), "alignx center");
+                    chest.add(picture, "w 230!, h 322!");
+                    pictures.add(chest, 0);
+                    if (!cards.isEmpty()) {
+                        pictures.add(new JLabel(), 1); // a gap between the chest and the choice
+                    }
+                }
+            }
+            final boolean shown = pictures.getComponentCount() > 0;
+            final int choice = FOptionPane.showOptionDialog(message, campaign.name, shown ? null : FOptionPane.QUESTION_ICON,
+                    shown ? pictures : null, options, 0);
             if (choice >= 0) {
                 session.chooseReward(choice - 1); // the first button is the gold
             }

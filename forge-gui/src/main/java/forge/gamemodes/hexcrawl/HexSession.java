@@ -212,6 +212,11 @@ public class HexSession {
         act(new HexActionEvent(HexActionEvent.SELL_RELIC, 0, 0, relic, false, head));
     }
 
+    /** A head wears the trophy of the boss of this colour (HexColor name), or none (null); not while a fight runs. */
+    public void wearTrophy(final String head, final String color) {
+        act(new HexActionEvent(HexActionEvent.WEAR, 0, 0, color, false, head));
+    }
+
     /** The party takes on a task of the town; every person at the table may do that. */
     public void acceptQuest(final int questId) {
         act(new HexActionEvent(HexActionEvent.QUEST, questId, 0, null, false, null));
@@ -318,12 +323,16 @@ public class HexSession {
                 }
             } else if (HexActionEvent.SELL_RELIC.equals(type)) {
                 campaign.sellRelic(head, action.getText());
+            } else if (HexActionEvent.WEAR.equals(type)) {
+                if (!fightRunning) {
+                    campaign.wearTrophy(head, action.getText());
+                }
             } else if (HexActionEvent.QUEST.equals(type)) {
                 campaign.acceptQuest(action.getQ());
             } else if (HexActionEvent.SELL.equals(type)) {
                 campaign.sell(head, action.getText(), action.getFlag());
             } else if (HexActionEvent.MOVE.equals(type)) {
-                if (!fightRunning) {
+                if (!fightRunning && !campaign.deckLocked()) {
                     campaign.moveCard(head, action.getText(), action.getFlag());
                 }
             } else if (HexActionEvent.LAND.equals(type)) {
@@ -429,7 +438,9 @@ public class HexSession {
         if (target == null) {
             return;
         }
-        if (!campaign.isAdjacent(target) && campaign.canFastTravel(target)) {
+        if (target == campaign.tile()) {
+            campaign.goDeeper(); // inside a dungeon: its next fight
+        } else if (!campaign.isAdjacent(target) && campaign.canFastTravel(target)) {
             campaign.fastTravel(target.q, target.r); // a town the party has been to, further away
         } else if (campaign.isAdjacent(target)) {
             campaign.moveTo(target.q, target.r);
