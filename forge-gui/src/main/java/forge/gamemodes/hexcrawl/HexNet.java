@@ -30,7 +30,7 @@ public final class HexNet {
      * Changes whenever the campaign's network messages change; host and guests have to use
      * the same build. Shown as a warning when they differ.
      */
-    public static final String BUILD_ID = "hex-2026-10-28a";
+    public static final String BUILD_ID = "hex-2026-10-29a";
 
     /** What fleeing from the current fight costs every head (gold multiplier included), for the match screen. */
     private static volatile int fleePrice = HexFight.FLEE_GOLD;

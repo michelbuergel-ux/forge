@@ -5,13 +5,11 @@ import java.util.Arrays;
 import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 
-import forge.gamemodes.hexcrawl.HexBattle;
 import forge.gamemodes.hexcrawl.HexCampaign;
 import forge.gamemodes.hexcrawl.HexColor;
 import forge.gamemodes.hexcrawl.HexContent;
 import forge.gamemodes.hexcrawl.HexEncounter;
 import forge.gamemodes.hexcrawl.HexFightInfo;
-import forge.gamemodes.hexcrawl.HexFightSummary;
 import forge.gamemodes.hexcrawl.HexPlayer;
 import forge.gamemodes.hexcrawl.HexPoi;
 import forge.gamemodes.hexcrawl.HexTile;
@@ -74,16 +72,21 @@ public class HexFightInfoTest extends AITest {
             any.event = null;
         }
         c.moveTo(t.q, t.r);
-        final HexFightSummary summary = new HexFightSummary();
-        summary.enemyName = c.pendingEncounter.enemyName;
-        summary.partyLife = 12;
-        c.recordFight(summary);
-        c.resolveBattle(HexBattle.Result.WON);
-        c.pendingRewards.clear();
-        c.goDeeper();
+        AssertJUnit.assertTrue(c.inLabyrinth());
+        // a guard in the labyrinth, after a fight the party won with 12 life left
+        final forge.gamemodes.hexcrawl.HexDungeon d = t.dungeon;
+        d.lifeLeft = 12;
+        forge.gamemodes.hexcrawl.HexRoom guarded = null;
+        for (final forge.gamemodes.hexcrawl.HexRoom r : d.rooms) {
+            if (r.guarded() && !r.guard.isGuardian()) {
+                guarded = r;
+            }
+        }
+        c.pendingEncounter = guarded.guard;
         final HexFightInfo info = HexCrawlPanel.fightInfo(c);
-        AssertJUnit.assertEquals(Localizer.getInstance().getMessage("lblHexFightKindDungeon", "2", "3"), info.kind);
-        AssertJUnit.assertTrue(info.pills.toString(),
-                info.pills.contains(Localizer.getInstance().getMessage("lblHexFightPillDungeonLife", String.valueOf(12 + HexCampaign.DUNGEON_HEAL))));
+        AssertJUnit.assertEquals(Localizer.getInstance().getMessage("lblHexFightKindDungeonGuard"), info.kind);
+        AssertJUnit.assertTrue(info.pills.toString(), info.pills.contains(Localizer.getInstance().getMessage("lblHexFightPillDungeonLife", "12")));
+        AssertJUnit.assertTrue(info.pills.toString(), info.pills.contains(Localizer.getInstance().getMessage("lblHexLabyRule",
+                HexContent.get().findStartCard(d.ruleCard).getName())));
     }
 }

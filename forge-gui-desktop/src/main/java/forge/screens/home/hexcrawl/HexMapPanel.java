@@ -332,15 +332,14 @@ public class HexMapPanel extends JPanel {
             }
         } else if (t.poi == HexPoi.DUNGEON && t.dungeon != null) {
             final forge.gamemodes.hexcrawl.HexDungeon d = t.dungeon;
-            final String fights = String.valueOf(forge.gamemodes.hexcrawl.HexDungeon.FIGHTS);
             sb.append(" – ").append(loc.getMessage("lblHexDungeon"));
             if (d.cleared) {
                 sb.append(" (").append(loc.getMessage("lblHexDungeonCleared")).append(')');
             } else {
-                sb.append('\n').append(loc.getMessage("lblHexDungeonHint", fights,
-                        String.valueOf(forge.gamemodes.hexcrawl.HexContent.TREASURE_PRICE)));
-                if (d.inRun()) {
-                    sb.append('\n').append(loc.getMessage("lblHexDungeonRun", String.valueOf(d.stage), fights, String.valueOf(d.lifeLeft)));
+                final forge.item.IPaperCard ruleCard = d.ruleCard == null ? null : forge.gamemodes.hexcrawl.HexContent.get().findStartCard(d.ruleCard);
+                sb.append('\n').append(loc.getMessage("lblHexDungeonHint", String.valueOf(forge.gamemodes.hexcrawl.HexContent.TREASURE_PRICE)));
+                if (ruleCard != null) {
+                    sb.append('\n').append(loc.getMessage("lblHexDungeonRule", ruleCard.getName()));
                 }
             }
         }
@@ -432,7 +431,7 @@ public class HexMapPanel extends JPanel {
                 }
             } else if (t.poi == HexPoi.DUNGEON) {
                 final forge.gamemodes.hexcrawl.HexDungeon d = t.dungeon;
-                drawDungeon(g, cx, cy, s, size, d == null || d.cleared, d == null ? 0 : d.cleared ? forge.gamemodes.hexcrawl.HexDungeon.FIGHTS : d.stage);
+                drawDungeon(g, cx, cy, s, d == null || d.cleared);
             } else {
                 drawBoss(g, cx, cy, s, bossColor(t.cleared, t.color));
             }
@@ -490,7 +489,7 @@ public class HexMapPanel extends JPanel {
                     g.drawString(quest.enemyName, tx, ty);
                 }
             }
-            drawLife(g, campaign.enemyLife(enemy), heartX, heartY, size);
+            drawLife(g, getFont(), campaign.enemyLife(enemy), heartX, heartY, size);
         }
 
         // events in plain sight: a golden coin with a question mark
@@ -596,8 +595,7 @@ public class HexMapPanel extends JPanel {
      * A dungeon: a dark cave mouth framed by stones, with a pip for each of its fights (lit: won in the run going
      * on); grey once it is cleared.
      */
-    private static void drawDungeon(final Graphics2D g, final int cx, final int cy, final int s, final double size,
-            final boolean cleared, final int won) {
+    static void drawDungeon(final Graphics2D g, final int cx, final int cy, final int s, final boolean cleared) {
         final Color stone = cleared ? new Color(0x8A8A8A) : new Color(0x9C8F7A);
         final Color dark = cleared ? new Color(0x4A4A4A) : new Color(0x14100C);
         // the rock: a rounded hill
@@ -628,25 +626,14 @@ public class HexMapPanel extends JPanel {
             final int by = (int) Math.round(cy - s * 0.05 + Math.sin(a) * s * 0.78);
             g.drawLine(bx, by, (int) Math.round(cx + Math.cos(a) * s * 0.62), (int) Math.round(cy - s * 0.05 + Math.sin(a) * s * 0.62));
         }
-        // the fights: a pip each
-        final int pr = (int) Math.round(Math.max(2.5, size * 0.07));
-        for (int i = 0; i < forge.gamemodes.hexcrawl.HexDungeon.FIGHTS; i++) {
-            final int px = cx + (i - 1) * pr * 3;
-            final int py = cy + s + pr * 2 + 1;
-            g.setColor(i < won ? new Color(0xFFD23F) : new Color(0x2A2218));
-            g.fillOval(px - pr, py - pr, 2 * pr, 2 * pr);
-            g.setColor(new Color(0xE8DCC0));
-            g.setStroke(new BasicStroke(1f));
-            g.drawOval(px - pr, py - pr, 2 * pr, 2 * pr);
-        }
     }
 
     /** A boss's star: red for an archmage, purple for the centre, grey once it is beaten. */
-    private static Color bossColor(final boolean beaten, final HexColor color) {
+    static Color bossColor(final boolean beaten, final HexColor color) {
         return beaten ? new Color(0x8A8A8A) : color == HexColor.COLORLESS ? new Color(0x7B2FBE) : new Color(0xB3121E);
     }
 
-    private static void drawBoss(final Graphics2D g, final int cx, final int cy, final int s, final Color color) {
+    static void drawBoss(final Graphics2D g, final int cx, final int cy, final int s, final Color color) {
         final Polygon star = new Polygon();
         for (int i = 0; i < 10; i++) {
             final double rad = (i % 2 == 0 ? 1.25 : 0.55) * s;
@@ -678,7 +665,7 @@ public class HexMapPanel extends JPanel {
     }
 
     /** An enemy's picture, or crossed blades without one. */
-    private static void drawFigure(final Graphics2D g, final BufferedImage sprite, final int cx, final int cy, final double size) {
+    static void drawFigure(final Graphics2D g, final BufferedImage sprite, final int cx, final int cy, final double size) {
         if (sprite != null) {
             final double scale = Math.min(size * 1.15 / sprite.getHeight(), size * 1.25 / sprite.getWidth());
             final int w = (int) Math.round(sprite.getWidth() * scale);
@@ -712,7 +699,7 @@ public class HexMapPanel extends JPanel {
     }
 
     /** A head's vote: its colour and initial. */
-    private static void drawVote(final Graphics2D g, final int vx, final int vy, final int br, final Color color, final String txt) {
+    static void drawVote(final Graphics2D g, final int vx, final int vy, final int br, final Color color, final String txt) {
         g.setColor(color);
         g.fillOval(vx - br, vy - br, br * 2, br * 2);
         g.setColor(Color.WHITE);
@@ -722,7 +709,7 @@ public class HexMapPanel extends JPanel {
         g.drawString(txt, vx - fm.stringWidth(txt) / 2, vy + fm.getAscent() / 2 - 1);
     }
 
-    private static void drawParty(final Graphics2D g, final int px, final int py, final int pr) {
+    static void drawParty(final Graphics2D g, final int px, final int py, final int pr) {
         g.setColor(new Color(0xFFD23F));
         g.fillOval(px - pr, py - pr, pr * 2, pr * 2);
         g.setColor(Color.BLACK);
@@ -750,7 +737,7 @@ public class HexMapPanel extends JPanel {
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawBoss(g, cx, cy, (int) Math.round(size * 0.4), bossColor(true, HexColor.RED)), "lblHexLegendBeaten" });
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> {
             drawFigure(g, null, cx - (int) Math.round(size * 0.15), cy + 2, size * 0.8);
-            drawLife(g, 20, cx + (int) Math.round(size * 0.38), cy - (int) Math.round(size * 0.3), size * 0.75);
+            drawLife(g, getFont(), 20, cx + (int) Math.round(size * 0.38), cy - (int) Math.round(size * 0.3), size * 0.75);
         }, "lblHexLegendEnemy" });
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> {
             drawHunterRing(g, cx, cy, size * 0.7);
@@ -761,7 +748,7 @@ public class HexMapPanel extends JPanel {
             drawFigure(g, null, cx, cy, size * 0.6);
         }, "lblHexLegendWanted" });
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawEventCoin(g, cx, cy, size * 0.9), "lblHexLegendEvent" });
-        entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawDungeon(g, cx, cy - 4, (int) Math.round(size * 0.38), size * 0.8, false, 1),
+        entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawDungeon(g, cx, cy, (int) Math.round(size * 0.4), false),
                 "lblHexLegendDungeon" });
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawParty(g, cx, cy, (int) Math.round(size * 0.3)), "lblHexLegendParty" });
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> {
@@ -866,7 +853,7 @@ public class HexMapPanel extends JPanel {
     }
 
     /** A red heart with the life total of an enemy. */
-    private void drawLife(final Graphics2D g, final int life, final int cx, final int cy, final double size) {
+    static void drawLife(final Graphics2D g, final Font base, final int life, final int cx, final int cy, final double size) {
         final int r = (int) Math.round(Math.max(7, size * 0.3));
         final java.awt.geom.Path2D heart = new java.awt.geom.Path2D.Double();
         heart.moveTo(cx, cy + r);
@@ -879,7 +866,7 @@ public class HexMapPanel extends JPanel {
         g.setStroke(new BasicStroke(1.4f));
         g.draw(heart);
         final String txt = String.valueOf(life);
-        g.setFont(getFont().deriveFont(Font.BOLD, (float) Math.max(9, r * (txt.length() > 2 ? 0.85 : 1.05))));
+        g.setFont(base.deriveFont(Font.BOLD, (float) Math.max(9, r * (txt.length() > 2 ? 0.85 : 1.05))));
         final FontMetrics fm = g.getFontMetrics();
         g.setColor(Color.WHITE);
         g.drawString(txt, cx - fm.stringWidth(txt) / 2, cy + fm.getAscent() / 2 - 2);

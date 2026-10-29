@@ -208,6 +208,22 @@ public class HexSession {
         act(new HexActionEvent(HexActionEvent.THEME, slot, 0, theme, false, head));
     }
 
+    /** Inside a dungeon: a vote for a room next to the party's. */
+    public void voteRoom(final int x, final int y) {
+        act(new HexActionEvent(HexActionEvent.VOTE, x, y, ROOM, false, null));
+    }
+
+    /** Inside a dungeon, at its entrance: a vote to leave it. */
+    public void voteExit() {
+        act(new HexActionEvent(HexActionEvent.VOTE, 0, 0, EXIT, false, null));
+    }
+
+    /** The votes inside a dungeon: for a room, or for the way out. */
+    static final String ROOM = "ROOM";
+    static final String EXIT = "EXIT";
+    public static final String ROOM_KEY = "room:";
+    public static final String EXIT_KEY = "room:exit";
+
     public void sellRelic(final String head, final String relic) {
         act(new HexActionEvent(HexActionEvent.SELL_RELIC, 0, 0, relic, false, head));
     }
@@ -261,7 +277,16 @@ public class HexSession {
                 return;
             }
             final String type = action.getType();
-            if (HexActionEvent.VOTE.equals(type)) {
+            if (HexActionEvent.VOTE.equals(type) && (ROOM.equals(action.getText()) || EXIT.equals(action.getText()))) {
+                // inside a dungeon: a room next to the party's, or the way out
+                final boolean exit = EXIT.equals(action.getText());
+                if (!fightRunning && (exit ? campaign.canLeaveLabyrinth() : campaign.canStepRoom(action.getQ(), action.getR()))) {
+                    if (votes.isEmpty()) {
+                        voteDeadline = System.currentTimeMillis() + VOTE_SECONDS * 1000L;
+                    }
+                    votes.put(actor, exit ? EXIT_KEY : ROOM_KEY + action.getQ() + "," + action.getR());
+                }
+            } else if (HexActionEvent.VOTE.equals(type)) {
                 final HexTile target = campaign.map.get(action.getQ(), action.getR());
                 if (!fightRunning && (campaign.canEnter(target) || campaign.canFastTravel(target) || campaign.canRoute(target))) {
                     if (votes.isEmpty()) {
@@ -433,13 +458,22 @@ public class HexSession {
         }
         clearVotes();
         fightReady.clear();
+        if (winner.equals(EXIT_KEY)) {
+            campaign.leaveLabyrinth();
+            return;
+        }
+        if (winner.startsWith(ROOM_KEY)) {
+            final String[] xy = winner.substring(ROOM_KEY.length()).split(",");
+            campaign.stepRoom(Integer.parseInt(xy[0]), Integer.parseInt(xy[1]));
+            return;
+        }
         final String[] qr = winner.split(",");
         final HexTile target = campaign.map.get(Integer.parseInt(qr[0]), Integer.parseInt(qr[1]));
         if (target == null) {
             return;
         }
         if (target == campaign.tile()) {
-            campaign.goDeeper(); // inside a dungeon: its next fight
+            campaign.enterLabyrinth(); // standing before a dungeon: in
         } else if (!campaign.isAdjacent(target) && campaign.canFastTravel(target)) {
             campaign.fastTravel(target.q, target.r); // a town the party has been to, further away
         } else if (campaign.isAdjacent(target)) {

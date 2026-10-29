@@ -30,8 +30,11 @@ public class HexEncounter {
     public boolean siege;
     /** A siege that began during the cycle (after a won fight), not with the map. */
     public boolean lateSiege;
-    /** A fight of a dungeon: its number there (1 to 3, the guardian last), or 0. */
+    /** A fight in a dungeon: {@link HexDungeon#GUARD} or {@link HexDungeon#BOSS}; 0 elsewhere. */
     public int dungeonStage;
+    /** A fight in a dungeon: the room of the labyrinth it waits in. */
+    public int roomX;
+    public int roomY;
 
     /**
      * Bosses, the enemies of tasks, besiegers and the guardians of dungeons fight with copies of
@@ -44,6 +47,6 @@ public class HexEncounter {
 
     /** The last enemy of a dungeon, which guards its chest. */
     public boolean isGuardian() {
-        return dungeonStage == HexDungeon.FIGHTS;
+        return dungeonStage == HexDungeon.BOSS;
     }
 }

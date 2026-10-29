@@ -79,15 +79,19 @@ public class HexCampaign {
     public static final int SIEGE_CHANCE_PERCENT = 17;
     /** Besieged towns a map starts with. */
     public static final int START_SIEGES = 1;
-    /** A dungeon's second fight is tougher by this much life; its guardian by this much per head. */
-    public static final int DUNGEON_SECOND_LIFE = 10;
+    /** A dungeon's boss is tougher by this much life per head. */
     public static final int DUNGEON_GUARDIAN_LIFE_PER_HEAD = 5;
+    /** A treasure room's gold, for every head. */
+    public static final int DUNGEON_TREASURE_GOLD = 100;
+    /** A shrine's life (for the rest of the visit, even above full life), and what weakens the enemies. */
+    public static final int DUNGEON_SHRINE_LIFE = 5;
+    public static final int DUNGEON_WEAKEN_LIFE = 5;
     /** Between two fights of a dungeon the party catches its breath: this much life back (up to its full life). */
     public static final int DUNGEON_HEAL = 5;
     /** The gold in a dungeon's chest, for every head. */
     public static final int DUNGEON_CHEST_GOLD = 150;
 
-    public enum MoveResult { NOTHING, TOWN, ENCOUNTER, NOT_ADJACENT, LOCKED, BUSY }
+    public enum MoveResult { NOTHING, TOWN, ENCOUNTER, NOT_ADJACENT, LOCKED, BUSY, DUNGEON }
 
     public String name;
     public long seed;
@@ -234,7 +238,6 @@ public class HexCampaign {
             return;
         }
         dungeonsPlaced = true;
-        final HexContent content = HexContent.get();
         for (final HexColor color : HexColor.COLORS) {
             final List<HexTile> fields = new ArrayList<>();
             for (int pass = 0; pass < 3 && fields.isEmpty(); pass++) {
@@ -254,18 +257,7 @@ public class HexCampaign {
             final HexTile t = fields.get(rnd.nextInt(fields.size()));
             final HexDungeon dungeon = new HexDungeon();
             dungeon.color = color;
-            final HexEncounter first = content.randomEncounter(color, 0.7, rnd);
-            final HexEncounter second = content.randomEncounter(color, 1.0, rnd);
-            second.life += DUNGEON_SECOND_LIFE;
-            second.gold += DUNGEON_SECOND_LIFE;
-            final HexEncounter guardian = content.dungeonGuardian(color, rnd, cycle);
-            for (final HexEncounter enc : java.util.Arrays.asList(first, second, guardian)) {
-                dungeon.stages.add(enc);
-                enc.dungeonStage = dungeon.stages.size();
-                enc.color = color;
-                enc.q = t.q;
-                enc.r = t.r;
-            }
+            HexLabyrinth.build(dungeon, t.q, t.r, rnd, cycle);
             t.poi = HexPoi.DUNGEON;
             t.dungeon = dungeon;
             t.enemy = null;
@@ -296,53 +288,127 @@ public class HexCampaign {
         return t == null ? null : t.dungeon;
     }
 
-    /** The party is inside a dungeon, between two of its fights: it may go deeper, or leave. */
-    public boolean canGoDeeper() {
+    /** The party is inside the labyrinth of the dungeon on its field. */
+    public boolean inLabyrinth() {
         final HexDungeon d = dungeonHere();
-        return d != null && d.inRun() && d.stage < HexDungeon.FIGHTS && !isBusy() && !won;
+        return d != null && d.inside;
     }
 
-    /** The next fight of the dungeon the party is in. */
-    public MoveResult goDeeper() {
-        if (!canGoDeeper()) {
+    /** The party stands on a dungeon's field, outside, and may go in. */
+    public boolean canEnterLabyrinth() {
+        final HexDungeon d = dungeonHere();
+        return d != null && !d.cleared && !d.inside && !isBusy() && !won;
+    }
+
+    /**
+     * The party goes into the dungeon: to its entrance, with its full life; from now on its decks stay as they
+     * are. A dungeon of a save from before there were labyrinths gets its labyrinth now.
+     */
+    public MoveResult enterLabyrinth() {
+        if (!canEnterLabyrinth()) {
             return MoveResult.BUSY;
         }
         final HexDungeon d = dungeonHere();
-        deckChecked.clear();
-        pendingEncounter = d.next();
-        pendingEncounter.ambush = false; // the decks are locked in here: nothing to look at first
-        pendingEncounter.q = partyQ;
-        pendingEncounter.r = partyR;
-        log(msg(pendingEncounter.isGuardian() ? "lblHexJournalDungeonGuardian" : "lblHexJournalDungeonDeeper",
-                pendingEncounter.enemyName, String.valueOf(d.stage + 1), String.valueOf(HexDungeon.FIGHTS)));
-        return MoveResult.ENCOUNTER;
+        if (d.rooms.isEmpty()) {
+            HexLabyrinth.build(d, partyQ, partyR, dungeonRandom(), cycle);
+        }
+        d.reset();
+        d.inside = true;
+        d.lifeLeft = fightLife();
+        d.see(d.entrance());
+        final forge.item.IPaperCard rule = d.ruleCard == null ? null : HexContent.get().findStartCard(d.ruleCard);
+        log(msg("lblHexJournalDungeonEnter", rule == null ? "-" : rule.getName()));
+        return MoveResult.DUNGEON;
+    }
+
+    /** May the party step into this room of its dungeon (next to its own, through an open door)? */
+    public boolean canStepRoom(final int x, final int y) {
+        final HexDungeon d = dungeonHere();
+        return d != null && d.inside && !isBusy() && !won && d.nextToParty(d.room(x, y));
+    }
+
+    /**
+     * The party steps into a room of the labyrinth: it sees into the rooms behind its doors; an enemy in it
+     * fights the party, a shrine without one gives its buff at once.
+     */
+    public MoveResult stepRoom(final int x, final int y) {
+        if (!canStepRoom(x, y)) {
+            return MoveResult.NOT_ADJACENT;
+        }
+        final HexDungeon d = dungeonHere();
+        d.prevX = d.x;
+        d.prevY = d.y;
+        d.x = x;
+        d.y = y;
+        steps++;
+        final HexRoom room = d.here();
+        d.see(room);
+        if (room.guarded()) {
+            deckChecked.clear();
+            pendingEncounter = room.guard;
+            pendingEncounter.ambush = false; // the decks are locked in here: nothing to look at first
+            pendingEncounter.q = partyQ;
+            pendingEncounter.r = partyR;
+            log(msg(pendingEncounter.isGuardian() ? "lblHexJournalDungeonBoss" : "lblHexJournalDungeonGuard", pendingEncounter.enemyName));
+            return MoveResult.ENCOUNTER;
+        }
+        if (room.kind == HexRoom.Kind.SHRINE && room.full()) {
+            giveBuff(d, room);
+        }
+        return MoveResult.NOTHING;
+    }
+
+    /** The party may leave its dungeon: it stands at the entrance. */
+    public boolean canLeaveLabyrinth() {
+        final HexDungeon d = dungeonHere();
+        return d != null && d.inside && !isBusy() && d.x == d.entranceX && d.y == d.entranceY;
+    }
+
+    /** The party leaves the dungeon; it starts anew (what was taken stays taken). */
+    public boolean leaveLabyrinth() {
+        if (!canLeaveLabyrinth()) {
+            return false;
+        }
+        dungeonHere().reset();
+        log(msg("lblHexJournalDungeonLeft"));
+        return true;
+    }
+
+    /** A shrine gives its buff for the rest of the visit. */
+    private void giveBuff(final HexDungeon d, final HexRoom room) {
+        d.buffs.add(room.content);
+        room.looted = true;
+        if ("LIFE".equals(room.content)) {
+            d.lifeLeft += DUNGEON_SHRINE_LIFE;
+        }
+        log(msg("lblHexJournalShrine" + room.content, String.valueOf(DUNGEON_SHRINE_LIFE), String.valueOf(DUNGEON_WEAKEN_LIFE)));
+    }
+
+    /** How often the shrines of the dungeon of the coming fight gave this buff (0 outside dungeons). */
+    public int dungeonBuff(final String buff) {
+        final HexDungeon d = pendingEncounter == null ? null : dungeonOf(pendingEncounter);
+        return d == null ? 0 : d.buffCount(buff);
+    }
+
+    /** The rule card of the dungeon a fight is in (in play on the enemy's side), or null. */
+    public String dungeonRuleCard(final HexEncounter enc) {
+        final HexDungeon d = enc == null ? null : dungeonOf(enc);
+        return d == null ? null : d.ruleCard;
     }
 
     /** Inside a dungeon the decks stay as they are: no cards change between deck and sideboard. */
     public boolean deckLocked() {
-        final HexDungeon d = dungeonHere();
-        return d != null && d.inRun();
+        return inLabyrinth();
     }
 
     /** The party's life at the start of the next fight: what it has left in a dungeon, else its full life. */
     public int partyStartLife() {
         final HexEncounter enc = pendingEncounter;
-        final HexTile t = enc == null || enc.dungeonStage <= 1 ? null : map.get(enc.q, enc.r);
-        if (t != null && t.dungeon != null && t.dungeon.lifeLeft > 0) {
-            return t.dungeon.lifeLeft;
+        final HexDungeon d = enc == null ? null : dungeonOf(enc);
+        if (d != null && d.lifeLeft > 0) {
+            return d.lifeLeft;
         }
         return fightLife();
-    }
-
-    /** A run ends (the party left, lost or fled): the dungeon waits for the next one, with all its fights. */
-    private void endRun(final HexDungeon d, final String why) {
-        if (d != null && d.inRun()) {
-            log(msg(why));
-        }
-        if (d != null && !d.cleared) {
-            d.stage = 0;
-            d.lifeLeft = 0;
-        }
     }
 
     /** A random of its own for dungeons placed later (old saves), so they do not change the other rolls. */
@@ -355,8 +421,32 @@ public class HexCampaign {
      * other head got, gold, and a relic for a free slot (else its worth in gold).
      */
     private void openChest(final HexPlayer p, final HexReward reward, final HexColor color, final Random rnd, final Set<String> taken) {
-        final HexContent content = HexContent.get();
-        final List<String> pool = new ArrayList<>(content.treasureCards(color, players.size()));
+        treasureCard(p, reward, color, rnd, taken);
+        reward.chestGold = withGoldBonus(p, gold(DUNGEON_CHEST_GOLD));
+        earn(p, reward.chestGold);
+        treasureRelic(p, reward, rnd);
+        log(msg("lblHexJournalChest", p.name, reward.chestCard == null ? "-" : reward.chestCard,
+                String.valueOf(reward.chestGold), reward.chestRelic == null ? "-" : reward.chestRelic));
+    }
+
+    /** A treasure room of a labyrinth, for one head: what its kind holds (CARD, GOLD or RELIC). */
+    private void openTreasure(final HexPlayer p, final HexReward reward, final String kind, final HexColor color, final Random rnd,
+            final Set<String> taken) {
+        if ("CARD".equals(kind)) {
+            treasureCard(p, reward, color, rnd, taken);
+        } else if ("GOLD".equals(kind)) {
+            reward.chestGold = withGoldBonus(p, gold(DUNGEON_TREASURE_GOLD));
+            earn(p, reward.chestGold);
+        } else {
+            treasureRelic(p, reward, rnd);
+        }
+        log(msg("lblHexJournalTreasure", p.name, reward.chestCard != null ? reward.chestCard
+                : reward.chestRelic != null ? reward.chestRelic : msg("lblHexGoldAmount", String.valueOf(reward.chestGold))));
+    }
+
+    /** A very valuable card of the colour (or an artifact) that no other head got, into the sideboard. */
+    private void treasureCard(final HexPlayer p, final HexReward reward, final HexColor color, final Random rnd, final Set<String> taken) {
+        final List<String> pool = new ArrayList<>(HexContent.get().treasureCards(color, players.size()));
         pool.removeAll(taken);
         if (!pool.isEmpty()) {
             final String card = pool.get(rnd.nextInt(pool.size()));
@@ -364,21 +454,23 @@ public class HexCampaign {
             p.sideboard.add(card);
             reward.chestCard = card;
         }
-        reward.chestGold = withGoldBonus(p, gold(DUNGEON_CHEST_GOLD));
-        earn(p, reward.chestGold);
+    }
+
+    /** A relic for a free slot, else its worth in gold. */
+    private void treasureRelic(final HexPlayer p, final HexReward reward, final Random rnd) {
+        final HexContent content = HexContent.get();
         final List<HexRelic> relics = content.ordinaryRelics(cycle);
-        if (!relics.isEmpty()) {
-            final HexRelic relic = content.upgrade(relics.get(rnd.nextInt(relics.size())), cycle, rnd);
-            reward.chestRelic = relic.name;
-            if (!p.relics.contains(relic.name) && relicInSlot(p, relic.slot) == null) {
-                p.relics.add(relic.name);
-            } else {
-                reward.chestRelicGold = content.relicSellPrice(relic.name);
-                earn(p, reward.chestRelicGold);
-            }
+        if (relics.isEmpty()) {
+            return;
         }
-        log(msg("lblHexJournalChest", p.name, reward.chestCard == null ? "-" : reward.chestCard,
-                String.valueOf(reward.chestGold), reward.chestRelic == null ? "-" : reward.chestRelic));
+        final HexRelic relic = content.upgrade(relics.get(rnd.nextInt(relics.size())), cycle, rnd);
+        reward.chestRelic = relic.name;
+        if (!p.relics.contains(relic.name) && relicInSlot(p, relic.slot) == null) {
+            p.relics.add(relic.name);
+        } else {
+            reward.chestRelicGold = content.relicSellPrice(relic.name);
+            earn(p, reward.chestRelicGold);
+        }
     }
 
     // ------------------------------------------------------------------ sieges
@@ -627,9 +719,9 @@ public class HexCampaign {
     /** Can the party step onto this field right now? */
     public boolean canEnter(final HexTile target) {
         if (target != null && target == tile()) {
-            return canGoDeeper(); // inside a dungeon: on to its next fight
+            return canEnterLabyrinth(); // standing before a dungeon: in
         }
-        if (target == null || isBusy() || won || !isAdjacent(target)) {
+        if (target == null || isBusy() || won || !isAdjacent(target) || inLabyrinth()) {
             return false;
         }
         return !(target.poi == HexPoi.BOSS && target.color == HexColor.COLORLESS && !allArchmagesDefeated());
@@ -700,7 +792,7 @@ public class HexCampaign {
             return t.cleared ? null : HexContent.get().bossEncounter(t.color);
         }
         if (t.poi == HexPoi.DUNGEON) {
-            return t.dungeon == null ? null : t.dungeon.next();
+            return null; // its enemies wait inside
         }
         final HexQuest quest = questAt(t.q, t.r);
         if (quest != null) {
@@ -862,7 +954,7 @@ public class HexCampaign {
 
     /** May the party set out for this far field (one it has seen, not next to it, not a fast-travel town)? */
     public boolean canRoute(final HexTile goal) {
-        if (goal == null || isBusy() || won || goal == tile() || isAdjacent(goal) || !(goal.explored || goal.scouted)) {
+        if (goal == null || isBusy() || won || inLabyrinth() || goal == tile() || isAdjacent(goal) || !(goal.explored || goal.scouted)) {
             return false;
         }
         if (canFastTravel(goal)) {
@@ -912,7 +1004,7 @@ public class HexCampaign {
     /** Moves the party one field. */
     public MoveResult moveTo(final int q, final int r) {
         final HexTile target = map.get(q, r);
-        if (isBusy() || won) {
+        if (isBusy() || won || inLabyrinth()) {
             return MoveResult.BUSY;
         }
         if (!isAdjacent(target)) {
@@ -924,7 +1016,6 @@ public class HexCampaign {
         }
         placeSieges(siegeRandom()); // a save from before there were sieges gets them now
         placeDungeons(dungeonRandom()); // the same for dungeons
-        endRun(dungeonHere(), "lblHexJournalDungeonLeft"); // stepping out of a dungeon ends the run
         prevQ = partyQ;
         prevR = partyR;
         partyQ = q;
@@ -957,14 +1048,7 @@ public class HexCampaign {
             if (target.dungeon == null || target.dungeon.cleared) {
                 return MoveResult.NOTHING;
             }
-            // the first fight: a last look at the decks before they are locked
-            deckChecked.clear();
-            pendingEncounter = target.dungeon.next();
-            pendingEncounter.ambush = true;
-            pendingEncounter.q = q;
-            pendingEncounter.r = r;
-            log(msg("lblHexJournalDungeonEnter", pendingEncounter.enemyName, String.valueOf(HexDungeon.FIGHTS)));
-            return MoveResult.ENCOUNTER;
+            return enterLabyrinth(); // into its labyrinth, at the entrance
         }
         final HexContent content = HexContent.get();
         final HexQuest quest = questAt(q, r);
@@ -1075,9 +1159,14 @@ public class HexCampaign {
                 spend(p, Math.min(p.gold, price));
             }
             log(msg("lblHexJournalFled", enc.enemyName, String.valueOf(price)));
-            endRun(dungeonOf(enc), "lblHexJournalDungeonOut");
-            partyQ = prevQ;
-            partyR = prevR;
+            final HexDungeon fledFrom = dungeonOf(enc);
+            if (fledFrom != null && fledFrom.inside) {
+                fledFrom.x = fledFrom.prevX; // back to the room the party came from: still inside
+                fledFrom.y = fledFrom.prevY;
+            } else {
+                partyQ = prevQ;
+                partyR = prevR;
+            }
         } else if (result == HexBattle.Result.WON) {
             battlesWon++;
             defeated.add(new HexDefeat(enc.enemyName, HexDefeat.kindOf(enc), enc.color, cycle,
@@ -1097,14 +1186,15 @@ public class HexCampaign {
                 maybeBesiegeAnotherTown(siegeRandom());
             }
             final HexDungeon dungeon = dungeonOf(enc);
-            if (dungeon != null) {
-                // a fight of a dungeon won: on to the next, with the life the party has left (and a breath)
-                dungeon.stage = enc.dungeonStage;
+            final HexRoom room = dungeon == null ? null : dungeon.room(enc.roomX, enc.roomY);
+            if (room != null) {
+                // a fight in a dungeon won: on with the life the party has left (and a breath)
+                room.beaten = true;
                 final int left = lastFight != null && lastFight.partyLife > 0 ? lastFight.partyLife : fightLife();
-                dungeon.lifeLeft = Math.min(fightLife(), left + DUNGEON_HEAL);
-                if (dungeon.stage >= HexDungeon.FIGHTS) {
+                dungeon.lifeLeft = Math.min(fightLife() + DUNGEON_SHRINE_LIFE * dungeon.buffCount("LIFE"), left + DUNGEON_HEAL);
+                if (enc.isGuardian()) {
                     dungeon.cleared = true;
-                    dungeon.lifeLeft = 0;
+                    dungeon.reset(); // the party is out again, on the dungeon's field
                     log(msg("lblHexJournalDungeonCleared", enc.enemyName));
                 }
             }
@@ -1127,10 +1217,17 @@ public class HexCampaign {
                 if (enc.boss) {
                     reward.trophy = awardTrophy(p, enc.color);
                 }
-                if (dungeon != null && dungeon.cleared) {
+                if (room != null && enc.isGuardian()) {
                     openChest(p, reward, dungeon.color, chestRandom, treasures);
+                } else if (room != null && room.kind == HexRoom.Kind.TREASURE && room.full()) {
+                    openTreasure(p, reward, room.content, dungeon.color, chestRandom, treasures);
                 }
                 pendingRewards.add(reward);
+            }
+            if (room != null && room.kind == HexRoom.Kind.TREASURE) {
+                room.looted = true;
+            } else if (room != null && room.kind == HexRoom.Kind.SHRINE && room.full()) {
+                giveBuff(dungeon, room); // the shrine its enemy kept
             }
             final HexQuest quest = quest(enc.questId);
             if (quest != null) {
@@ -1166,7 +1263,11 @@ public class HexCampaign {
                     log(msg("lblHexJournalAnteLost", p.name, lost));
                 }
             }
-            endRun(dungeonOf(enc), "lblHexJournalDungeonOut");
+            final HexDungeon lostIn = dungeonOf(enc);
+            if (lostIn != null && lostIn.inside) {
+                lostIn.reset(); // thrown out: the dungeon starts anew
+                log(msg("lblHexJournalDungeonOut"));
+            }
             partyQ = prevQ;
             partyR = prevR;
         }
@@ -2100,7 +2201,11 @@ public class HexCampaign {
             life += SIEGE_LIFE_PER_HEAD * players.size(); // a besieger is tougher than a wanted enemy
         }
         if (enc.isGuardian()) {
-            life += DUNGEON_GUARDIAN_LIFE_PER_HEAD * players.size(); // and so is a dungeon's guardian
+            life += DUNGEON_GUARDIAN_LIFE_PER_HEAD * players.size(); // and so is a dungeon's boss
+        }
+        final HexDungeon dungeon = dungeonOf(enc);
+        if (dungeon != null) {
+            life -= DUNGEON_WEAKEN_LIFE * dungeon.buffCount("WEAKEN"); // a shrine weakened the dungeon's enemies
         }
         final HexBiomeRule biome = HexBiomeRule.forFight(this, enc);
         if (biome != null) {

@@ -742,7 +742,7 @@ public final class HexContent {
         final HexQuest guardian = questEnemy(color, rnd, cycle);
         final HexEncounter enc = guardian == null ? randomEncounter(color, 1.0, rnd) : questEncounter(guardian);
         enc.questId = 0;
-        enc.dungeonStage = HexDungeon.FIGHTS;
+        enc.dungeonStage = HexDungeon.BOSS;
         return enc;
     }
 

@@ -102,6 +102,12 @@ public final class HexBattle {
         }
         applyEnemyRelics(campaign, enemy);
         applyCycle(campaign, enc, enemy, 1);
+        // a dungeon's enchantment or artifact: on the enemy's side, it affects everybody
+        final String ruleCard = campaign.dungeonRuleCard(enc);
+        final forge.item.IPaperCard rule = ruleCard == null ? null : content.findStartCard(ruleCard);
+        if (rule != null) {
+            enemy.addExtraCardsOnBattlefield(java.util.Collections.singletonList(rule));
+        }
         players.add(enemy);
         if (enc.archenemy) {
             // an archenemy fights alone, with a deck of schemes (the same ones each time this fight is set up)
@@ -219,11 +225,13 @@ public final class HexBattle {
     private static void applyPerksAndEvents(final HexCampaign campaign, final HexPlayer p, final RegisteredPlayer rp) {
         // New Game Plus: the region's rule (forest: a land, island: a card)
         final HexBiomeRule biome = HexBiomeRule.forFight(campaign, campaign.pendingEncounter);
-        final int hand = HexPerk.EXTRA_CARD.count(p) + campaign.boostHand + (biome == null ? 0 : biome.partyHand);
+        final int hand = HexPerk.EXTRA_CARD.count(p) + campaign.boostHand + (biome == null ? 0 : biome.partyHand)
+                + campaign.dungeonBuff("HAND");
         if (hand != 0) {
             rp.setStartingHand(Math.max(1, rp.getStartingHand() + hand));
         }
-        int lands = HexPerk.START_LAND.count(p) + (campaign.boostLand ? 1 : 0) + (biome == null ? 0 : biome.partyLands);
+        int lands = HexPerk.START_LAND.count(p) + (campaign.boostLand ? 1 : 0) + (biome == null ? 0 : biome.partyLands)
+                + campaign.dungeonBuff("LAND");
         if (lands > 0) {
             // the basic land the deck has most of
             final Map<String, Integer> basics = new HashMap<>();

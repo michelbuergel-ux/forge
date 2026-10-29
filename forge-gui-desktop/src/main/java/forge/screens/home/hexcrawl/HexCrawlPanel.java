@@ -84,12 +84,18 @@ import net.miginfocom.swing.MigLayout;
 public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     private final Localizer loc = Localizer.getInstance();
     private final HexMapPanel mapPanel = new HexMapPanel();
+    /** Inside a dungeon its labyrinth takes the hex map's place. */
+    private final HexLabyrinthPanel labyrinthPanel = new HexLabyrinthPanel();
+    private final java.awt.CardLayout mapCards = new java.awt.CardLayout();
+    private final JPanel mapArea = new JPanel(mapCards);
     /** Width of the side panel, and of the text in its scrolling middle part. */
     private static final int SIDE_W = 350;
     private static final int MIDDLE_W = SIDE_W - 32 - 18;
     private final JLabel lblTitle = label(" ", decorative(22f), TEXT_BRIGHT);
     private final JLabel lblPlace = label(" ", tracked(display(11.5f), 0.12f), MUTED);
     private final GoldButton btnFight = new GoldButton("", GoldButton.Kind.GOLD, 15f);
+    /** Into the dungeon the party stands before, or out of it (at its entrance). */
+    private final GoldButton btnDungeon = new GoldButton("", GoldButton.Kind.GOLD, 14f);
     private final GoldButton btnNewGamePlus = new GoldButton("", GoldButton.Kind.GOLD, 13f);
     private final GoldButton btnRewards = new GoldButton("", GoldButton.Kind.GOLD, 13f);
     private final GoldButton btnPerk = new GoldButton("", GoldButton.Kind.GOLD, 13f);
@@ -175,7 +181,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     public HexCrawlPanel() {
         super(new MigLayout("insets 10, gap 10, fill", "[grow, fill][" + SIDE_W + "!, fill]", "[grow, fill]"));
         setOpaque(false);
-        add(mapPanel, "grow");
+        mapArea.setOpaque(false);
+        mapArea.add(mapPanel, "hex");
+        mapArea.add(labyrinthPanel, "labyrinth");
+        add(mapArea, "grow");
 
         final Plate side = new Plate(this::palette, new MigLayout("insets 18 16 14 16, gap 0, wrap 1, fillx, hidemode 3",
                 "[grow, fill]"));
@@ -196,6 +205,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         final JPanel actions = transparent(new MigLayout("insets 0, gap 0 8, wrap 1, fillx, hidemode 3", "[grow, fill]"));
         actions.add(threatBox);
         actions.add(btnFight, "h 46!");
+        actions.add(btnDungeon, "h 42!");
         actions.add(btnRewards, "h 40!");
         actions.add(btnPerk, "h 40!");
         actions.add(btnEvent, "h 40!");
@@ -240,8 +250,18 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         add(side, "grow");
 
         mapPanel.setOnTileClicked(this::onTileClicked);
+        labyrinthPanel.setOnRoomClicked(this::onRoomClicked);
+        labyrinthPanel.setOnExitClicked(this::onExitClicked);
+        btnDungeon.addActionListener(e -> {
+            final HexCampaign c = getCampaign();
+            if (c != null && c.inLabyrinth()) {
+                onExitClicked();
+            } else if (c != null) {
+                onTileClicked(c.tile());
+            }
+        });
         bindKeys();
-        btnFight.addActionListener(e -> fightOrGoDeeper());
+        btnFight.addActionListener(e -> { if (session != null) { session.readyToFight(); } });
         btnNewGamePlus.addActionListener(e -> newGamePlus());
         cboLeader.addActionListener(e -> {
             final int i = cboLeader.getSelectedIndex();
@@ -632,6 +652,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         mapPanel.setCampaign(campaign);
         mapPanel.setVotes(session == null ? null : session.getVotes());
+        labyrinthPanel.setCampaign(campaign);
+        labyrinthPanel.setVotes(session == null ? null : session.getVotes());
+        mapCards.show(mapArea, campaign != null && campaign.inLabyrinth() ? "labyrinth" : "hex");
         final Palette palette = palette();
         lblPlace.setForeground(palette.light());
         final boolean has = campaign != null;
@@ -653,6 +676,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         if (!has) {
             btnFight.setVisible(false);
+            btnDungeon.setVisible(false);
             btnRewards.setVisible(false);
             btnPerk.setVisible(false);
             btnEvent.setVisible(false);
@@ -683,17 +707,20 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
         // what there is to do now
         fillThreat(campaign);
-        final boolean deeper = campaign.pendingEncounter == null && campaign.canGoDeeper();
-        btnFight.setVisible(campaign.pendingEncounter != null || deeper);
+        btnFight.setVisible(campaign.pendingEncounter != null);
+        // a dungeon: in, when the party stands before it; out, at its entrance (both are votes, like a step)
+        final boolean leave = campaign.canLeaveLabyrinth();
+        final boolean enter = campaign.canEnterLabyrinth();
+        btnDungeon.setVisible(leave || enter);
+        if (leave || enter) {
+            final String mine = votes.get(me);
+            final boolean voted = leave ? HexSession.EXIT_KEY.equals(mine) : campaign.tile().key().equals(mine);
+            btnDungeon.setText(t(voted ? "lblHexDungeonVoted" : leave ? "lblHexDungeonLeave" : "lblHexDungeonEnter"));
+            btnDungeon.setEnabled(!voted);
+        }
         if (session.isFightRunning()) {
             btnFight.setText(t("lblHexFightRunning"));
             btnFight.setEnabled(false);
-        } else if (deeper) {
-            // inside a dungeon, between its fights: on to the next one (a vote, like a step), or out by any step
-            final boolean voted = campaign.tile().key().equals(votes.get(me));
-            btnFight.setText(t(voted ? "lblHexDeeperVoted" : "lblHexDeeper",
-                    String.valueOf(campaign.dungeonHere().stage + 1), String.valueOf(forge.gamemodes.hexcrawl.HexDungeon.FIGHTS)));
-            btnFight.setEnabled(!voted);
         } else if (ready.contains(me)) {
             btnFight.setText(t("lblHexFightWaiting", String.valueOf(ready.size()), String.valueOf(humans)));
             btnFight.setEnabled(false);
@@ -826,7 +853,19 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         section(hdTasks, tasksBox, tasks);
         section(hdCycle, cycleBox, campaign.cycleAdvantages());
-        section(hdBoosts, boostsBox, campaign.fightBoosts());
+        final List<String> boosts = new ArrayList<>(campaign.fightBoosts());
+        final forge.gamemodes.hexcrawl.HexDungeon inside = campaign.inLabyrinth() ? campaign.dungeonHere() : null;
+        if (inside != null) {
+            final forge.item.IPaperCard rule = inside.ruleCard == null ? null : HexContent.get().findStartCard(inside.ruleCard);
+            if (rule != null) {
+                boosts.add(t("lblHexLabyRule", rule.getName()));
+            }
+            boosts.add(t("lblHexLabyLife", String.valueOf(inside.lifeLeft)));
+            for (final String buff : inside.buffs) {
+                boosts.add(t("lblHexBuff" + buff, String.valueOf(HexCampaign.DUNGEON_SHRINE_LIFE), String.valueOf(HexCampaign.DUNGEON_WEAKEN_LIFE)));
+            }
+        }
+        section(hdBoosts, boostsBox, boosts);
 
         final List<String> lines = new ArrayList<>(campaign.journal);
         Collections.reverse(lines);
@@ -916,13 +955,12 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         final Localizer loc = Localizer.getInstance();
         final forge.gamemodes.hexcrawl.HexFightInfo info = new forge.gamemodes.hexcrawl.HexFightInfo();
         info.enemyName = enc.enemyName;
-        final String fights = String.valueOf(forge.gamemodes.hexcrawl.HexDungeon.FIGHTS);
         if (enc.boss) {
             info.kind = loc.getMessage(enc.color == HexColor.COLORLESS ? "lblHexFightKindBoss" : "lblHexFightKindArchmage");
         } else if (enc.isGuardian()) {
-            info.kind = loc.getMessage("lblHexFightKindGuardian", fights, fights);
+            info.kind = loc.getMessage("lblHexFightKindDungeonBoss");
         } else if (enc.dungeonStage > 0) {
-            info.kind = loc.getMessage("lblHexFightKindDungeon", String.valueOf(enc.dungeonStage), fights);
+            info.kind = loc.getMessage("lblHexFightKindDungeonGuard");
         } else if (enc.siege) {
             info.kind = loc.getMessage("lblHexFightKindSiege");
         } else if (enc.archenemy) {
@@ -934,8 +972,19 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         info.startLife = campaign.enemyLife(enc);
         info.phaseCard = HexContent.get().phaseTwoCard(enc);
-        if (enc.dungeonStage > 1) {
+        if (enc.dungeonStage > 0) {
+            final String ruleCard = campaign.dungeonRuleCard(enc);
+            final forge.item.IPaperCard rule = ruleCard == null ? null : HexContent.get().findStartCard(ruleCard);
+            if (rule != null) {
+                info.pills.add(loc.getMessage("lblHexLabyRule", rule.getName()));
+            }
             info.pills.add(loc.getMessage("lblHexFightPillDungeonLife", String.valueOf(campaign.partyStartLife())));
+            for (final String buff : forge.gamemodes.hexcrawl.HexLabyrinth.BUFFS) {
+                if (campaign.dungeonBuff(buff) > 0) {
+                    info.pills.add(loc.getMessage("lblHexBuff" + buff, String.valueOf(HexCampaign.DUNGEON_SHRINE_LIFE),
+                            String.valueOf(HexCampaign.DUNGEON_WEAKEN_LIFE)));
+                }
+            }
         }
         final forge.gamemodes.hexcrawl.HexBiomeRule biome = forge.gamemodes.hexcrawl.HexBiomeRule.forFight(campaign, enc);
         if (biome != null) {
@@ -978,6 +1027,12 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
     /** What a vote is for, for the party panel: a field next to the party, a far field, or fast travel. */
     private String describeVote(final HexCampaign campaign, final String key) {
+        if (HexSession.EXIT_KEY.equals(key)) {
+            return t("lblHexVoteExit");
+        }
+        if (key != null && key.startsWith(HexSession.ROOM_KEY)) {
+            return t("lblHexVoteRoom");
+        }
         final HexTile t = key == null ? null : campaign.map.tiles.get(key);
         if (t == null) {
             return "?";
@@ -1047,14 +1102,27 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         for (final Map.Entry<Character, int[]> step : STEP_KEYS.entrySet()) {
             final int dq = step.getValue()[0];
             final int dr = step.getValue()[1];
-            bindKey(keys, actions, step.getKey(), "hexStep" + step.getKey(), () -> {
+            final char key = step.getKey();
+            bindKey(keys, actions, key, "hexStep" + key, () -> {
                 final HexCampaign campaign = getCampaign();
+                if (campaign != null && campaign.inLabyrinth()) {
+                    stepRoomBy(ROOM_KEYS.get(key)); // A and D: left and right in the labyrinth as well
+                    return;
+                }
                 final HexTile target = campaign == null ? null : campaign.map.get(campaign.partyQ + dq, campaign.partyR + dr);
                 if (target != null) {
                     onTileClicked(target);
                 }
             });
         }
+        // in a labyrinth: W A S D or the arrow keys, X out at the entrance
+        bindKey(keys, actions, 'W', "hexRoomUp", () -> stepRoomBy(ROOM_KEYS.get('W')));
+        bindKey(keys, actions, 'S', "hexRoomDown", () -> stepRoomBy(ROOM_KEYS.get('S')));
+        bindCode(keys, actions, java.awt.event.KeyEvent.VK_UP, "hexArrowUp", () -> stepRoomBy(ROOM_KEYS.get('W')));
+        bindCode(keys, actions, java.awt.event.KeyEvent.VK_DOWN, "hexArrowDown", () -> stepRoomBy(ROOM_KEYS.get('S')));
+        bindCode(keys, actions, java.awt.event.KeyEvent.VK_LEFT, "hexArrowLeft", () -> stepRoomBy(ROOM_KEYS.get('A')));
+        bindCode(keys, actions, java.awt.event.KeyEvent.VK_RIGHT, "hexArrowRight", () -> stepRoomBy(ROOM_KEYS.get('D')));
+        bindKey(keys, actions, 'X', "hexLeave", this::onExitClicked);
         bindKey(keys, actions, 'F', "hexFight", () -> {
             if (btnFight.isVisible() && btnFight.isEnabled()) {
                 btnFight.doClick();
@@ -1066,12 +1134,43 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             }
         });
         bindKey(keys, actions, ' ', "hexParty", mapPanel::centerOnParty);
-        bindKey(keys, actions, 'H', "hexLegend", mapPanel::toggleLegend);
+        bindKey(keys, actions, 'H', "hexLegend", () -> {
+            final HexCampaign campaign = getCampaign();
+            if (campaign != null && campaign.inLabyrinth()) {
+                labyrinthPanel.toggleLegend();
+            } else {
+                mapPanel.toggleLegend();
+            }
+        });
+    }
+
+    /** The keys that step to a room of a labyrinth, as {dx, dy}: W up, A left, S down, D right (and the arrows). */
+    public static final Map<Character, int[]> ROOM_KEYS;
+    static {
+        final Map<Character, int[]> keys = new java.util.LinkedHashMap<>();
+        keys.put('W', new int[] { 0, -1 });
+        keys.put('A', new int[] { -1, 0 });
+        keys.put('S', new int[] { 0, 1 });
+        keys.put('D', new int[] { 1, 0 });
+        ROOM_KEYS = Collections.unmodifiableMap(keys);
+    }
+
+    /** Inside a labyrinth: a step to the room next to the party's that way (if there is a door). */
+    private void stepRoomBy(final int[] dir) {
+        final HexCampaign campaign = getCampaign();
+        final forge.gamemodes.hexcrawl.HexDungeon d = campaign == null || !campaign.inLabyrinth() ? null : campaign.dungeonHere();
+        if (d != null && dir != null) {
+            onRoomClicked(d.x + dir[0], d.y + dir[1]);
+        }
     }
 
     private void bindKey(final javax.swing.InputMap keys, final javax.swing.ActionMap actions, final char key, final String name,
             final Runnable action) {
-        final int code = key == ' ' ? java.awt.event.KeyEvent.VK_SPACE : key; // VK_A to VK_Z are the capital letters
+        bindCode(keys, actions, key == ' ' ? java.awt.event.KeyEvent.VK_SPACE : key, name, action); // VK_A to VK_Z are the capital letters
+    }
+
+    private void bindCode(final javax.swing.InputMap keys, final javax.swing.ActionMap actions, final int code, final String name,
+            final Runnable action) {
         keys.put(javax.swing.KeyStroke.getKeyStroke(code, 0), name);
         actions.put(name, new javax.swing.AbstractAction() {
             @Override
@@ -1083,27 +1182,51 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         });
     }
 
-    /** The gold button: ready for the fight ahead, or (inside a dungeon) on to its next fight. */
-    private void fightOrGoDeeper() {
+    /** A room of the labyrinth clicked: a vote for it, if it is next to the party's. */
+    private void onRoomClicked(final int x, final int y) {
         final HexCampaign campaign = getCampaign();
-        if (session == null || campaign == null) {
+        if (campaign == null || session == null || session.isFightRunning() || !campaign.inLabyrinth()) {
             return;
         }
-        if (campaign.pendingEncounter == null && campaign.canGoDeeper()) {
-            onTileClicked(campaign.tile());
-        } else {
-            session.readyToFight();
+        if (campaign.canStepRoom(x, y)) {
+            session.voteRoom(x, y);
+            refresh();
+        } else if (campaign.isBusy() && campaign.dungeonHere().nextToParty(campaign.dungeonHere().room(x, y))) {
+            FOptionPane.showMessageDialog(t("lblHexBusy"), campaign.name);
         }
+    }
+
+    /** The way out of the labyrinth clicked: a vote to leave (at the entrance only). */
+    private void onExitClicked() {
+        final HexCampaign campaign = getCampaign();
+        if (campaign == null || session == null || session.isFightRunning() || !campaign.inLabyrinth()) {
+            return;
+        }
+        if (campaign.canLeaveLabyrinth()) {
+            session.voteExit();
+            refresh();
+        } else {
+            FOptionPane.showMessageDialog(t("lblHexLabyExitFar"), campaign.name);
+        }
+    }
+
+    /** Before the party goes into a dungeon: its decks lock, and its rule card is in play in every fight. */
+    private boolean confirmDungeon(final HexTile target) {
+        if (target.poi != HexPoi.DUNGEON || target.dungeon == null || target.dungeon.cleared) {
+            return true;
+        }
+        final forge.item.IPaperCard rule = target.dungeon.ruleCard == null ? null : HexContent.get().findStartCard(target.dungeon.ruleCard);
+        return FOptionPane.showConfirmDialog(t("lblHexDungeonConfirm", rule == null ? "-" : rule.getName()), t("lblHexDungeon"));
     }
 
     private void onTileClicked(final HexTile target) {
         final HexCampaign campaign = getCampaign();
-        if (campaign == null || session.isFightRunning()) {
+        if (campaign == null || session.isFightRunning() || campaign.inLabyrinth()) {
             return;
         }
         if (target == campaign.tile()) {
-            if (campaign.canGoDeeper()) {
-                session.vote(target.q, target.r); // a dungeon's next fight
+            if (campaign.canEnterLabyrinth() && confirmDungeon(target)) {
+                session.vote(target.q, target.r); // into the dungeon the party stands before
                 refresh();
             }
             return;
@@ -1124,6 +1247,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             return;
         }
         if (!campaign.isAdjacent(target) && campaign.canRoute(target)) {
+            if (!confirmDungeon(target)) {
+                return;
+            }
             session.vote(target.q, target.r); // a far field: the party marches there step by step
             refresh();
             return;
@@ -1135,18 +1261,16 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             }
             return; // only neighbouring fields can be entered; they are outlined on the map
         }
+        if (!confirmDungeon(target)) {
+            return;
+        }
         final boolean alone = session.getPresent().size() == 1 && !session.isGuest();
         session.vote(target.q, target.r);
         // playing alone the step happens at once, and so does a fight; only a hunter that caught
         // the party leaves time to look at the deck first
         if (alone && campaign.pendingEncounter != null && campaign.pendingEncounter.ambush && !session.isFightRunning()) {
             refresh();
-            // a hunter caught the party, or the party stands before a dungeon: a last look at the decks
-            final HexEncounter enc = campaign.pendingEncounter;
-            final String why = enc.dungeonStage > 0
-                    ? t("lblHexDungeonReady", enc.enemyName, String.valueOf(forge.gamemodes.hexcrawl.HexDungeon.FIGHTS))
-                    : t("lblHexAmbush", enc.enemyName);
-            final int choice = FOptionPane.showOptionDialog(why + "\n\n"
+            final int choice = FOptionPane.showOptionDialog(t("lblHexAmbush", campaign.pendingEncounter.enemyName) + "\n\n"
                     + describe(campaign.pendingEncounter), campaign.name,
                     FOptionPane.INFORMATION_ICON, Arrays.asList(t("lblHexFight"), t("lblHexDeckFirst")), 0);
             if (choice == 0) {
@@ -1236,10 +1360,15 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 message += "\n\n" + t(worn ? "lblHexRewardTrophyWorn" : "lblHexRewardTrophy", trophy.name) + "\n"
                         + relicEffects(trophy, campaign.cycle).trim();
             }
-            if (reward.chestCard != null || reward.chestRelic != null) {
+            if (reward.chestCard != null || reward.chestRelic != null || reward.chestGold > 0) {
                 // a dungeon's chest, opened already: its card stands first, apart from the choice
-                message += "\n\n" + t("lblHexRewardChest", reward.chestCard == null ? "-" : reward.chestCard,
-                        String.valueOf(HexContent.get().price(reward.chestCard)), String.valueOf(reward.chestGold));
+                message += "\n";
+                if (reward.chestCard != null) {
+                    message += "\n" + t("lblHexRewardChestCard", reward.chestCard, String.valueOf(HexContent.get().price(reward.chestCard)));
+                }
+                if (reward.chestGold > 0) {
+                    message += "\n" + t("lblHexRewardChestGold", String.valueOf(reward.chestGold));
+                }
                 if (reward.chestRelic != null) {
                     message += "\n" + (reward.chestRelicGold > 0
                             ? t("lblHexRewardChestRelicSold", reward.chestRelic, String.valueOf(reward.chestRelicGold))
