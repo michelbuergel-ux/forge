@@ -1141,7 +1141,12 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         // the party leaves time to look at the deck first
         if (alone && campaign.pendingEncounter != null && campaign.pendingEncounter.ambush && !session.isFightRunning()) {
             refresh();
-            final int choice = FOptionPane.showOptionDialog(t("lblHexAmbush", campaign.pendingEncounter.enemyName) + "\n\n"
+            // a hunter caught the party, or the party stands before a dungeon: a last look at the decks
+            final HexEncounter enc = campaign.pendingEncounter;
+            final String why = enc.dungeonStage > 0
+                    ? t("lblHexDungeonReady", enc.enemyName, String.valueOf(forge.gamemodes.hexcrawl.HexDungeon.FIGHTS))
+                    : t("lblHexAmbush", enc.enemyName);
+            final int choice = FOptionPane.showOptionDialog(why + "\n\n"
                     + describe(campaign.pendingEncounter), campaign.name,
                     FOptionPane.INFORMATION_ICON, Arrays.asList(t("lblHexFight"), t("lblHexDeckFirst")), 0);
             if (choice == 0) {

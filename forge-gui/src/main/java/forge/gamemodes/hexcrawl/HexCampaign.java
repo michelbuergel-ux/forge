@@ -77,8 +77,8 @@ public class HexCampaign {
     public static final int SIEGE_LIFE_PER_HEAD = 5;
     /** Chance in percent, after every won fight, that an army besieges one more town. */
     public static final int SIEGE_CHANCE_PERCENT = 17;
-    /** At most this many sieges that began during the cycle are open at once. */
-    public static final int MAX_LATE_SIEGES = 2;
+    /** Besieged towns a map starts with. */
+    public static final int START_SIEGES = 1;
     /** A dungeon's second fight is tougher by this much life; its guardian by this much per head. */
     public static final int DUNGEON_SECOND_LIFE = 10;
     public static final int DUNGEON_GUARDIAN_LIFE_PER_HEAD = 5;
@@ -384,34 +384,36 @@ public class HexCampaign {
     // ------------------------------------------------------------------ sieges
 
     /**
-     * Every colour gets a besieged town, once per map: one the party has not been to, preferably
-     * not the colour's town near the centre, so the first steps stay open. Saves from before
-     * there were sieges get theirs the first time they are played on.
+     * A map starts with one besieged town, once per map: one the party has not been to, preferably
+     * not a town near the centre, so the first steps stay open. Saves from before there were sieges
+     * get theirs the first time they are played on (none if they have one already).
      */
     void placeSieges(final Random rnd) {
         if (siegesPlaced) {
             return;
         }
         siegesPlaced = true;
-        for (final HexColor color : HexColor.COLORS) {
-            final List<HexTile> towns = new ArrayList<>();
-            final List<HexTile> outer = new ArrayList<>();
-            for (final HexTile t : map.region(color)) {
-                if (t.poi == HexPoi.TOWN && !t.explored && t.siege == null && !t.freed && t != tile()
-                        && !(t.q == map.startQ && t.r == map.startR)) {
-                    towns.add(t);
-                    if (HexMap.distance(t.q, t.r, 0, 0) > HexMap.CENTER_TOWN_REACH) {
-                        outer.add(t);
-                    }
+        final List<HexTile> towns = new ArrayList<>();
+        final List<HexTile> outer = new ArrayList<>();
+        for (final HexTile t : map.tilesWith(HexPoi.TOWN)) {
+            if (!t.explored && t.siege == null && !t.freed && t != tile() && !(t.q == map.startQ && t.r == map.startR)) {
+                towns.add(t);
+                if (HexMap.distance(t.q, t.r, 0, 0) > HexMap.CENTER_TOWN_REACH) {
+                    outer.add(t);
                 }
             }
-            towns.sort((a, b) -> a.key().compareTo(b.key())); // a stable order, so seeds are reproducible
-            outer.sort((a, b) -> a.key().compareTo(b.key()));
-            final List<HexTile> pool = outer.isEmpty() ? towns : outer;
-            if (!pool.isEmpty()) {
-                besiege(pool.get(rnd.nextInt(pool.size())), rnd, false);
-            }
         }
+        towns.sort((a, b) -> a.key().compareTo(b.key())); // a stable order, so seeds are reproducible
+        outer.sort((a, b) -> a.key().compareTo(b.key()));
+        final List<HexTile> pool = outer.isEmpty() ? towns : outer;
+        for (int i = besiegedTowns().size(); i < START_SIEGES && !pool.isEmpty(); i++) {
+            besiege(pool.remove(rnd.nextInt(pool.size())), rnd, false);
+        }
+    }
+
+    /** Towns besieged at the same time: never more than there are heads in the party. */
+    public int maxSieges() {
+        return Math.max(1, players.size());
     }
 
     /** An enemy of the town's colour sets up camp before its gates. */
@@ -441,16 +443,11 @@ public class HexCampaign {
 
     /**
      * After a won fight: now and then an army besieges one more town, never one the party stands
-     * in or next to, and never one it freed in this cycle.
+     * in or next to, never one it freed in this cycle, and only while fewer towns are besieged
+     * than there are heads in the party.
      */
     private void maybeBesiegeAnotherTown(final Random rnd) {
-        int late = 0;
-        for (final HexTile t : besiegedTowns()) {
-            if (t.siege.lateSiege) {
-                late++;
-            }
-        }
-        if (late >= MAX_LATE_SIEGES || rnd.nextInt(100) >= SIEGE_CHANCE_PERCENT) {
+        if (besiegedTowns().size() >= maxSieges() || rnd.nextInt(100) >= SIEGE_CHANCE_PERCENT) {
             return;
         }
         final List<HexTile> towns = new ArrayList<>();

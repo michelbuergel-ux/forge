@@ -41,7 +41,7 @@ public class HexSiegeTest extends AITest {
     }
 
     @Test
-    public void everyColourStartsWithABesiegedTownButNotTheStart() {
+    public void aMapStartsWithOneBesiegedTownButNotTheStart() {
         for (final int radius : new int[] { 6, 7, 8 }) {
             for (long seed = 0; seed < 20; seed++) {
                 final HexCampaign c = newCampaign(seed, radius);
@@ -49,19 +49,17 @@ public class HexSiegeTest extends AITest {
                 AssertJUnit.assertTrue(where, c.siegesPlaced);
                 AssertJUnit.assertNull("the start town is open: " + where, c.tile().siege);
                 AssertJUnit.assertTrue("the party starts in town: " + where, c.inTown());
-                for (final HexColor color : HexColor.COLORS) {
-                    int besieged = 0;
-                    for (final HexTile t : c.map.region(color)) {
-                        if (t.siege != null) {
-                            besieged++;
-                            AssertJUnit.assertEquals(HexPoi.TOWN, t.poi);
-                            AssertJUnit.assertTrue(t.siege.siege);
-                            AssertJUnit.assertTrue("copies of itself as heads", t.siege.headsAlike());
-                            AssertJUnit.assertSame(t.siege, c.enemyAt(t));
-                        }
+                int besieged = 0;
+                for (final HexTile t : c.map.tiles.values()) {
+                    if (t.siege != null) {
+                        besieged++;
+                        AssertJUnit.assertEquals(HexPoi.TOWN, t.poi);
+                        AssertJUnit.assertTrue(t.siege.siege);
+                        AssertJUnit.assertTrue("copies of itself as heads", t.siege.headsAlike());
+                        AssertJUnit.assertSame(t.siege, c.enemyAt(t));
                     }
-                    AssertJUnit.assertEquals(color + ": " + where, 1, besieged);
                 }
+                AssertJUnit.assertEquals(where, HexCampaign.START_SIEGES, besieged);
             }
         }
     }
@@ -155,30 +153,33 @@ public class HexSiegeTest extends AITest {
     }
 
     @Test
-    public void armiesBesiegeMoreTownsAfterWinsButNotTooMany() {
-        final HexCampaign c = newCampaign(13L, 8);
-        final int atStart = c.besiegedTowns().size();
-        // free the towns of the start, so only the new sieges count
-        for (final HexTile t : c.besiegedTowns()) {
-            t.siege = null;
-        }
-        int most = 0;
-        for (int i = 0; i < 200; i++) {
-            c.pendingEncounter = forge.gamemodes.hexcrawl.HexContent.get().randomEncounter(HexColor.RED, 0.5, new java.util.Random(i));
-            c.pendingEncounter.q = c.partyQ;
-            c.pendingEncounter.r = c.partyR;
-            c.resolveBattle(HexBattle.Result.WON);
-            c.pendingRewards.clear();
-            final List<HexTile> now = c.besiegedTowns();
-            most = Math.max(most, now.size());
-            for (final HexTile t : now) {
-                AssertJUnit.assertTrue(t.siege.lateSiege);
-                AssertJUnit.assertFalse(t.freed);
-                AssertJUnit.assertTrue("not next to the party", forge.gamemodes.hexcrawl.HexMap.distance(t.q, t.r, c.partyQ, c.partyR) >= 2);
+    public void armiesBesiegeMoreTownsAfterWinsButNeverMoreThanThereAreHeads() {
+        for (final int heads : new int[] { 2, 3 }) {
+            final java.util.List<HexPlayer> party = new java.util.ArrayList<>();
+            for (int h = 0; h < heads; h++) {
+                party.add(new HexPlayer("Head" + h, false));
             }
+            final HexCampaign c = HexCampaign.create("Siege", 13L, 8, party);
+            AssertJUnit.assertEquals(heads, c.maxSieges());
+            AssertJUnit.assertEquals(HexCampaign.START_SIEGES, c.besiegedTowns().size());
+            int most = 0;
+            for (int i = 0; i < 200; i++) {
+                c.pendingEncounter = forge.gamemodes.hexcrawl.HexContent.get().randomEncounter(HexColor.RED, 0.5, new java.util.Random(i));
+                c.pendingEncounter.q = c.partyQ;
+                c.pendingEncounter.r = c.partyR;
+                c.resolveBattle(HexBattle.Result.WON);
+                c.pendingRewards.clear();
+                final List<HexTile> now = c.besiegedTowns();
+                most = Math.max(most, now.size());
+                for (final HexTile t : now) {
+                    AssertJUnit.assertFalse(t.freed);
+                    if (t.siege.lateSiege) {
+                        AssertJUnit.assertTrue("not next to the party", forge.gamemodes.hexcrawl.HexMap.distance(t.q, t.r, c.partyQ, c.partyR) >= 2);
+                    }
+                }
+            }
+            AssertJUnit.assertEquals(heads + " heads: new sieges come, but never more at once than heads", heads, most);
         }
-        AssertJUnit.assertTrue(atStart > 0);
-        AssertJUnit.assertEquals("new sieges come, but no more than the cap", HexCampaign.MAX_LATE_SIEGES, most);
     }
 
     @Test
@@ -190,7 +191,7 @@ public class HexSiegeTest extends AITest {
         }
         c.won = true;
         c.startNewGamePlus();
-        AssertJUnit.assertEquals(HexColor.COLORS.length, c.besiegedTowns().size());
+        AssertJUnit.assertEquals(HexCampaign.START_SIEGES, c.besiegedTowns().size());
         for (final HexTile t : c.map.tilesWith(HexPoi.TOWN)) {
             AssertJUnit.assertFalse("a new map: nothing freed yet", t.freed);
         }
