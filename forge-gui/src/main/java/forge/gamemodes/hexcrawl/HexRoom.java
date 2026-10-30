@@ -2,8 +2,8 @@ package forge.gamemodes.hexcrawl;
 
 /** A room of a dungeon's labyrinth: its doors, what is in it, and what the party knows of it. */
 public class HexRoom {
-    /** What a room holds. */
-    public enum Kind { EMPTY, ENTRANCE, TREASURE, SHRINE, BOSS }
+    /** What a room holds; ROCK: no room at all, solid rock where the labyrinth has a gap. */
+    public enum Kind { EMPTY, ENTRANCE, TREASURE, SHRINE, BOSS, ROCK }
 
     public int x;
     public int y;

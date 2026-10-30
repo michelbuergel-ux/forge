@@ -28,8 +28,9 @@ import forge.item.IPaperCard;
 import forge.item.PaperCard;
 
 /**
- * Dungeons: labyrinths whose ways show room by room, with treasures and shrines in their dead ends, more than one
- * way to their lord, the party's life carried over, the decks locked, and a fresh start after losing or leaving.
+ * Dungeons: labyrinths with rock between their ways, which show as far as the party can see down them, with
+ * treasures and shrines in their dead ends, enemies scattered about, more than one way to their lord, the party's
+ * life carried over, the decks locked, and a fresh start after losing or leaving.
  */
 public class HexDungeonTest extends AITest {
 
@@ -80,6 +81,38 @@ public class HexDungeonTest extends AITest {
         c.resolveBattle(HexBattle.Result.WON);
     }
 
+    /** Makes sure an enemy waits in the room. */
+    private static HexRoom guarded(final HexCampaign c, final HexDungeon d, final HexRoom room) {
+        if (room.guard == null) {
+            room.guard = HexContent.get().randomEncounter(d.color, 0.5, new java.util.Random(room.x * 7L + room.y));
+            room.guard.dungeonStage = HexDungeon.GUARD;
+            room.guard.color = d.color;
+            room.guard.q = c.partyQ;
+            room.guard.r = c.partyR;
+            room.guard.roomX = room.x;
+            room.guard.roomY = room.y;
+        }
+        room.beaten = false;
+        return room;
+    }
+
+    /** The rooms seen from this one: down each open door as long as the way runs straight, up to an enemy. */
+    private static Set<HexRoom> inSight(final HexDungeon d, final HexRoom from) {
+        final Set<HexRoom> result = new HashSet<>();
+        result.add(from);
+        for (final int door : HexDungeon.DOORS) {
+            HexRoom r = from;
+            while ((r.doors & door) != 0) {
+                r = d.room(r.x + HexDungeon.dx(door), r.y + HexDungeon.dy(door));
+                result.add(r);
+                if (r.guarded()) {
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
     private static HexRoom first(final HexDungeon d, final HexRoom.Kind kind) {
         for (final HexRoom r : d.rooms) {
             if (r.kind == kind) {
@@ -107,6 +140,9 @@ public class HexDungeonTest extends AITest {
 
     @Test
     public void everyLabyrinthHasWaysDeadEndsTreasuresShrinesAndTwoWaysToItsLord() {
+        int labyrinths = 0;
+        int withRock = 0;
+        int openTreasures = 0;
         for (final int radius : new int[] { 6, 7, 8 }) {
             for (long seed = 0; seed < 10; seed++) {
                 final HexCampaign c = newCampaign(seed, radius);
@@ -117,7 +153,19 @@ public class HexDungeonTest extends AITest {
                     final HexDungeon d = t.dungeon;
                     AssertJUnit.assertEquals(HexDungeon.SIZE * HexDungeon.SIZE, d.rooms.size());
                     AssertJUnit.assertFalse(d.inside);
-                    AssertJUnit.assertEquals("every room can be reached: " + where, d.rooms.size(), reachable(d).size());
+                    int rooms = 0;
+                    for (final HexRoom r : d.rooms) {
+                        if (r.kind == HexRoom.Kind.ROCK) {
+                            AssertJUnit.assertEquals("rock has no doors", 0, r.doors);
+                            AssertJUnit.assertNull("nobody stands in the rock", r.guard);
+                            AssertJUnit.assertNull(d.room(r.x, r.y));
+                        } else {
+                            rooms++;
+                        }
+                    }
+                    labyrinths++;
+                    withRock += rooms < d.rooms.size() ? 1 : 0;
+                    AssertJUnit.assertEquals("every room can be reached: " + where, rooms, reachable(d).size());
                     for (final HexRoom r : d.rooms) {
                         for (final int door : HexDungeon.DOORS) {
                             final HexRoom other = d.room(r.x + HexDungeon.dx(door), r.y + HexDungeon.dy(door));
@@ -131,18 +179,23 @@ public class HexDungeonTest extends AITest {
                     int treasures = 0;
                     int shrines = 0;
                     int deadEnds = 0;
+                    int enemies = 0;
                     final Set<String> kinds = new HashSet<>();
                     for (final HexRoom r : d.rooms) {
                         if (r.kind == HexRoom.Kind.TREASURE) {
                             treasures++;
                             kinds.add(r.content);
-                            AssertJUnit.assertTrue("a treasure is guarded", r.guarded());
+                            openTreasures += r.guarded() ? 0 : 1;
                         } else if (r.kind == HexRoom.Kind.SHRINE) {
                             shrines++;
                             AssertJUnit.assertTrue(HexLabyrinth.BUFFS.contains(r.content));
                         }
                         if (r.doorCount() == 1 && r.kind != HexRoom.Kind.ENTRANCE && r.kind != HexRoom.Kind.BOSS) {
                             deadEnds++;
+                        }
+                        if (r.guard != null && r.kind != HexRoom.Kind.BOSS) {
+                            enemies++;
+                            AssertJUnit.assertTrue("not at the door", r.kind != HexRoom.Kind.ENTRANCE && !d.neighbours(d.entrance()).contains(r));
                         }
                         if (r.guard != null) {
                             AssertJUnit.assertEquals(t.q, r.guard.q);
@@ -153,6 +206,7 @@ public class HexDungeonTest extends AITest {
                     AssertJUnit.assertEquals(3, treasures);
                     AssertJUnit.assertEquals(new HashSet<>(HexLabyrinth.TREASURE_KINDS), kinds);
                     AssertJUnit.assertEquals(2, shrines);
+                    AssertJUnit.assertEquals("enemies scattered about: " + where, HexLabyrinth.ENEMIES, enemies);
                     AssertJUnit.assertTrue("dead ends: " + where, deadEnds >= 1);
                     AssertJUnit.assertEquals(HexRoom.Kind.ENTRANCE, d.entrance().kind);
                     AssertJUnit.assertEquals(HexRoom.Kind.BOSS, d.boss().kind);
@@ -167,6 +221,8 @@ public class HexDungeonTest extends AITest {
                 AssertJUnit.assertEquals(where, HexColor.COLORS.length, colours.size());
             }
         }
+        AssertJUnit.assertTrue("most labyrinths have gaps of rock: " + withRock + " of " + labyrinths, withRock * 10 >= labyrinths * 9);
+        AssertJUnit.assertTrue("some treasures lie open", openTreasures > 0);
     }
 
     @Test
@@ -180,9 +236,9 @@ public class HexDungeonTest extends AITest {
         AssertJUnit.assertSame(d.entrance(), d.here());
         AssertJUnit.assertEquals(c.fightLife(), d.lifeLeft);
         AssertJUnit.assertNull("no fight at the entrance", c.pendingEncounter);
-        final List<HexRoom> next = d.neighbours(d.entrance());
+        final Set<HexRoom> sight = inSight(d, d.entrance());
         for (final HexRoom r : d.rooms) {
-            AssertJUnit.assertEquals("seen: the entrance and the rooms behind its doors", r == d.entrance() || next.contains(r), r.seen);
+            AssertJUnit.assertEquals("seen: the entrance and the ways straight on from its doors", sight.contains(r), r.seen);
             AssertJUnit.assertEquals(r == d.entrance(), r.visited);
         }
         // no steps on the hex map, no changes to the decks
@@ -201,13 +257,7 @@ public class HexDungeonTest extends AITest {
         final HexRoom far = d.boss();
         AssertJUnit.assertFalse("not next to the party", c.canStepRoom(far.x, far.y));
         // a step into a guarded room starts its fight
-        HexRoom guarded = null;
-        for (final HexRoom r : d.rooms) {
-            if (r.guarded() && r.kind == HexRoom.Kind.EMPTY) {
-                guarded = r;
-            }
-        }
-        AssertJUnit.assertNotNull(guarded);
+        final HexRoom guarded = guarded(c, d, first(d, HexRoom.Kind.EMPTY));
         AssertJUnit.assertEquals(HexCampaign.MoveResult.ENCOUNTER, stepInto(c, d, guarded));
         AssertJUnit.assertSame(guarded.guard, c.pendingEncounter);
         AssertJUnit.assertTrue(guarded.visited);
@@ -223,7 +273,7 @@ public class HexDungeonTest extends AITest {
             if (room.kind != HexRoom.Kind.TREASURE) {
                 continue;
             }
-            AssertJUnit.assertEquals(HexCampaign.MoveResult.ENCOUNTER, stepInto(c, d, room));
+            AssertJUnit.assertEquals(HexCampaign.MoveResult.ENCOUNTER, stepInto(c, d, guarded(c, d, room)));
             AssertJUnit.assertEquals(d.lifeLeft, c.partyStartLife());
             final int goldBefore = c.player("Ann").gold;
             win(c, life);
@@ -271,14 +321,7 @@ public class HexDungeonTest extends AITest {
         shrines.get(0).guard = null;
         shrines.get(0).content = "LIFE";
         shrines.get(1).content = "WEAKEN";
-        if (shrines.get(1).guard == null) {
-            shrines.get(1).guard = HexContent.get().randomEncounter(d.color, 0.5, new java.util.Random(1));
-            shrines.get(1).guard.dungeonStage = HexDungeon.GUARD;
-            shrines.get(1).guard.q = c.partyQ;
-            shrines.get(1).guard.r = c.partyR;
-            shrines.get(1).guard.roomX = shrines.get(1).x;
-            shrines.get(1).guard.roomY = shrines.get(1).y;
-        }
+        guarded(c, d, shrines.get(1));
         final int life = d.lifeLeft;
         AssertJUnit.assertEquals(HexCampaign.MoveResult.NOTHING, stepInto(c, d, shrines.get(0)));
         AssertJUnit.assertEquals(life + HexCampaign.DUNGEON_SHRINE_LIFE, d.lifeLeft);
@@ -308,17 +351,12 @@ public class HexDungeonTest extends AITest {
         final HexTile outside = dungeonNextToParty(c);
         final HexTile before = c.tile();
         final HexDungeon d = enter(c);
-        final HexRoom treasure = first(d, HexRoom.Kind.TREASURE);
+        final HexRoom treasure = guarded(c, d, first(d, HexRoom.Kind.TREASURE));
         stepInto(c, d, treasure);
         win(c, 15);
         c.pendingRewards.clear();
         d.buffs.add("HAND");
-        HexRoom corridor = null;
-        for (final HexRoom r : d.rooms) {
-            if (r.guarded() && r.kind == HexRoom.Kind.EMPTY) {
-                corridor = r;
-            }
-        }
+        final HexRoom corridor = guarded(c, d, first(d, HexRoom.Kind.EMPTY));
         stepInto(c, d, corridor);
         c.resolveBattle(HexBattle.Result.LOST);
         AssertJUnit.assertFalse(c.inLabyrinth());
@@ -338,7 +376,7 @@ public class HexDungeonTest extends AITest {
     public void fleeingStepsBackIntoTheRoomBefore() {
         final HexCampaign c = newCampaign(11L, 7);
         final HexDungeon d = enter(c);
-        final HexRoom treasure = first(d, HexRoom.Kind.TREASURE);
+        final HexRoom treasure = guarded(c, d, first(d, HexRoom.Kind.TREASURE));
         final HexRoom from = d.neighbours(treasure).get(0);
         stepInto(c, d, treasure);
         c.resolveBattle(HexBattle.Result.FLED);
@@ -352,7 +390,7 @@ public class HexDungeonTest extends AITest {
     public void leavingOnlyFromTheEntranceAndThenItStartsAnew() {
         final HexCampaign c = newCampaign(13L, 7);
         final HexDungeon d = enter(c);
-        final HexRoom treasure = first(d, HexRoom.Kind.TREASURE);
+        final HexRoom treasure = guarded(c, d, first(d, HexRoom.Kind.TREASURE));
         stepInto(c, d, treasure);
         win(c, 15);
         c.pendingRewards.clear();
@@ -369,6 +407,73 @@ public class HexDungeonTest extends AITest {
         AssertJUnit.assertTrue(treasure.looted);
         AssertJUnit.assertEquals(HexCampaign.MoveResult.DUNGEON, c.enterLabyrinth());
         AssertJUnit.assertSame(d.entrance(), d.here());
+    }
+
+    @Test
+    public void aTreasureWithoutAnEnemyIsThePartysAtOnce() {
+        final HexCampaign c = newCampaign(27L, 7);
+        final HexDungeon d = enter(c);
+        final HexRoom treasure = first(d, HexRoom.Kind.TREASURE);
+        treasure.guard = null;
+        treasure.content = "GOLD";
+        final int gold = c.player("Ann").gold;
+        AssertJUnit.assertEquals(HexCampaign.MoveResult.NOTHING, stepInto(c, d, treasure));
+        AssertJUnit.assertNull("no fight", c.pendingEncounter);
+        AssertJUnit.assertTrue(treasure.looted);
+        AssertJUnit.assertTrue(c.player("Ann").gold > gold);
+        for (final HexPlayer p : c.players) {
+            final HexReward reward = c.pendingReward(p.name);
+            AssertJUnit.assertTrue("shown like a reward", reward.chestGold > 0);
+            AssertJUnit.assertEquals("nothing to choose", 0, reward.gold);
+            AssertJUnit.assertTrue(reward.options().isEmpty());
+        }
+        AssertJUnit.assertTrue("the party waits until everybody has seen it", c.isBusy());
+        final int after = c.player("Ann").gold;
+        c.chooseReward("Ann", -1);
+        c.chooseReward("Bob", -1);
+        AssertJUnit.assertFalse(c.isBusy());
+        AssertJUnit.assertEquals(after, c.player("Ann").gold);
+        AssertJUnit.assertEquals("taken once", HexCampaign.MoveResult.NOTHING, stepInto(c, d, treasure));
+        AssertJUnit.assertTrue(c.pendingRewards.isEmpty());
+    }
+
+    @Test
+    public void thePartySeesDownStraightWaysUpToAnEnemy() {
+        // a corridor of four rooms in a row, west to east, in a labyrinth of rock
+        final HexDungeon d = new HexDungeon();
+        d.size = 4;
+        for (int y = 0; y < 4; y++) {
+            for (int x = 0; x < 4; x++) {
+                final HexRoom r = new HexRoom(x, y);
+                r.kind = y == 0 ? HexRoom.Kind.EMPTY : y == 1 && x == 0 ? HexRoom.Kind.EMPTY : HexRoom.Kind.ROCK;
+                d.rooms.add(r);
+            }
+        }
+        for (int x = 0; x < 4; x++) {
+            d.room(x, 0).doors = (x > 0 ? HexDungeon.WEST : 0) | (x < 3 ? HexDungeon.EAST : 0);
+        }
+        d.room(1, 0).doors |= HexDungeon.SOUTH; // a door into the rock leads nowhere
+        d.room(0, 0).doors |= HexDungeon.SOUTH;
+        d.room(0, 1).doors = HexDungeon.NORTH;
+        AssertJUnit.assertNull(d.room(1, 1));
+        d.see(d.room(0, 1));
+        for (int x = 0; x < 4; x++) {
+            AssertJUnit.assertEquals("only straight on: " + x, x == 0, d.room(x, 0).seen);
+        }
+        d.see(d.room(0, 0));
+        for (int x = 0; x < 4; x++) {
+            AssertJUnit.assertTrue("the whole corridor: " + x, d.room(x, 0).seen);
+        }
+        // an enemy in the way: the rooms beyond it stay dark
+        d.reset();
+        d.room(1, 0).guard = new HexEncounter();
+        d.see(d.room(0, 0));
+        AssertJUnit.assertTrue(d.room(1, 0).seen);
+        AssertJUnit.assertFalse(d.room(2, 0).seen);
+        AssertJUnit.assertFalse(d.room(3, 0).seen);
+        d.room(1, 0).beaten = true;
+        d.see(d.room(0, 0));
+        AssertJUnit.assertTrue("beaten, it no longer blocks the view", d.room(3, 0).seen);
     }
 
     @Test
@@ -400,7 +505,7 @@ public class HexDungeonTest extends AITest {
     public void theRuleCardIsInPlayOnTheEnemySide() {
         final HexCampaign c = newCampaign(17L, 7);
         final HexDungeon d = enter(c);
-        final HexRoom treasure = first(d, HexRoom.Kind.TREASURE);
+        final HexRoom treasure = guarded(c, d, first(d, HexRoom.Kind.TREASURE));
         stepInto(c, d, treasure);
         final String rule = HexContent.get().findStartCard(d.ruleCard).getName();
         boolean found = false;

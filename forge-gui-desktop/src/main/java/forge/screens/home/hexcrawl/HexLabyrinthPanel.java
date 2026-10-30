@@ -33,7 +33,7 @@ import forge.util.Localizer;
 
 /**
  * The labyrinth of the dungeon the party is in, drawn where the hex map is: the rooms it has been in, those it
- * sees through their doors (with what waits in them), darkness elsewhere. A click on a room next to the party's
+ * sees down its ways (with what waits in them), the rock beside them, darkness elsewhere. A click on a room next to the party's
  * votes for it; the way out below the entrance votes to leave. Above it, the dungeon's rule card, the buffs of
  * its shrines and the life the party has left.
  */
@@ -43,6 +43,8 @@ public class HexLabyrinthPanel extends JPanel {
     private static final int EXIT_H = 34;
     private static final Color WALL = new Color(0x2A2218);
     private static final Color DARK = new Color(0x0B0B0D);
+    private static final Color ROCK = new Color(0x191715);
+    private static final Color ROCK_LIGHT = new Color(0x2F2B27);
     private static final Color GOLD = new Color(0xE8C04A);
     private static final Color GOLD_LIGHT = new Color(0xFFE08A);
 
@@ -248,6 +250,12 @@ public class HexLabyrinthPanel extends JPanel {
             g.setColor(f);
             g.fillRect(x, y, c, c);
         }
+        // the rock between the ways, where the party sees a room next to it
+        for (final HexRoom r : d.rooms) {
+            if (r.kind == HexRoom.Kind.ROCK && besideSeen(d, r)) {
+                drawRock(g, ox + r.x * c, oy + r.y * c, c, r.x * 31 + r.y * 17);
+            }
+        }
         // the walls of the rooms the party knows, with a gap for every door
         g.setColor(WALL);
         g.setStroke(new BasicStroke(Math.max(3f, c / 12f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
@@ -335,6 +343,34 @@ public class HexLabyrinthPanel extends JPanel {
             }
         }
         return 0;
+    }
+
+    /** A square of rock with a room the party knows next to it. */
+    private static boolean besideSeen(final HexDungeon d, final HexRoom rock) {
+        for (final int door : HexDungeon.DOORS) {
+            final HexRoom n = d.room(rock.x + HexDungeon.dx(door), rock.y + HexDungeon.dy(door));
+            if (n != null && n.seen) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Solid rock: a dark square with a few stones in it (placed by the seed, so they stay where they are). */
+    private static void drawRock(final Graphics2D g, final int x, final int y, final int c, final int seed) {
+        g.setColor(ROCK);
+        g.fillRect(x, y, c, c);
+        final java.util.Random rnd = new java.util.Random(seed);
+        for (int i = 0; i < 5; i++) {
+            final int w = c / 6 + rnd.nextInt(Math.max(1, c / 5));
+            final int h = w * 2 / 3;
+            final int sx = x + 4 + rnd.nextInt(Math.max(1, c - w - 8));
+            final int sy = y + 4 + rnd.nextInt(Math.max(1, c - h - 8));
+            g.setColor(ROCK_LIGHT);
+            g.fillRoundRect(sx, sy, w, h, h, h);
+            g.setColor(ROCK.darker());
+            g.drawRoundRect(sx, sy, w, h, h, h);
+        }
     }
 
     /** A wall from one corner to the other, with a gap in the middle where there is a door. */
@@ -515,7 +551,7 @@ public class HexLabyrinthPanel extends JPanel {
             return;
         }
         final String[] keys = { "lblHexLabyLegendEntrance", "lblHexLabyLegendTreasure", "lblHexLabyLegendShrine", "lblHexLabyLegendBoss",
-            "lblHexLabyLegendGuard", "lblHexLegendParty", "lblHexLabyLegendDark" };
+            "lblHexLabyLegendGuard", "lblHexLegendParty", "lblHexLabyLegendRock", "lblHexLabyLegendDark" };
         final int row = 32;
         final int icon = 40;
         g.setFont(getFont().deriveFont(Font.PLAIN, 13f));
@@ -553,6 +589,7 @@ public class HexLabyrinthPanel extends JPanel {
                     HexMapPanel.drawLife(sg, getFont(), 20, cx + 10, cy - 6, 18);
                     break;
                 case "lblHexLegendParty": HexMapPanel.drawParty(sg, cx, cy, 8); break;
+                case "lblHexLabyLegendRock": drawRock(sg, cx - 14, cy - 14, 28, 7); break;
                 default:
                     sg.setColor(DARK);
                     sg.fillRect(cx - 14, cy - 10, 28, 20);

@@ -10,19 +10,26 @@ import java.util.Map;
 import java.util.Random;
 
 /**
- * Builds the labyrinth of a dungeon: a maze of rooms carved from the entrance, with a few walls more broken
- * through so that ways cross and the boss can be reached in more than one way; treasures and shrines in the
- * dead ends (the treasures always guarded), a few enemies in the corridors, and the dungeon's rule card.
+ * Builds the labyrinth of a dungeon: rooms on part of its squares (rock on the others), a maze carved through
+ * them from the entrance, with a few walls more broken through so that ways cross and the boss can be reached
+ * in more than one way; treasures and shrines in the dead ends, enemies scattered about (before a treasure, or
+ * just in the way), and the dungeon's rule card.
  */
 public final class HexLabyrinth {
+    /** Rooms in a labyrinth; the other squares are rock. */
+    public static final int ROOMS = 32;
+    /** Labyrinths with gaps tried before one without. */
+    static final int LAYOUTS = 25;
+    /** The farthest rooms tried for the boss. */
+    static final int BOSS_PLACES = 4;
     /** Walls broken through after the maze is carved: crossings and loops. */
     static final int LOOPS = 6;
     static final int TREASURES = 3;
     static final int SHRINES = 2;
-    /** Enemies in the corridors, besides those guarding treasures and shrines. */
-    static final int WANDERERS = 2;
-    /** Corridor enemies stand at least this many steps from the entrance. */
-    static final int WANDERER_DEPTH = 3;
+    /** Enemies scattered through the labyrinth, besides its boss. */
+    public static final int ENEMIES = 6;
+    /** Enemies stand at least this many steps from the entrance. */
+    static final int ENEMY_DEPTH = 2;
 
     public static final List<String> TREASURE_KINDS = Arrays.asList("CARD", "GOLD", "RELIC");
     public static final List<String> BUFFS = Arrays.asList("LIFE", "HAND", "LAND", "WEAKEN");
@@ -53,42 +60,14 @@ public final class HexLabyrinth {
     /** Builds the labyrinth of a dungeon on the field q, r; the party starts outside, at its entrance. */
     public static void build(final HexDungeon d, final int q, final int r, final Random rnd, final int cycle) {
         final int n = HexDungeon.SIZE;
-        d.size = n;
-        d.rooms.clear();
-        for (int y = 0; y < n; y++) {
-            for (int x = 0; x < n; x++) {
-                d.rooms.add(new HexRoom(x, y));
+        for (int attempt = 0; attempt <= LAYOUTS; attempt++) {
+            if (layout(d, rnd, attempt < LAYOUTS ? ROOMS : n * n)) {
+                break;
             }
         }
-        d.entranceX = n / 2;
-        d.entranceY = n - 1;
-        final HexRoom entrance = d.entrance();
-        entrance.kind = HexRoom.Kind.ENTRANCE;
-        carve(d, entrance, rnd);
-        for (int i = 0, tries = 0; i < LOOPS && tries < 200; tries++) {
-            if (breakWall(d, d.rooms.get(rnd.nextInt(d.rooms.size())), rnd, true)) {
-                i++;
-            }
-        }
-
-        // the boss: in the room farthest from the entrance, with two ways in
-        int[] dist = distances(d, null);
-        HexRoom boss = entrance;
-        for (final HexRoom room : d.rooms) {
-            if (dist[index(d, room)] > dist[index(d, boss)]) {
-                boss = room;
-            }
-        }
-        d.bossX = boss.x;
-        d.bossY = boss.y;
-        // a second way to it, from deep inside (should there be none, from less deep): never from the entrance
-        final int deep = Math.max(1, dist[index(d, boss)] / 2);
-        for (int tries = 0; !twoWays(d) && tries < 600; tries++) {
-            final HexRoom from = tries % 3 == 0 ? boss : d.rooms.get(rnd.nextInt(d.rooms.size()));
-            openDeep(d, from, rnd, dist, tries < 150 ? deep : tries < 400 ? 2 : 1);
-        }
+        final HexRoom boss = d.boss();
         boss.kind = HexRoom.Kind.BOSS;
-        dist = distances(d, null);
+        final int[] dist = distances(d, null);
         int far = 1;
         for (final int v : dist) {
             far = Math.max(far, v);
@@ -103,8 +82,7 @@ public final class HexLabyrinth {
                     these.add(room);
                 }
             }
-            final int[] fd = dist;
-            these.sort((a, b) -> fd[index(d, b)] != fd[index(d, a)] ? fd[index(d, b)] - fd[index(d, a)] : a.y != b.y ? a.y - b.y : a.x - b.x);
+            these.sort((a, b) -> dist[index(d, b)] != dist[index(d, a)] ? dist[index(d, b)] - dist[index(d, a)] : a.y != b.y ? a.y - b.y : a.x - b.x);
             places.addAll(these);
         }
         final List<HexRoom.Kind> kinds = new ArrayList<>();
@@ -119,31 +97,27 @@ public final class HexLabyrinth {
         Collections.shuffle(treasures, rnd);
         final List<String> buffs = new ArrayList<>(BUFFS);
         Collections.shuffle(buffs, rnd);
-        final HexContent content = HexContent.get();
         for (int i = 0; i < kinds.size() && i < places.size(); i++) {
             final HexRoom room = places.get(i);
             room.kind = kinds.get(i);
-            if (room.kind == HexRoom.Kind.TREASURE) {
-                room.content = treasures.remove(0);
-                room.guard = guard(content, d, room, dist[index(d, room)], far, rnd); // a treasure is always guarded
-            } else {
-                room.content = buffs.remove(0);
-                if (rnd.nextBoolean()) {
-                    room.guard = guard(content, d, room, dist[index(d, room)], far, rnd);
-                }
-            }
+            room.content = room.kind == HexRoom.Kind.TREASURE ? treasures.remove(0) : buffs.remove(0);
         }
 
-        // a few enemies in the corridors: some ways are blocked by a fight, others lead around it
-        final List<HexRoom> corridors = new ArrayList<>();
+        // the enemies stand anywhere but near the entrance: before a treasure, or just in the way
+        final HexContent content = HexContent.get();
+        final List<HexRoom> stands = new ArrayList<>();
         for (final HexRoom room : d.rooms) {
-            if (room.kind == HexRoom.Kind.EMPTY && room.doorCount() >= 2 && dist[index(d, room)] >= WANDERER_DEPTH) {
-                corridors.add(room);
+            if (room.kind != HexRoom.Kind.ROCK && room.kind != HexRoom.Kind.ENTRANCE && room.kind != HexRoom.Kind.BOSS
+                    && dist[index(d, room)] >= ENEMY_DEPTH) {
+                stands.add(room);
             }
         }
-        Collections.shuffle(corridors, rnd);
-        for (int i = 0; i < WANDERERS && i < corridors.size(); i++) {
-            corridors.get(i).guard = guard(content, d, corridors.get(i), dist[index(d, corridors.get(i))], far, rnd);
+        Collections.shuffle(stands, rnd);
+        for (int i = 0; i < ENEMIES && i < stands.size(); i++) {
+            final HexRoom room = stands.get(i);
+            final HexEncounter enc = content.randomEncounter(d.color, 0.55 + 0.45 * dist[index(d, room)] / far, rnd);
+            enc.dungeonStage = HexDungeon.GUARD;
+            room.guard = enc;
         }
 
         final HexEncounter keeper = content.dungeonGuardian(d.color, rnd, cycle);
@@ -170,11 +144,98 @@ public final class HexLabyrinth {
         d.reset();
     }
 
-    private static HexEncounter guard(final HexContent content, final HexDungeon d, final HexRoom room, final int dist, final int far,
-            final Random rnd) {
-        final HexEncounter enc = content.randomEncounter(d.color, 0.55 + 0.45 * dist / far, rnd);
-        enc.dungeonStage = HexDungeon.GUARD;
-        return enc;
+    /**
+     * Lays out the squares and the ways: this many rooms (rock on the rest, all rooms joined), the entrance at
+     * the bottom in the middle, a maze through them with a few loops, and the boss in the room farthest from the
+     * entrance; false if it cannot be reached in two ways, or there are too few dead ends for the treasures.
+     */
+    private static boolean layout(final HexDungeon d, final Random rnd, final int count) {
+        final int n = HexDungeon.SIZE;
+        d.size = n;
+        d.rooms.clear();
+        for (int y = 0; y < n; y++) {
+            for (int x = 0; x < n; x++) {
+                d.rooms.add(new HexRoom(x, y));
+            }
+        }
+        d.entranceX = n / 2;
+        d.entranceY = n - 1;
+        final HexRoom entrance = d.entrance();
+        entrance.kind = HexRoom.Kind.ENTRANCE;
+        // rock, square by square, as long as every room can still be reached
+        final List<HexRoom> squares = new ArrayList<>(d.rooms);
+        Collections.shuffle(squares, rnd);
+        int rooms = n * n;
+        for (final HexRoom square : squares) {
+            if (rooms <= count) {
+                break;
+            }
+            if (square == entrance) {
+                continue;
+            }
+            square.kind = HexRoom.Kind.ROCK;
+            if (joined(d, rooms - 1)) {
+                rooms--;
+            } else {
+                square.kind = HexRoom.Kind.EMPTY;
+            }
+        }
+
+        carve(d, entrance, rnd);
+        for (int i = 0, tries = 0; i < LOOPS && tries < 200; tries++) {
+            final HexRoom room = d.rooms.get(rnd.nextInt(d.rooms.size()));
+            if (room.kind != HexRoom.Kind.ROCK && breakWall(d, room, rnd)) {
+                i++;
+            }
+        }
+
+        // the boss: in one of the rooms farthest from the entrance that can be reached in two ways
+        final int[] dist = distances(d, null);
+        final List<HexRoom> far = new ArrayList<>();
+        for (final HexRoom room : d.rooms) {
+            if (dist[index(d, room)] > 0) {
+                far.add(room);
+            }
+        }
+        Collections.shuffle(far, rnd);
+        far.sort((a, b) -> dist[index(d, b)] - dist[index(d, a)]);
+        HexRoom boss = null;
+        for (int i = 0; i < far.size() && i < BOSS_PLACES && boss == null; i++) {
+            if (secondWay(d, far.get(i), dist)) {
+                boss = far.get(i);
+            }
+        }
+        if (boss == null) {
+            return false;
+        }
+        int deadEnds = 0;
+        for (final HexRoom room : d.rooms) {
+            if (room.kind == HexRoom.Kind.EMPTY && room.doorCount() == 1 && room != boss) {
+                deadEnds++;
+            }
+        }
+        return twoWays(d) && deadEnds >= TREASURES;
+    }
+
+    /** All this many rooms are joined square to square (doors or not) with the entrance. */
+    private static boolean joined(final HexDungeon d, final int rooms) {
+        final boolean[] done = new boolean[d.rooms.size()];
+        final ArrayDeque<HexRoom> todo = new ArrayDeque<>();
+        done[index(d, d.entrance())] = true;
+        todo.add(d.entrance());
+        int found = 1;
+        while (!todo.isEmpty()) {
+            final HexRoom room = todo.poll();
+            for (final int door : HexDungeon.DOORS) {
+                final HexRoom next = d.room(room.x + HexDungeon.dx(door), room.y + HexDungeon.dy(door));
+                if (next != null && !done[index(d, next)]) {
+                    done[index(d, next)] = true;
+                    found++;
+                    todo.add(next);
+                }
+            }
+        }
+        return found == rooms;
     }
 
     private static int index(final HexDungeon d, final HexRoom room) {
@@ -217,35 +278,56 @@ public final class HexLabyrinth {
         }
     }
 
-    /** Opens a wall between two rooms both at least this deep in the labyrinth (by the steps of the first maze). */
-    private static void openDeep(final HexDungeon d, final HexRoom room, final Random rnd, final int[] dist, final int deep) {
-        if (dist[index(d, room)] < deep) {
-            return;
+    /** Closes the door between two rooms (both sides). */
+    private static void close(final HexDungeon d, final HexRoom room, final int door) {
+        final HexRoom other = d.room(room.x + HexDungeon.dx(door), room.y + HexDungeon.dy(door));
+        room.doors &= ~door;
+        if (other != null) {
+            other.doors &= ~HexDungeon.opposite(door);
+        }
+    }
+
+    /**
+     * Makes this room the boss's, with two ways to it: as it is, or with one more door, to the deepest room next
+     * to it that gives a second way (never to the entrance); false if none does.
+     */
+    private static boolean secondWay(final HexDungeon d, final HexRoom boss, final int[] dist) {
+        d.bossX = boss.x;
+        d.bossY = boss.y;
+        if (twoWays(d)) {
+            return true;
         }
         final List<Integer> walls = new ArrayList<>();
         for (final int door : HexDungeon.DOORS) {
-            final HexRoom other = d.room(room.x + HexDungeon.dx(door), room.y + HexDungeon.dy(door));
-            if ((room.doors & door) == 0 && other != null && dist[index(d, other)] >= deep && other != d.entrance()) {
+            final HexRoom other = d.room(boss.x + HexDungeon.dx(door), boss.y + HexDungeon.dy(door));
+            if ((boss.doors & door) == 0 && other != null && other != d.entrance()) {
                 walls.add(door);
             }
         }
-        if (!walls.isEmpty()) {
-            open(d, room, walls.get(rnd.nextInt(walls.size())));
+        walls.sort((a, b) -> dist[index(d, d.room(boss.x + HexDungeon.dx(b), boss.y + HexDungeon.dy(b)))]
+                - dist[index(d, d.room(boss.x + HexDungeon.dx(a), boss.y + HexDungeon.dy(a)))]);
+        for (final int door : walls) {
+            open(d, boss, door);
+            if (twoWays(d)) {
+                return true;
+            }
+            close(d, boss, door);
         }
+        return false;
     }
 
     /**
      * Opens a closed wall of the room to a neighbour inside the labyrinth; false if it has none. Loops keep the
      * dead ends (neither room may be one), where the treasures lie.
      */
-    private static boolean breakWall(final HexDungeon d, final HexRoom room, final Random rnd, final boolean keepDeadEnds) {
-        if (keepDeadEnds && room.doorCount() <= 1) {
+    private static boolean breakWall(final HexDungeon d, final HexRoom room, final Random rnd) {
+        if (room.doorCount() <= 1) {
             return false;
         }
         final List<Integer> walls = new ArrayList<>();
         for (final int door : HexDungeon.DOORS) {
             final HexRoom other = d.room(room.x + HexDungeon.dx(door), room.y + HexDungeon.dy(door));
-            if ((room.doors & door) == 0 && other != null && !(keepDeadEnds && other.doorCount() <= 1)) {
+            if ((room.doors & door) == 0 && other != null && other.doorCount() > 1) {
                 walls.add(door);
             }
         }

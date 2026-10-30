@@ -328,8 +328,8 @@ public class HexCampaign {
     }
 
     /**
-     * The party steps into a room of the labyrinth: it sees into the rooms behind its doors; an enemy in it
-     * fights the party, a shrine without one gives its buff at once.
+     * The party steps into a room of the labyrinth: it sees down the ways behind its doors; an enemy in it
+     * fights the party, a treasure or a shrine without one is the party's at once.
      */
     public MoveResult stepRoom(final int x, final int y) {
         if (!canStepRoom(x, y)) {
@@ -354,8 +354,23 @@ public class HexCampaign {
         }
         if (room.kind == HexRoom.Kind.SHRINE && room.full()) {
             giveBuff(d, room);
+        } else if (room.kind == HexRoom.Kind.TREASURE && room.full()) {
+            takeTreasure(d, room);
         }
         return MoveResult.NOTHING;
+    }
+
+    /** A treasure no enemy keeps: every head gets their share at once (shown like a reward, without a choice). */
+    private void takeTreasure(final HexDungeon d, final HexRoom room) {
+        final Set<String> taken = new java.util.HashSet<>();
+        final Random rnd = new Random(seed * 131L + cycle * 7919L + steps * 61L);
+        for (final HexPlayer p : players) {
+            final HexReward reward = new HexReward();
+            reward.playerName = p.name;
+            openTreasure(p, reward, room.content, d.color, rnd, taken);
+            pendingRewards.add(reward);
+        }
+        room.looted = true;
     }
 
     /** The party may leave its dungeon: it stands at the entrance. */
@@ -1190,6 +1205,9 @@ public class HexCampaign {
             if (room != null) {
                 // a fight in a dungeon won: on with the life the party has left (and a breath)
                 room.beaten = true;
+                if (dungeon.inside) {
+                    dungeon.see(dungeon.here()); // the enemy no longer blocks the view
+                }
                 final int left = lastFight != null && lastFight.partyLife > 0 ? lastFight.partyLife : fightLife();
                 dungeon.lifeLeft = Math.min(fightLife() + DUNGEON_SHRINE_LIFE * dungeon.buffCount("LIFE"), left + DUNGEON_HEAL);
                 if (enc.isGuardian()) {
@@ -1351,7 +1369,9 @@ public class HexCampaign {
             log(msg("lblHexJournalRewardCard", p.name, options.get(cardIndex)));
         } else {
             earn(p, reward.gold);
-            log(msg("lblHexJournalRewardGold", p.name, String.valueOf(reward.gold)));
+            if (reward.gold > 0) { // a treasure found without a fight has none
+                log(msg("lblHexJournalRewardGold", p.name, String.valueOf(reward.gold)));
+            }
         }
     }
 

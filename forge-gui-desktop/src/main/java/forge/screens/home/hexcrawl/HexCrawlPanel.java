@@ -1336,8 +1336,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         rewardPromptOpen = true;
         try {
             final List<String> options = new ArrayList<>();
-            options.add(t("lblHexTakeGold", String.valueOf(reward.gold)));
             final List<String> cards = reward.options();
+            // a treasure found without a fight: nothing to choose, only to take
+            options.add(reward.gold == 0 && cards.isEmpty() ? t("lblHexRewardTakeTreasure") : t("lblHexTakeGold", String.valueOf(reward.gold)));
             // the cards on offer side by side: take one of them, or the gold
             final JPanel pictures = new JPanel(new MigLayout("insets 0, gap 12"));
             pictures.setOpaque(false);

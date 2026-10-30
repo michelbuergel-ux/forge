@@ -4,15 +4,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A dungeon of a colour: a labyrinth of rooms in the style of Shandalar. Its ways show room by room as the party
- * walks them; dead ends hold treasures and shrines, most behind an enemy, and the boss waits at its far end,
- * reached in more than one way. One enchantment or artifact (its rule card) is in play in all its fights. The
+ * A dungeon of a colour: a labyrinth of rooms in the style of Shandalar, with gaps of solid rock between its
+ * ways. Its ways show as the party walks them (down a straight corridor as far as the eye reaches); dead ends
+ * hold treasures and shrines, enemies stand about, and the boss waits at its far end, reached in more than one way. One enchantment or artifact (its rule card) is in play in all its fights. The
  * party's life carries over from fight to fight and its decks stay locked while it is inside; losing or
  * leaving starts the dungeon anew (but what was taken stays taken).
  */
 public class HexDungeon {
-    /** The labyrinth's rooms per side. */
-    public static final int SIZE = 6;
+    /** The labyrinth's squares per side (not all of them rooms). */
+    public static final int SIZE = 7;
     /** The doors of a room, as a bitmask. */
     public static final int NORTH = 1;
     public static final int EAST = 2;
@@ -25,7 +25,7 @@ public class HexDungeon {
 
     public HexColor color;
     public int size;
-    /** The rooms, row by row. */
+    /** The squares, row by row: rooms, and rock where there is none ({@link #room} leaves the rock out). */
     public List<HexRoom> rooms = new ArrayList<>();
     public int entranceX;
     public int entranceY;
@@ -59,8 +59,14 @@ public class HexDungeon {
         return door == NORTH ? SOUTH : door == SOUTH ? NORTH : door == EAST ? WEST : EAST;
     }
 
-    /** The room at a place, or null outside the labyrinth. */
+    /** The room at a place, or null outside the labyrinth or in its rock. */
     public HexRoom room(final int rx, final int ry) {
+        final HexRoom r = square(rx, ry);
+        return r == null || r.kind == HexRoom.Kind.ROCK ? null : r;
+    }
+
+    /** The square at a place, a room or rock; null outside the labyrinth. */
+    public HexRoom square(final int rx, final int ry) {
         if (rx < 0 || ry < 0 || rx >= size || ry >= size || rooms.size() != size * size) {
             return null;
         }
@@ -100,12 +106,26 @@ public class HexDungeon {
         return here != null && r != null && neighbours(here).contains(r);
     }
 
-    /** The party is in a room: it knows the room now, and sees into those behind its open doors. */
+    /**
+     * The party is in a room: it knows the room now, and looks through each open door down the way behind it,
+     * as long as the way runs straight on; an enemy in the way blocks the view beyond it.
+     */
     public void see(final HexRoom r) {
         r.visited = true;
         r.seen = true;
-        for (final HexRoom n : neighbours(r)) {
-            n.seen = true;
+        for (final int door : DOORS) {
+            HexRoom from = r;
+            while ((from.doors & door) != 0) {
+                final HexRoom n = room(from.x + dx(door), from.y + dy(door));
+                if (n == null) {
+                    break;
+                }
+                n.seen = true;
+                if (n.guarded()) {
+                    break;
+                }
+                from = n;
+            }
         }
     }
 
