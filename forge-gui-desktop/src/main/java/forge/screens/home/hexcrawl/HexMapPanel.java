@@ -338,6 +338,8 @@ public class HexMapPanel extends JPanel {
             } else {
                 final forge.item.IPaperCard ruleCard = d.ruleCard == null ? null : forge.gamemodes.hexcrawl.HexContent.get().findStartCard(d.ruleCard);
                 sb.append('\n').append(loc.getMessage("lblHexDungeonHint", String.valueOf(forge.gamemodes.hexcrawl.HexContent.TREASURE_PRICE)));
+                sb.append('\n').append(loc.getMessage("lblHexDungeonTreasuresLeft", String.valueOf(campaign.treasuresLeft()),
+                        String.valueOf(campaign.treasureCap())));
                 if (ruleCard != null) {
                     sb.append('\n').append(loc.getMessage("lblHexDungeonRule", ruleCard.getName()));
                 }
@@ -592,8 +594,8 @@ public class HexMapPanel extends JPanel {
     }
 
     /**
-     * A dungeon: a dark cave mouth framed by stones, with a pip for each of its fights (lit: won in the run going
-     * on); grey once it is cleared.
+     * A dungeon: a dark cave mouth framed by stones; grey, and its mouth caved in, once its lord is beaten and
+     * it has collapsed.
      */
     static void drawDungeon(final Graphics2D g, final int cx, final int cy, final int s, final boolean cleared) {
         final Color stone = cleared ? new Color(0x8A8A8A) : new Color(0x9C8F7A);
@@ -625,6 +627,19 @@ public class HexMapPanel extends JPanel {
             final int bx = (int) Math.round(cx + Math.cos(a) * s * 0.78);
             final int by = (int) Math.round(cy - s * 0.05 + Math.sin(a) * s * 0.78);
             g.drawLine(bx, by, (int) Math.round(cx + Math.cos(a) * s * 0.62), (int) Math.round(cy - s * 0.05 + Math.sin(a) * s * 0.62));
+        }
+        if (cleared) {
+            // collapsed: boulders fill the mouth
+            final int r = Math.max(2, (int) Math.round(s * 0.24));
+            final double[][] stones = { { -0.36, 0.72 }, { 0.0, 0.76 }, { 0.36, 0.72 }, { -0.2, 0.36 }, { 0.2, 0.38 }, { 0.0, 0.02 } };
+            for (final double[] st : stones) {
+                final int bx = (int) Math.round(cx + st[0] * s) - r;
+                final int by = (int) Math.round(cy + st[1] * s) - r;
+                g.setColor(new Color(0x9A9A9A));
+                g.fillOval(bx, by, 2 * r, 2 * r);
+                g.setColor(new Color(0x2A2218));
+                g.drawOval(bx, by, 2 * r, 2 * r);
+            }
         }
     }
 

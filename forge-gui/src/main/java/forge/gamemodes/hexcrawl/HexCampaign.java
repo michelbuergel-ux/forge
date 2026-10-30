@@ -83,6 +83,8 @@ public class HexCampaign {
     public static final int DUNGEON_GUARDIAN_LIFE_PER_HEAD = 5;
     /** A treasure room's gold, for every head. */
     public static final int DUNGEON_TREASURE_GOLD = 100;
+    /** Treasure rooms all dungeons together give in a cycle, per head, so they cannot be farmed (the bosses' chests apart). */
+    public static final int DUNGEON_TREASURES_PER_HEAD = 2;
     /** A shrine's life (for the rest of the visit, even above full life), and what weakens the enemies. */
     public static final int DUNGEON_SHRINE_LIFE = 5;
     public static final int DUNGEON_WEAKEN_LIFE = 5;
@@ -171,6 +173,8 @@ public class HexCampaign {
     public boolean siegesPlaced;
     /** The dungeons of this map are placed (false in saves from before there were dungeons). */
     public boolean dungeonsPlaced;
+    /** Treasure rooms opened in this cycle, in all dungeons together (at most {@link #treasureCap()}). */
+    public int treasuresTaken;
     /** The last town the party freed (thanked once on every screen), and a counter for it. */
     public String freedTown;
     public String freedFrom;
@@ -327,6 +331,21 @@ public class HexCampaign {
         return d != null && d.inside && !isBusy() && !won && d.nextToParty(d.room(x, y));
     }
 
+    /** Treasure rooms all dungeons together give in a cycle: two for every head. */
+    public int treasureCap() {
+        return DUNGEON_TREASURES_PER_HEAD * Math.max(1, players.size());
+    }
+
+    /** Treasure rooms the dungeons still give in this cycle; once none are left, their chests are empty. */
+    public int treasuresLeft() {
+        return Math.max(0, treasureCap() - treasuresTaken);
+    }
+
+    /** The room holds a treasure the party may still take in this cycle. */
+    public boolean treasureWaits(final HexRoom room) {
+        return room != null && room.kind == HexRoom.Kind.TREASURE && room.full() && treasuresLeft() > 0;
+    }
+
     /**
      * The party steps into a room of the labyrinth: it sees down the ways behind its doors; an enemy in it
      * fights the party, a treasure or a shrine without one is the party's at once.
@@ -354,8 +373,10 @@ public class HexCampaign {
         }
         if (room.kind == HexRoom.Kind.SHRINE && room.full()) {
             giveBuff(d, room);
-        } else if (room.kind == HexRoom.Kind.TREASURE && room.full()) {
+        } else if (treasureWaits(room)) {
             takeTreasure(d, room);
+        } else if (room.kind == HexRoom.Kind.TREASURE && room.full()) {
+            log(msg("lblHexJournalTreasureSpent", String.valueOf(treasureCap())));
         }
         return MoveResult.NOTHING;
     }
@@ -371,6 +392,7 @@ public class HexCampaign {
             pendingRewards.add(reward);
         }
         room.looted = true;
+        treasuresTaken++;
     }
 
     /** The party may leave its dungeon: it stands at the entrance. */
@@ -653,6 +675,7 @@ public class HexCampaign {
 
         won = false;
         defeatedBosses.clear();
+        treasuresTaken = 0;
         pendingEncounter = null;
         pendingRewards.clear();
         shops.clear();
@@ -1216,6 +1239,10 @@ public class HexCampaign {
                     log(msg("lblHexJournalDungeonCleared", enc.enemyName));
                 }
             }
+            final boolean treasure = treasureWaits(room);
+            if (room != null && room.kind == HexRoom.Kind.TREASURE && room.full() && !treasure) {
+                log(msg("lblHexJournalTreasureSpent", String.valueOf(treasureCap())));
+            }
             final Set<String> treasures = new java.util.HashSet<>();
             final Random chestRandom = new Random(seed * 131L + cycle * 7919L + battlesWon * 53L);
             for (final HexPlayer p : players) {
@@ -1237,13 +1264,14 @@ public class HexCampaign {
                 }
                 if (room != null && enc.isGuardian()) {
                     openChest(p, reward, dungeon.color, chestRandom, treasures);
-                } else if (room != null && room.kind == HexRoom.Kind.TREASURE && room.full()) {
+                } else if (treasure) {
                     openTreasure(p, reward, room.content, dungeon.color, chestRandom, treasures);
                 }
                 pendingRewards.add(reward);
             }
-            if (room != null && room.kind == HexRoom.Kind.TREASURE) {
+            if (treasure) {
                 room.looted = true;
+                treasuresTaken++;
             } else if (room != null && room.kind == HexRoom.Kind.SHRINE && room.full()) {
                 giveBuff(dungeon, room); // the shrine its enemy kept
             }

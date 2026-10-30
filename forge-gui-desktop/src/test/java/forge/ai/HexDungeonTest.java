@@ -438,6 +438,58 @@ public class HexDungeonTest extends AITest {
     }
 
     @Test
+    public void theDungeonsGiveOnlySoManyTreasuresInACycle() {
+        final HexCampaign c = newCampaign(29L, 7);
+        AssertJUnit.assertEquals("two for each of the two heads", 4, c.treasureCap());
+        c.treasuresTaken = c.treasureCap() - 1;
+        final HexDungeon d = enter(c);
+        final java.util.List<HexRoom> chests = new java.util.ArrayList<>();
+        for (final HexRoom r : d.rooms) {
+            if (r.kind == HexRoom.Kind.TREASURE) {
+                chests.add(r);
+            }
+        }
+        // the last treasure of the cycle
+        chests.get(0).guard = null;
+        AssertJUnit.assertEquals(1, c.treasuresLeft());
+        stepInto(c, d, chests.get(0));
+        AssertJUnit.assertTrue(chests.get(0).looted);
+        AssertJUnit.assertEquals(0, c.treasuresLeft());
+        c.chooseReward("Ann", -1);
+        c.chooseReward("Bob", -1);
+        // then the chests are empty: open ones give nothing, guarded ones only what their enemy has
+        chests.get(1).guard = null;
+        AssertJUnit.assertFalse(c.treasureWaits(chests.get(1)));
+        AssertJUnit.assertEquals(HexCampaign.MoveResult.NOTHING, stepInto(c, d, chests.get(1)));
+        AssertJUnit.assertTrue("nothing to take", c.pendingRewards.isEmpty());
+        AssertJUnit.assertFalse(chests.get(1).looted);
+        AssertJUnit.assertEquals(HexCampaign.MoveResult.ENCOUNTER, stepInto(c, d, guarded(c, d, chests.get(2))));
+        win(c, 20);
+        for (final HexPlayer p : c.players) {
+            final HexReward reward = c.pendingReward(p.name);
+            AssertJUnit.assertNull(reward.chestCard);
+            AssertJUnit.assertNull(reward.chestRelic);
+            AssertJUnit.assertEquals(0, reward.chestGold);
+        }
+        c.pendingRewards.clear();
+        AssertJUnit.assertEquals("never below none", 0, c.treasuresLeft());
+        AssertJUnit.assertEquals(c.treasureCap(), c.treasuresTaken);
+        // leaving and coming back brings nothing back
+        d.x = d.entranceX;
+        d.y = d.entranceY;
+        AssertJUnit.assertTrue(c.leaveLabyrinth());
+        AssertJUnit.assertEquals(HexCampaign.MoveResult.DUNGEON, c.enterLabyrinth());
+        AssertJUnit.assertEquals(0, c.treasuresLeft());
+        // a new cycle: new labyrinths, and their treasure
+        d.x = d.entranceX;
+        d.y = d.entranceY;
+        c.leaveLabyrinth();
+        c.won = true;
+        AssertJUnit.assertTrue(c.startNewGamePlus());
+        AssertJUnit.assertEquals(c.treasureCap(), c.treasuresLeft());
+    }
+
+    @Test
     public void thePartySeesDownStraightWaysUpToAnEnemy() {
         // a corridor of four rooms in a row, west to east, in a labyrinth of rock
         final HexDungeon d = new HexDungeon();
@@ -489,7 +541,7 @@ public class HexDungeonTest extends AITest {
         win(c, 5);
         AssertJUnit.assertTrue(d.cleared);
         AssertJUnit.assertFalse("out again", c.inLabyrinth());
-        AssertJUnit.assertFalse(c.canEnterLabyrinth());
+        AssertJUnit.assertFalse("collapsed", c.canEnterLabyrinth());
         AssertJUnit.assertEquals(HexDefeat.Kind.DUNGEON, c.defeated.get(c.defeated.size() - 1).kind);
         final Set<String> cards = new HashSet<>();
         for (final HexPlayer p : c.players) {

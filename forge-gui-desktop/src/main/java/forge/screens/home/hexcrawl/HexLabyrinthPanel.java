@@ -202,7 +202,8 @@ public class HexLabyrinthPanel extends JPanel {
     private String describe(final HexDungeon d, final HexRoom r) {
         final StringBuilder sb = new StringBuilder(t("lblHexRoom" + r.kind.name()));
         if (r.kind == HexRoom.Kind.TREASURE) {
-            sb.append(" – ").append(r.looted ? t("lblHexRoomLooted") : t("lblHexTreasure" + r.content));
+            sb.append(" – ").append(r.looted ? t("lblHexRoomLooted") : campaign.treasureWaits(r) ? t("lblHexTreasure" + r.content)
+                    : t("lblHexTreasureSpent", String.valueOf(campaign.treasureCap())));
         } else if (r.kind == HexRoom.Kind.SHRINE) {
             sb.append(" – ").append(r.looted ? t("lblHexRoomUsed") : t("lblHexBuff" + r.content,
                     String.valueOf(HexCampaign.DUNGEON_SHRINE_LIFE), String.valueOf(HexCampaign.DUNGEON_WEAKEN_LIFE)));
@@ -401,7 +402,7 @@ public class HexLabyrinthPanel extends JPanel {
                 drawStairs(g, cx, y + c - c / 5, c);
                 break;
             case TREASURE:
-                drawChest(g, thingX, cy + c / 8, c, r.looted ? null : r.content);
+                drawChest(g, thingX, cy + c / 8, c, campaign.treasureWaits(r) ? r.content : null); // empty once this cycle's treasure is spent
                 break;
             case SHRINE:
                 drawShrine(g, thingX, cy + c / 10, c, r.looted ? null : r.content);
@@ -510,6 +511,7 @@ public class HexLabyrinthPanel extends JPanel {
             pills.add(t("lblHexLabyRule", rule.getName()));
         }
         pills.add(t("lblHexLabyLife", String.valueOf(d.lifeLeft)));
+        pills.add(t("lblHexLabyTreasures", String.valueOf(campaign.treasuresLeft()), String.valueOf(campaign.treasureCap())));
         for (final String buff : d.buffs) {
             pills.add(t("lblHexBuff" + buff, String.valueOf(HexCampaign.DUNGEON_SHRINE_LIFE), String.valueOf(HexCampaign.DUNGEON_WEAKEN_LIFE)));
         }
