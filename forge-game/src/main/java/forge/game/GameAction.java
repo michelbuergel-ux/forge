@@ -360,6 +360,7 @@ public class GameAction {
                     }
                 } else if (toBattlefield && !c.isInPlay()) {
                     // was replaced with another Zone Change
+                    cleanStaticEffect(staticEff, copied);
                     if (c.removeChangedState()) {
                         c.updateStateForView();
                     }
@@ -1592,7 +1593,6 @@ public class GameAction {
                 orderedNoRegCreats = true;
             }
             for (Card c : noRegCreats) {
-                c.updateWasDestroyed(true);
                 sacrificeDestroy(c, null, mapParams);
             }
 
@@ -2148,8 +2148,6 @@ public class GameAction {
             c.getController().addSacrificedThisTurn(lkiCopy, source);
             lki.put(c.getController(), lkiCopy);
 
-            c.updateWasDestroyed(true);
-
             Card changed = sacrificeDestroy(c, source, params);
             if (changed != null) {
                 result.add(changed);
@@ -2188,8 +2186,6 @@ public class GameAction {
             activator = sa.getActivatingPlayer();
         }
 
-        //for animation
-        c.updateWasDestroyed(true);
         // Play the Destroy sound
         game.fireEvent(new GameEventCardDestroyed());
 
@@ -2606,6 +2602,7 @@ public class GameAction {
 
             if (p.hasLost()) { // the person who should take initiative is gone, it goes to next player
                 takeInitiative(game.getNextPlayerAfter(p), set);
+                return;
             }
 
             game.setHasInitiative(p);
@@ -2635,10 +2632,9 @@ public class GameAction {
             switch (game.getReplacementHandler().run(ReplacementType.Scry, repParams)) {
                 case NotReplaced:
                     break;
-                case Updated: {
+                case Updated:
                     playerScry = (int) repParams.get(AbilityKey.Num);
                     break;
-                }
                 default:
                     continue;
             }

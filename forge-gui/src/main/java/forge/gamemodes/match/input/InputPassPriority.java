@@ -20,6 +20,7 @@ package forge.gamemodes.match.input;
 import forge.game.Game;
 import forge.game.GameView;
 import forge.game.card.Card;
+import forge.game.card.CardView;
 import forge.game.phase.PhaseType;
 import forge.game.player.Player;
 import forge.game.player.PlayerView;
@@ -80,7 +81,6 @@ public class InputPassPriority extends InputSyncronizedBase {
     @Override
     protected void onStop() {
         cancelPartnerCountdown();
-        getController().clearActionableCards();
     }
 
     @Override
@@ -193,11 +193,16 @@ public class InputPassPriority extends InputSyncronizedBase {
         getController().getGui().alertUser();
     }
 
+    @Override
+    protected List<CardView> getActionable() {
+        return pendingSuggestion == null ? getController().getActionableCards(false, null) : List.of();
+    }
+
     private void showNormalPrompt() {
         pendingSuggestion = null;
         pendingSuggestionMessage = null;
 
-        getController().pushActionableCards(false);
+        showSelection();
         final SpellAbilityStackInstance partnerItem = partnerItem();
         if (partnerItem != null) {
             showPartnerPrompt(partnerItem);
@@ -213,7 +218,7 @@ public class InputPassPriority extends InputSyncronizedBase {
             final UndoManager um = getController().getGame().getUndoManager();
             final int n = um.undosLeft();
             final String undoLabel = localizer.getMessage("lblUndo") + (n > 0 ? " (" + n + ")" : "");
-            getController().getGui().updateButtons(getOwner(), localizer.getMessage("lblOK"), undoLabel, true, true, true);
+            getController().getGui().updateButtons(getOwner(), localizer.getMessage("lblOK"), undoLabel, true, true, true, true);
         }
         else { //otherwise allow ending turn with cancel button
             getController().getGui().updateButtons(getOwner(), localizer.getMessage("lblOK"), localizer.getMessage("lblEndTurn"), true, true, true);
