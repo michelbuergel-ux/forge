@@ -58,15 +58,23 @@ public class HexMapPanel extends JPanel {
     private boolean legendOpen = FModel.getPreferences().getPrefBoolean(FPref.HEXCRAWL_LEGEND_OPEN);
     private Rectangle legendButton = new Rectangle();
     private Rectangle legendBox = new Rectangle();
+    /** How long a collapsing dungeon throws up its dust (ms). */
+    private static final int COLLAPSE_MS = 1600;
+    /** The collapsed dungeons the map knew last (of which campaign and cycle), and those collapsing just now. */
+    private String collapseWatch;
+    private java.util.Set<String> collapsedKnown = new java.util.HashSet<>();
+    private final java.util.Map<String, Long> collapsing = new java.util.HashMap<>();
+    private final javax.swing.Timer collapseTicker = new javax.swing.Timer(30, e -> repaint());
 
     public HexMapPanel() {
         setOpaque(false);
         ToolTipManager.sharedInstance().registerComponent(this);
         final MouseAdapter mouse = new MouseAdapter() {
-            @Override public void mouseClicked(final MouseEvent e) {
-                if (dragged) {
-                    return;
-                }
+            /**
+             * A click, taken on the release: Swing's own clicks are lost whenever the mouse moves by a pixel between
+             * press and release, which happened to quick clicks now and then.
+             */
+            private void click(final MouseEvent e) {
                 if (legendButton.contains(e.getPoint())) {
                     toggleLegend();
                     return;
@@ -111,8 +119,12 @@ public class HexMapPanel extends JPanel {
                 dragFrom = e.getPoint();
             }
             @Override public void mouseReleased(final MouseEvent e) {
+                final boolean clicked = dragFrom != null && !dragged && javax.swing.SwingUtilities.isLeftMouseButton(e);
                 dragFrom = null;
                 setCursor(java.awt.Cursor.getDefaultCursor());
+                if (clicked) {
+                    click(e);
+                }
             }
             @Override public void mouseWheelMoved(final java.awt.event.MouseWheelEvent e) {
                 final double step = e.getPreciseWheelRotation() * 1.5;
@@ -555,7 +567,71 @@ public class HexMapPanel extends JPanel {
         final int py = (int) Math.round(centerY(here, size) - (aside ? size * 0.45 : 0));
         drawParty(g, px, py, (int) Math.round(size * 0.3));
 
+        final long now = System.currentTimeMillis();
+        observeCollapses(now);
+        for (final java.util.Map.Entry<String, Long> e : collapsing.entrySet()) {
+            final HexTile t = campaign.map.tiles.get(e.getKey());
+            if (t != null) {
+                drawDust(g, (int) Math.round(centerX(t, size)), (int) Math.round(centerY(t, size)), size, (now - e.getValue()) / (double) COLLAPSE_MS);
+            }
+        }
+
         paintLegend(g);
+        g.dispose();
+    }
+
+    /** A dungeon that collapsed since the map looked last throws up dust; the ticker repaints while it settles. */
+    private void observeCollapses(final long now) {
+        final java.util.Set<String> cleared = new java.util.HashSet<>();
+        for (final HexTile t : campaign.map.tiles.values()) {
+            if (t.poi == HexPoi.DUNGEON && t.dungeon != null && t.dungeon.cleared) {
+                cleared.add(t.key());
+            }
+        }
+        final String watch = campaign.name + "#" + campaign.seed + "#" + campaign.cycle;
+        if (!watch.equals(collapseWatch)) {
+            collapseWatch = watch; // another campaign or cycle: what is collapsed already is no news
+            collapsing.clear();
+        } else {
+            for (final String key : cleared) {
+                if (!collapsedKnown.contains(key)) {
+                    collapsing.put(key, now);
+                }
+            }
+        }
+        collapsedKnown = cleared;
+        collapsing.values().removeIf(start -> now - start >= COLLAPSE_MS);
+        if (!collapsing.isEmpty() && !collapseTicker.isRunning()) {
+            collapseTicker.start();
+        } else if (collapsing.isEmpty() && collapseTicker.isRunning()) {
+            collapseTicker.stop();
+        }
+    }
+
+    /** Dust billowing out of a collapsing dungeon, and stones dropping into its mouth, fading as t goes to 1. */
+    private static void drawDust(final Graphics2D g0, final int cx, final int cy, final double s, final double t) {
+        final Graphics2D g = (Graphics2D) g0.create();
+        final double fade = 1 - t;
+        final java.util.Random rnd = new java.util.Random(cx * 31L + cy);
+        for (int i = 0; i < 9; i++) {
+            final double a = Math.PI * (1.05 + rnd.nextDouble() * 0.9); // out and upward
+            final double dist = s * (0.2 + (0.8 + rnd.nextDouble() * 0.5) * Math.sqrt(t));
+            final double r = s * (0.3 + 0.6 * t) * (0.8 + rnd.nextDouble() * 0.4);
+            final int dx = (int) Math.round(cx + Math.cos(a) * dist);
+            final int dy = (int) Math.round(cy + s * 0.3 + Math.sin(a) * dist * 0.7);
+            g.setColor(i % 2 == 0 ? new Color(118, 108, 96, (int) (200 * fade)) : new Color(196, 186, 170, (int) (190 * fade)));
+            g.fillOval((int) (dx - r), (int) (dy - r), (int) (2 * r), (int) (2 * r));
+        }
+        if (t < 0.5) {
+            for (int i = 0; i < 6; i++) {
+                final double fall = Math.min(1, t * 2.4 + i * 0.05);
+                final int sx = (int) Math.round(cx + (rnd.nextDouble() - 0.5) * s * 1.1);
+                final int sy = (int) Math.round(cy - s * 1.4 + fall * s * 1.9);
+                final int st = Math.max(2, (int) Math.round(s * 0.14));
+                g.setColor(new Color(110, 105, 98, (int) (255 * (1 - t * 2))));
+                g.fillRect(sx - st / 2, sy - st / 2, st, st);
+            }
+        }
         g.dispose();
     }
 

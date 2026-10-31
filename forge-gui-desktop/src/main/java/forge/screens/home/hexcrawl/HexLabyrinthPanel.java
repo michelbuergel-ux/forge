@@ -1,11 +1,15 @@
 package forge.screens.home.hexcrawl;
 
+import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
+import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Polygon;
+import java.awt.RadialGradientPaint;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
@@ -35,7 +39,8 @@ import forge.util.Localizer;
  * The labyrinth of the dungeon the party is in, drawn where the hex map is: the rooms it has been in, those it
  * sees down its ways (with what waits in them), the rock beside them, darkness elsewhere. A click on a room next to the party's
  * votes for it; the way out below the entrance votes to leave. Above it, the dungeon's rule card, the buffs of
- * its shrines and the life the party has left.
+ * its shrines and the life the party has left. The party slides from room to room, rooms it comes to see fade in,
+ * and a chest opened or a shrine used flashes.
  */
 @SuppressWarnings("serial")
 public class HexLabyrinthPanel extends JPanel {
@@ -47,6 +52,38 @@ public class HexLabyrinthPanel extends JPanel {
     private static final Color ROCK_LIGHT = new Color(0x2F2B27);
     private static final Color GOLD = new Color(0xE8C04A);
     private static final Color GOLD_LIGHT = new Color(0xFFE08A);
+    /** How long the party slides into a room, a room fades in, and a chest or shrine flashes (ms). */
+    private static final int SLIDE_MS = 260;
+    private static final int FADE_MS = 450;
+    private static final int FLASH_MS = 1100;
+
+    /** A chest opened or a shrine used, in its room, since then. */
+    private static final class Flash {
+        final int x;
+        final int y;
+        final Color color;
+        final long start;
+
+        Flash(final int x0, final int y0, final Color color0, final long start0) {
+            x = x0;
+            y = y0;
+            color = color0;
+            start = start0;
+        }
+    }
+
+    /** What the panel saw last of the labyrinth it shows (by the party's field): news since then is animated. */
+    private String watched;
+    private int lastX;
+    private int lastY;
+    private int slideFromX;
+    private int slideFromY;
+    private long slideStart;
+    private boolean[] lastSeen;
+    private boolean[] lastLooted;
+    private long[] seenSince;
+    private final List<Flash> flashes = new ArrayList<>();
+    private final javax.swing.Timer ticker = new javax.swing.Timer(30, e -> repaint());
 
     private HexCampaign campaign;
     private Map<String, String> votes;
@@ -64,8 +101,27 @@ public class HexLabyrinthPanel extends JPanel {
         setOpaque(false);
         ToolTipManager.sharedInstance().registerComponent(this);
         final MouseAdapter mouse = new MouseAdapter() {
+            private java.awt.Point pressedAt;
+
             @Override
-            public void mouseClicked(final MouseEvent e) {
+            public void mousePressed(final MouseEvent e) {
+                pressedAt = javax.swing.SwingUtilities.isLeftMouseButton(e) ? e.getPoint() : null;
+            }
+
+            /**
+             * A click, taken on the release (near where the button went down): Swing's own clicks are lost whenever
+             * the mouse moves by a pixel between press and release.
+             */
+            @Override
+            public void mouseReleased(final MouseEvent e) {
+                final java.awt.Point from = pressedAt;
+                pressedAt = null;
+                if (from != null && from.distanceSq(e.getPoint()) <= 64) {
+                    click(e);
+                }
+            }
+
+            private void click(final MouseEvent e) {
                 if (legendButton.contains(e.getPoint())) {
                     toggleLegend();
                     return;
@@ -169,6 +225,10 @@ public class HexLabyrinthPanel extends JPanel {
                 (int) (a.getBlue() * (1 - share) + b.getBlue() * share));
     }
 
+    private static Color withAlpha(final Color c, final int alpha) {
+        return new Color(c.getRed(), c.getGreen(), c.getBlue(), alpha);
+    }
+
     private static String t(final String key, final Object... args) {
         return Localizer.getInstance().getMessage(key, args);
     }
@@ -232,6 +292,8 @@ public class HexLabyrinthPanel extends JPanel {
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         paintHeader(g, d);
 
+        final long now = System.currentTimeMillis();
+        observe(d, now);
         final int c = cell(d);
         final int ox = originX(d);
         final int oy = originY();
@@ -239,17 +301,19 @@ public class HexLabyrinthPanel extends JPanel {
         final Color floor = blend(tint, new Color(0x8C8270), 0.55);
         g.setColor(DARK);
         g.fillRect(ox - 4, oy - 4, c * d.size + 8, c * d.size + 8);
+        // where the party stands (sliding from the room before): the torchlight's centre
+        final double t = slideStart == 0 ? 1 : Math.min(1, (now - slideStart) / (double) SLIDE_MS);
+        final double ease = 1 - (1 - t) * (1 - t) * (1 - t);
+        final double px = slideStart == 0 ? d.x : slideFromX + (d.x - slideFromX) * ease;
+        final double py = slideStart == 0 ? d.y : slideFromY + (d.y - slideFromY) * ease;
 
-        // the floors: lit where the party has been, dim where it sees, dark elsewhere
+        // the floors: flagstones, lit where the party has been, dim where it sees, dark elsewhere; new ones fade in
         for (final HexRoom r : d.rooms) {
-            final int x = ox + r.x * c;
-            final int y = oy + r.y * c;
-            if (!r.seen) {
-                continue;
+            if (r.seen) {
+                final Graphics2D rg = faded(g, d, r, now);
+                drawFloor(rg, ox + r.x * c, oy + r.y * c, c, r.visited ? floor : blend(floor, Color.BLACK, 0.55), r.x * 131 + r.y * 71 + 7);
+                rg.dispose();
             }
-            final Color f = r.visited ? floor : blend(floor, Color.BLACK, 0.55);
-            g.setColor(f);
-            g.fillRect(x, y, c, c);
         }
         // the rock between the ways, where the party sees a room next to it
         for (final HexRoom r : d.rooms) {
@@ -257,20 +321,53 @@ public class HexLabyrinthPanel extends JPanel {
                 drawRock(g, ox + r.x * c, oy + r.y * c, c, r.x * 31 + r.y * 17);
             }
         }
-        // the walls of the rooms the party knows, with a gap for every door
-        g.setColor(WALL);
-        g.setStroke(new BasicStroke(Math.max(3f, c / 12f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        final int gap = c / 3;
+        // toward the dark the floors fade into it, and away from the party the torchlight dims
         for (final HexRoom r : d.rooms) {
-            if (!r.seen) {
-                continue;
+            if (r.seen) {
+                final Graphics2D rg = faded(g, d, r, now);
+                shadeEdges(rg, d, r, ox + r.x * c, oy + r.y * c, c);
+                rg.dispose();
             }
-            final int x = ox + r.x * c;
-            final int y = oy + r.y * c;
-            wall(g, (r.doors & HexDungeon.NORTH) != 0, x, y, x + c, y, gap);
-            wall(g, (r.doors & HexDungeon.SOUTH) != 0, x, y + c, x + c, y + c, gap);
-            wall(g, (r.doors & HexDungeon.WEST) != 0, x, y, x, y + c, gap);
-            wall(g, (r.doors & HexDungeon.EAST) != 0, x + c, y, x + c, y + c, gap);
+        }
+        final float lx = (float) (ox + (px + 0.5) * c);
+        final float ly = (float) (oy + (py + 0.5) * c);
+        final Graphics2D torch = (Graphics2D) g.create();
+        torch.setPaint(new RadialGradientPaint(lx, ly, c * 4.6f, new float[] { 0f, 0.28f, 1f },
+                new Color[] { new Color(255, 200, 120, 26), new Color(0, 0, 0, 0), new Color(0, 0, 0, 120) }));
+        torch.fillRect(ox, oy, c * d.size, c * d.size);
+        torch.dispose();
+        // the walls of the rooms the party knows, with a gap for every door: a shadow, the stone, a lit top edge
+        final float w = Math.max(3f, c / 12f);
+        final int gap = c / 3;
+        final Color shadow = new Color(0, 0, 0, 95);
+        final Color lit = withAlpha(blend(floor, Color.WHITE, 0.3), 120);
+        final int drop = Math.max(2, Math.round(w * 0.6f));
+        for (int pass = 0; pass < 3; pass++) {
+            for (final HexRoom r : d.rooms) {
+                if (!r.seen) {
+                    continue;
+                }
+                final Graphics2D rg = faded(g, d, r, now);
+                final int x = ox + r.x * c;
+                final int y = oy + r.y * c;
+                if (pass == 0) {
+                    rg.translate(drop, drop);
+                    rg.setColor(shadow);
+                    rg.setStroke(new BasicStroke(w + 2, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                } else if (pass == 1) {
+                    rg.setColor(WALL);
+                    rg.setStroke(new BasicStroke(w, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                } else {
+                    rg.translate(-w / 4, -w / 4);
+                    rg.setColor(lit);
+                    rg.setStroke(new BasicStroke(Math.max(1f, w / 4), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                }
+                wall(rg, (r.doors & HexDungeon.NORTH) != 0, x, y, x + c, y, gap);
+                wall(rg, (r.doors & HexDungeon.SOUTH) != 0, x, y + c, x + c, y + c, gap);
+                wall(rg, (r.doors & HexDungeon.WEST) != 0, x, y, x, y + c, gap);
+                wall(rg, (r.doors & HexDungeon.EAST) != 0, x + c, y, x + c, y + c, gap);
+                rg.dispose();
+            }
         }
 
         // where the party can go
@@ -286,8 +383,13 @@ public class HexLabyrinthPanel extends JPanel {
         // what the rooms hold
         for (final HexRoom r : d.rooms) {
             if (r.seen) {
-                paintRoom(g, d, r, ox + r.x * c, oy + r.y * c, c);
+                final Graphics2D rg = faded(g, d, r, now);
+                paintRoom(rg, d, r, ox + r.x * c, oy + r.y * c, c);
+                rg.dispose();
             }
+        }
+        for (final Flash f : flashes) {
+            drawFlash(g, f, ox + f.x * c + c / 2, oy + f.y * c + c / 2, c, now);
         }
 
         // the way out, below the entrance
@@ -305,7 +407,7 @@ public class HexLabyrinthPanel extends JPanel {
 
         // the party, and the votes
         final int pr = Math.max(8, c / 9);
-        HexMapPanel.drawParty(g, ox + d.x * c + pr + 6, oy + d.y * c + c - pr - 6, pr);
+        HexMapPanel.drawParty(g, (int) Math.round(ox + px * c) + pr + 6, (int) Math.round(oy + py * c) + c - pr - 6, pr);
         if (votes != null && !votes.isEmpty()) {
             final Map<String, List<String>> byKey = new LinkedHashMap<>();
             for (final Map.Entry<String, String> v : votes.entrySet()) {
@@ -344,6 +446,146 @@ public class HexLabyrinthPanel extends JPanel {
             }
         }
         return 0;
+    }
+
+    /**
+     * Compares the labyrinth with what the panel saw last: a step to the next room slides, rooms newly seen fade
+     * in, a chest opened or a shrine used flashes. A labyrinth seen for the first time has no news; the ticker
+     * repaints as long as something moves.
+     */
+    private void observe(final HexDungeon d, final long now) {
+        final String key = campaign.partyQ + "," + campaign.partyR + "," + d.size;
+        final int n = d.rooms.size();
+        if (!key.equals(watched) || lastSeen == null || lastSeen.length != n) {
+            watched = key;
+            lastSeen = new boolean[n];
+            lastLooted = new boolean[n];
+            seenSince = new long[n];
+            for (int i = 0; i < n; i++) {
+                lastLooted[i] = d.rooms.get(i).looted;
+            }
+            lastX = d.x;
+            lastY = d.y;
+            slideStart = 0;
+            flashes.clear();
+        }
+        if (d.x != lastX || d.y != lastY) {
+            final boolean step = Math.abs(d.x - lastX) + Math.abs(d.y - lastY) == 1;
+            slideFromX = lastX;
+            slideFromY = lastY;
+            slideStart = step ? now : 0; // back to the entrance (thrown out, or anew): no slide
+            lastX = d.x;
+            lastY = d.y;
+        }
+        boolean moving = slideStart != 0 && now - slideStart < SLIDE_MS;
+        for (int i = 0; i < n; i++) {
+            final HexRoom r = d.rooms.get(i);
+            if (r.seen && !lastSeen[i]) {
+                seenSince[i] = now;
+            }
+            lastSeen[i] = r.seen;
+            if (r.looted && !lastLooted[i] && (r.kind == HexRoom.Kind.TREASURE || r.kind == HexRoom.Kind.SHRINE)) {
+                flashes.add(new Flash(r.x, r.y, r.kind == HexRoom.Kind.TREASURE ? GOLD_LIGHT : shrineColor(r.content), now));
+            }
+            lastLooted[i] = r.looted;
+            moving |= r.seen && now - seenSince[i] < FADE_MS;
+        }
+        flashes.removeIf(f -> now - f.start >= FLASH_MS);
+        moving |= !flashes.isEmpty();
+        if (moving && !ticker.isRunning()) {
+            ticker.start();
+        } else if (!moving && ticker.isRunning()) {
+            ticker.stop();
+        }
+    }
+
+    /** A copy of the graphics that paints a room as far as it has faded in. */
+    private Graphics2D faded(final Graphics2D g, final HexDungeon d, final HexRoom r, final long now) {
+        final Graphics2D rg = (Graphics2D) g.create();
+        final int i = r.y * d.size + r.x;
+        if (seenSince != null && i < seenSince.length && seenSince[i] > 0 && now - seenSince[i] < FADE_MS) {
+            rg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0f, (now - seenSince[i]) / (float) FADE_MS)));
+        }
+        return rg;
+    }
+
+    /** A floor of flagstones in rows, each stone a little lighter or darker (placed by the seed, so they stay). */
+    private static void drawFloor(final Graphics2D g, final int x, final int y, final int c, final Color base, final int seed) {
+        g.setColor(blend(base, Color.BLACK, 0.35)); // the joints
+        g.fillRect(x, y, c, c);
+        final java.util.Random rnd = new java.util.Random(seed);
+        final int arc = Math.max(3, c / 18);
+        for (int row = 0; row < 3; row++) {
+            final int y0 = y + c * row / 3;
+            final int y1 = y + c * (row + 1) / 3;
+            int sx = x - rnd.nextInt(Math.max(1, c / 3));
+            while (sx < x + c) {
+                final int sw = c / 3 + rnd.nextInt(Math.max(1, c / 4));
+                final int x0 = Math.max(sx, x);
+                final int x1 = Math.min(sx + sw, x + c);
+                if (x1 - x0 > 3) {
+                    final double shade = rnd.nextDouble() * 0.16 - 0.08;
+                    g.setColor(shade < 0 ? blend(base, Color.BLACK, -shade) : blend(base, Color.WHITE, shade));
+                    g.fillRoundRect(x0 + 1, y0 + 1, x1 - x0 - 2, y1 - y0 - 2, arc, arc);
+                }
+                sx += sw;
+            }
+        }
+    }
+
+    /** The sides of a room toward squares the party does not know (or the labyrinth's end) fade into the dark. */
+    private static void shadeEdges(final Graphics2D g, final HexDungeon d, final HexRoom r, final int x, final int y, final int c) {
+        final int depth = Math.max(6, c * 3 / 10);
+        final Color dark = new Color(0, 0, 0, 150);
+        final Color none = new Color(0, 0, 0, 0);
+        for (final int door : HexDungeon.DOORS) {
+            final HexRoom n = d.square(r.x + HexDungeon.dx(door), r.y + HexDungeon.dy(door));
+            if (n != null && (n.kind == HexRoom.Kind.ROCK || n.seen)) {
+                continue;
+            }
+            if (door == HexDungeon.NORTH) {
+                g.setPaint(new GradientPaint(0, y, dark, 0, y + depth, none));
+                g.fillRect(x, y, c, depth);
+            } else if (door == HexDungeon.SOUTH) {
+                g.setPaint(new GradientPaint(0, y + c, dark, 0, y + c - depth, none));
+                g.fillRect(x, y + c - depth, c, depth);
+            } else if (door == HexDungeon.WEST) {
+                g.setPaint(new GradientPaint(x, 0, dark, x + depth, 0, none));
+                g.fillRect(x, y, depth, c);
+            } else {
+                g.setPaint(new GradientPaint(x + c, 0, dark, x + c - depth, 0, none));
+                g.fillRect(x + c - depth, y, depth, c);
+            }
+        }
+    }
+
+    /** A chest opened or a shrine used: a burst of light, a widening ring and sparks flying out, all fading. */
+    private static void drawFlash(final Graphics2D g0, final Flash f, final int cx, final int cy, final int c, final long now) {
+        final double t = Math.min(1, (now - f.start) / (double) FLASH_MS);
+        final double fade = 1 - t;
+        final Graphics2D g = (Graphics2D) g0.create();
+        final float glow = (float) (c * (0.35 + 0.45 * t));
+        g.setPaint(new RadialGradientPaint(cx, cy, glow, new float[] { 0f, 1f }, new Color[] {
+            new Color(f.color.getRed(), f.color.getGreen(), f.color.getBlue(), (int) (190 * fade)),
+            new Color(f.color.getRed(), f.color.getGreen(), f.color.getBlue(), 0) }));
+        g.fillOval((int) (cx - glow), (int) (cy - glow), (int) (2 * glow), (int) (2 * glow));
+        final int ring = (int) (c * (0.15 + 0.5 * t));
+        g.setStroke(new BasicStroke(Math.max(2f, c / 30f)));
+        g.setColor(new Color(255, 255, 255, (int) (200 * fade)));
+        g.drawOval(cx - ring, cy - ring, 2 * ring, 2 * ring);
+        final java.util.Random rnd = new java.util.Random(f.x * 17L + f.y);
+        for (int i = 0; i < 10; i++) {
+            final double a = Math.PI * 2 * i / 10 + rnd.nextDouble() * 0.5;
+            final double dist = c * (0.12 + (0.38 + rnd.nextDouble() * 0.15) * Math.sqrt(t));
+            final int sx = (int) Math.round(cx + Math.cos(a) * dist);
+            final int sy = (int) Math.round(cy + Math.sin(a) * dist);
+            final int s = Math.max(2, (int) Math.round(c / 16.0 * (1 - 0.5 * t)));
+            final Polygon spark = new Polygon(new int[] { sx, sx + s / 3, sx + s, sx + s / 3, sx, sx - s / 3, sx - s, sx - s / 3 },
+                    new int[] { sy - s, sy - s / 3, sy, sy + s / 3, sy + s, sy + s / 3, sy, sy - s / 3 }, 8);
+            g.setColor(new Color(255, 245, 200, (int) (230 * fade)));
+            g.fillPolygon(spark);
+        }
+        g.dispose();
     }
 
     /** A square of rock with a room the party knows next to it. */
@@ -471,6 +713,12 @@ public class HexLabyrinthPanel extends JPanel {
     }
 
     /** A shrine: a stone pillar with a glowing orb (its colour tells its buff); grey once used (buff null). */
+    /** A shrine's light: the colour of its buff (grey once used). */
+    static Color shrineColor(final String buff) {
+        return buff == null ? new Color(0x6F6A5F) : "LIFE".equals(buff) ? new Color(0xE0405A)
+                : "HAND".equals(buff) ? new Color(0x4A8FE0) : "LAND".equals(buff) ? new Color(0x4FB35A) : new Color(0x9B4FD0);
+    }
+
     static void drawShrine(final Graphics2D g, final int cx, final int cy, final int c, final String buff) {
         final int w = Math.max(10, c / 7);
         final int h = Math.max(14, c / 4);
@@ -479,8 +727,7 @@ public class HexLabyrinthPanel extends JPanel {
         g.setColor(WALL);
         g.setStroke(new BasicStroke(1.2f));
         g.drawRect(cx - w / 2, cy - h / 4, w, h);
-        final Color glow = buff == null ? new Color(0x6F6A5F) : "LIFE".equals(buff) ? new Color(0xE0405A)
-                : "HAND".equals(buff) ? new Color(0x4A8FE0) : "LAND".equals(buff) ? new Color(0x4FB35A) : new Color(0x9B4FD0);
+        final Color glow = shrineColor(buff);
         final int r = Math.max(6, c / 11);
         if (buff != null) {
             for (int i = 3; i >= 1; i--) {
