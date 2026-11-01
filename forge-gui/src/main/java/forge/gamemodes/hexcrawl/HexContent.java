@@ -444,7 +444,7 @@ public final class HexContent {
     public List<HexRelic> ordinaryRelics(final int cycle) {
         final List<HexRelic> result = new ArrayList<>();
         for (final HexRelic relic : allRelics()) {
-            if (relic.tier <= 1 && relic.avatar == null && relic.trophy == null && relic.fromCycle <= cycle) {
+            if (relic.tier <= 1 && relic.avatar == null && relic.trophy == null && relic.fromCycle <= cycle && !relic.hidden) {
                 result.add(relic);
             }
         }

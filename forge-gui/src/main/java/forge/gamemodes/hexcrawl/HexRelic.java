@@ -22,6 +22,8 @@ public class HexRelic {
     public boolean aiPlayable = true;
     /** The first cycle of the campaign in which the relic is offered (New Game Plus relics: 2). */
     public int fromCycle = 1;
+    /** Never offered (shops, shrines, chests, enemies); a head that wears it already keeps it. */
+    public boolean hidden;
     /** Cards of which some, drawn at random for every fight, start in play with the head. */
     public List<String> randomCards = new ArrayList<>();
     /** How many of the random cards start in play per cycle of the campaign (cycle 3, 1 per cycle: 3 cards). */

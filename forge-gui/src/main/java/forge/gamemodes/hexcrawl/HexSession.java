@@ -37,6 +37,7 @@ public class HexSession {
         public List<String> fightReady = new ArrayList<>();
         public List<String> present = new ArrayList<>();
         public List<String> shopping = new ArrayList<>();
+        public Map<String, String> pings = new LinkedHashMap<>();
         public boolean fightRunning;
         public String hostHead;
         /** The build of the host (see {@link HexNet#BUILD_ID}). */
@@ -59,6 +60,9 @@ public class HexSession {
     private final Set<String> present = new LinkedHashSet<>();
     /** The people with the town window open. */
     private final Set<String> shopping = new LinkedHashSet<>();
+    /** Each person's last ping on the map: the field's key and a running number ("q,r#7"), so a new ping is seen as one. */
+    private final Map<String, String> pings = new LinkedHashMap<>();
+    private int pingSerial;
     private boolean fightRunning;
     /** When the open vote ends (this computer's clock, ms), 0 if no vote is open. */
     private long voteDeadline;
@@ -100,6 +104,7 @@ public class HexSession {
     public synchronized Set<String> getFightReady() { return new LinkedHashSet<>(fightReady); }
     public synchronized Set<String> getPresent() { return new LinkedHashSet<>(present); }
     public synchronized Set<String> getShopping() { return new LinkedHashSet<>(shopping); }
+    public synchronized Map<String, String> getPings() { return new LinkedHashMap<>(pings); }
     public boolean isFightRunning() { return fightRunning; }
 
     /** Seconds until the open vote ends, or -1 if no vote is open. */
@@ -164,9 +169,19 @@ public class HexSession {
         act(new HexActionEvent(HexActionEvent.GIVE, amount, indexOf(to), null, false, head));
     }
 
+    /** In town: gives a relic the head wears to a team mate whose slot for it is free. */
+    public void giveRelic(final String head, final String to, final String relic) {
+        act(new HexActionEvent(HexActionEvent.GIVE_RELIC, 0, indexOf(to), relic, false, head));
+    }
+
     /** In town: gives a card of the deck or the sideboard to a team mate. */
     public void giveCard(final String head, final String to, final String card, final boolean fromSideboard) {
         act(new HexActionEvent(HexActionEvent.GIVE, 0, indexOf(to), card, fromSideboard, head));
+    }
+
+    /** Points at a field of the map for the others. */
+    public void ping(final int q, final int r) {
+        act(new HexActionEvent(HexActionEvent.PING, q, r, null, false, null));
     }
 
     /** This person opened (or closed) the town window. */
@@ -320,6 +335,11 @@ public class HexSession {
                 if (campaign.pendingEncounter != null && !fightRunning) {
                     fightReady.add(actor);
                 }
+            } else if (HexActionEvent.PING.equals(type)) {
+                final HexTile pinged = campaign.map.get(action.getQ(), action.getR());
+                if (pinged != null) {
+                    pings.put(actor, pinged.key() + "#" + (++pingSerial));
+                }
             } else if (HexActionEvent.CHEST_RELIC.equals(type)) {
                 campaign.chooseChestRelic(head, action.getFlag());
             } else if (HexActionEvent.REWARD.equals(type)) {
@@ -337,6 +357,11 @@ public class HexSession {
                     } else {
                         campaign.giveCard(head, taker, action.getText(), action.getFlag());
                     }
+                }
+            } else if (HexActionEvent.GIVE_RELIC.equals(type)) {
+                final int to = action.getR();
+                if (!fightRunning && to >= 0 && to < campaign.players.size()) {
+                    campaign.giveRelic(head, campaign.players.get(to).name, action.getText());
                 }
             } else if (HexActionEvent.DECK_SEEN.equals(type)) {
                 campaign.markDeckChecked(head);
@@ -615,6 +640,7 @@ public class HexSession {
         s.fightReady.addAll(fightReady);
         s.present.addAll(present);
         s.shopping.addAll(shopping);
+        s.pings.putAll(pings);
         s.fightRunning = fightRunning;
         s.hostHead = hostHead;
         s.buildId = HexNet.BUILD_ID;
@@ -643,6 +669,10 @@ public class HexSession {
             shopping.clear();
             if (s.shopping != null) {
                 shopping.addAll(s.shopping);
+            }
+            pings.clear();
+            if (s.pings != null) {
+                pings.putAll(s.pings);
             }
             fightRunning = s.fightRunning;
             hostBuild = s.buildId;

@@ -36,6 +36,10 @@ public final class HexActionEvent implements NetEvent {
     public static final String SHOPPING = "SHOPPING";
     /** A chest's relic whose slot is taken: the flag says the head keeps the new one (the worn one is sold). */
     public static final String CHEST_RELIC = "CHEST_RELIC";
+    /** A head points at a field of the map (q, r) for the others. */
+    public static final String PING = "PING";
+    /** In town a head gives a relic it wears (text) to a team mate (index r). */
+    public static final String GIVE_RELIC = "GIVE_RELIC";
 
     private final String type;
     private final int q;

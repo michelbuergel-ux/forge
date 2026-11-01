@@ -393,6 +393,16 @@ final class HexDeckDialog {
         final JPanel column = transparent(new MigLayout("insets 0, gap 0 14, wrap 1, fill", "[grow, fill]", "[][][][grow, fill]"));
         final JPanel top = transparent(new MigLayout("insets 0, gap 14", "[196!][grow, fill]", "[274!]"));
         preview = new CardFace();
+        preview.setToolTipText(t("lblHexDeckClickToView"));
+        preview.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+        preview.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseReleased(final MouseEvent e) {
+                if (hovered != null && preview.contains(e.getPoint())) {
+                    showCardBig(hovered);
+                }
+            }
+        });
         top.add(preview, "w 196!, h 274!");
         final JPanel grid = transparent(new MigLayout("insets 0, gap 10, wrap 2, fill", "[grow, fill, sg t][grow, fill, sg t]", "[grow, fill][grow, fill]"));
         for (int i = 0; i < tiles.length; i++) {
@@ -642,7 +652,32 @@ final class HexDeckDialog {
             public void move() {
                 HexDeckDialog.this.move(name, toSideboard);
             }
+
+            @Override
+            public void open() {
+                showCardBig(name);
+            }
         };
+    }
+
+    /** The card big, with its whole text beside it: a click on its row (not on the arrow) or on the preview. */
+    private void showCardBig(final String name) {
+        final PaperCard card = content.getCard(name);
+        if (card == null) {
+            return;
+        }
+        final Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+        final int h = Math.max(320, Math.min(616, screen.height - 240));
+        final int w = h * 5 / 7;
+        final JPanel panel = transparent(new MigLayout("insets 0, gap 18", "[" + w + "!][380!, fill]", "[" + h + "!, fill]"));
+        final forge.gui.CardPicturePanel picture = new forge.gui.CardPicturePanel();
+        picture.setOpaque(false);
+        picture.setItem(card);
+        panel.add(picture, "w " + w + "!, h " + h + "!");
+        final forge.gui.CardDetailPanel detail = new forge.gui.CardDetailPanel();
+        detail.setCard(forge.game.card.CardView.getCardForUi(card));
+        panel.add(detail);
+        forge.toolbox.FOptionPane.showOptionDialog(null, card.getName(), null, panel, java.util.Arrays.asList(t("lblHexClose")), 0);
     }
 
     private void showPreview() {

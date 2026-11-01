@@ -99,8 +99,29 @@ public final class HexTheme {
         // expensive cards: what costs 500 gold or more (the price list's treasures); last, so the indices above stay
         all.add(new HexTheme("valuable", "lblHexTheme_valuable", null,
                 r -> HexContent.get().price(r.getName()) >= VALUABLE_PRICE, true));
+        // added later, so after the others: the indices above stay
+        for (final String tribe : new String[] { "Dwarf", "Giant" }) {
+            all.add(new HexTheme("tribe." + tribe, "lblHexThemeTribe", tribe, r -> hasCreatureType(r.getType(), tribe)
+                    || hints(r, DeckHints.Type.TYPE, tribe)));
+        }
+        // colourless cards only (artifacts, Eldrazi, ...), no lands
+        all.add(new HexTheme("colorless", "lblHexTheme_colorless", null,
+                r -> r.getColor().isColorless() && !r.getType().isLand(), true));
+        // the small furry folk
+        all.add(mechanic("critters", r -> {
+            for (final String critter : HexTheme.CRITTERS) {
+                if (hasCreatureType(r.getType(), critter) || hints(r, DeckHints.Type.TYPE, critter)) {
+                    return true;
+                }
+            }
+            return false;
+        }));
         ALL = Collections.unmodifiableList(all);
     }
+
+    /** The creature types of the critters theme. */
+    private static final String[] CRITTERS = { "Squirrel", "Rabbit", "Otter", "Raccoon", "Weasel", "Rat", "Mouse", "Hamster",
+            "Badger", "Possum", "Mole" };
 
     private static HexTheme mechanic(final String id, final Predicate<CardRules> fits) {
         return new HexTheme(id, "lblHexTheme_" + id, null, fits);

@@ -39,6 +39,13 @@ public class HexMapPanel extends JPanel {
 
     private HexCampaign campaign;
     private Consumer<HexTile> onTileClicked;
+    private Consumer<HexTile> onTilePinged;
+    /** Each person's last ping (see HexSession.getPings), and when this screen first saw each one. */
+    private java.util.Map<String, String> pings;
+    private final java.util.Map<String, Long> pingSeen = new java.util.HashMap<>();
+    /** How long a ping shows on the map (ms). */
+    private static final int PING_MS = 6000;
+    private final javax.swing.Timer pingTicker = new javax.swing.Timer(30, e -> repaint());
     private HexTile hover;
     private java.util.Map<String, String> votes;
 
@@ -119,11 +126,17 @@ public class HexMapPanel extends JPanel {
                 dragFrom = e.getPoint();
             }
             @Override public void mouseReleased(final MouseEvent e) {
-                final boolean clicked = dragFrom != null && !dragged && javax.swing.SwingUtilities.isLeftMouseButton(e);
+                final boolean still = dragFrom != null && !dragged;
                 dragFrom = null;
                 setCursor(java.awt.Cursor.getDefaultCursor());
-                if (clicked) {
+                if (still && javax.swing.SwingUtilities.isLeftMouseButton(e)) {
                     click(e);
+                } else if (still && javax.swing.SwingUtilities.isRightMouseButton(e) && !overLegend(e.getX(), e.getY())) {
+                    // a right-click points the field out to the others
+                    final HexTile t = tileAt(e.getX(), e.getY());
+                    if (t != null && onTilePinged != null) {
+                        onTilePinged.accept(t);
+                    }
                 }
             }
             @Override public void mouseWheelMoved(final java.awt.event.MouseWheelEvent e) {
@@ -264,6 +277,75 @@ public class HexMapPanel extends JPanel {
         onTileClicked = listener;
     }
 
+    public void setOnTilePinged(final Consumer<HexTile> listener) {
+        onTilePinged = listener;
+    }
+
+    public void setPings(final java.util.Map<String, String> pings0) {
+        pings = pings0;
+        repaint();
+    }
+
+    /** Draws the pings of the last few seconds (a new one is seen when its number changes); keeps the ticker going meanwhile. */
+    private void drawPings(final Graphics2D g, final double size, final long now) {
+        boolean live = false;
+        if (pings != null) {
+            for (final java.util.Map.Entry<String, String> ping : pings.entrySet()) {
+                final long seen = pingSeen.computeIfAbsent(ping.getKey() + "|" + ping.getValue(), k -> now);
+                final double t = (now - seen) / (double) PING_MS;
+                final String key = ping.getValue().contains("#") ? ping.getValue().substring(0, ping.getValue().indexOf('#')) : ping.getValue();
+                final HexTile tile = campaign.map.tiles.get(key);
+                if (t >= 1 || tile == null) {
+                    continue;
+                }
+                live = true;
+                final String initial = ping.getKey().isEmpty() ? "?" : ping.getKey().substring(0, 1).toUpperCase();
+                drawPing(g, (int) Math.round(centerX(tile, size)), (int) Math.round(centerY(tile, size)), size,
+                        HexCrawlPanel.headColor(seat(ping.getKey())), initial, now, t);
+            }
+        }
+        if (live && !pingTicker.isRunning()) {
+            pingTicker.start();
+        } else if (!live && pingTicker.isRunning()) {
+            pingTicker.stop();
+        }
+    }
+
+    /** A ping: rings rippling out of the field in the head's colour, under a pin with its initial; fading out as t goes to 1. */
+    static void drawPing(final Graphics2D g0, final int cx, final int cy, final double size, final Color color, final String initial,
+            final long now, final double t) {
+        final Graphics2D g = (Graphics2D) g0.create();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        final double fade = t < 0.8 ? 1 : (1 - t) / 0.2;
+        for (int i = 0; i < 3; i++) {
+            final double phase = ((now / 1100.0) + i / 3.0) % 1.0;
+            final double r = size * (0.25 + phase * 0.75);
+            final int alpha = (int) Math.round(220 * (1 - phase) * fade);
+            g.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), Math.max(0, alpha)));
+            g.setStroke(new BasicStroke((float) Math.max(2, size / 12)));
+            g.draw(new java.awt.geom.Ellipse2D.Double(cx - r, cy - r, 2 * r, 2 * r));
+        }
+        // the pin above the field's middle
+        final double pr = Math.max(7, size * 0.24);
+        final double py = cy - size * 0.35;
+        final int a = (int) Math.round(255 * fade);
+        final java.awt.geom.Path2D pin = new java.awt.geom.Path2D.Double();
+        pin.moveTo(cx, cy - size * 0.02);
+        pin.lineTo(cx - pr * 0.75, py + pr * 0.45);
+        pin.lineTo(cx + pr * 0.75, py + pr * 0.45);
+        pin.closePath();
+        g.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), a));
+        g.fill(pin);
+        g.fill(new java.awt.geom.Ellipse2D.Double(cx - pr, py - pr, 2 * pr, 2 * pr));
+        g.setColor(new Color(255, 255, 255, a));
+        g.setStroke(new BasicStroke((float) Math.max(1.5, size / 20)));
+        g.draw(new java.awt.geom.Ellipse2D.Double(cx - pr, py - pr, 2 * pr, 2 * pr));
+        g.setFont(g.getFont().deriveFont(Font.BOLD, (float) Math.max(10, pr * 1.2)));
+        final FontMetrics fm = g.getFontMetrics();
+        g.drawString(initial, cx - fm.stringWidth(initial) / 2, (int) Math.round(py + fm.getAscent() / 2.0 - 1));
+        g.dispose();
+    }
+
     private double hexSize() {
         if (campaign == null) {
             return 20;
@@ -353,7 +435,10 @@ public class HexMapPanel extends JPanel {
                 sb.append('\n').append(loc.getMessage("lblHexDungeonTreasuresLeft", String.valueOf(campaign.treasuresLeft()),
                         String.valueOf(campaign.treasureCap())));
                 if (ruleCard != null) {
-                    sb.append('\n').append(loc.getMessage("lblHexDungeonRule", ruleCard.getName()));
+                    // the rule card with its text: whether to go in is decided here
+                    final String text = ruleCard.getRules() == null ? null : ruleCard.getRules().getOracleText();
+                    sb.append('\n').append(text == null || text.isEmpty() ? loc.getMessage("lblHexDungeonRule", ruleCard.getName())
+                            : loc.getMessage("lblHexDungeonRuleText", ruleCard.getName(), text.replace("\\n", "\n")));
                 }
             }
         }
@@ -568,6 +653,7 @@ public class HexMapPanel extends JPanel {
         drawParty(g, px, py, (int) Math.round(size * 0.42));
 
         final long now = System.currentTimeMillis();
+        drawPings(g, size, now);
         observeCollapses(now);
         for (final java.util.Map.Entry<String, Long> e : collapsing.entrySet()) {
             final HexTile t = campaign.map.tiles.get(e.getKey());
@@ -910,6 +996,8 @@ public class HexMapPanel extends JPanel {
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawDungeon(g, cx, cy, (int) Math.round(size * 0.4), false),
                 "lblHexLegendDungeon" });
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawParty(g, cx, cy + (int) Math.round(size * 0.1), (int) Math.round(size * 0.34)), "lblHexLegendParty" });
+        entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawPing(g, cx, cy + (int) Math.round(size * 0.2), size * 0.8,
+                HexCrawlPanel.headColor(1), "A", 0, 0), "lblHexMapPingHint" });
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> {
             g.setFont(getFont().deriveFont(Font.BOLD, (float) Math.max(9, size * 0.34)));
             drawVote(g, cx, cy, (int) Math.round(size * 0.3), HexCrawlPanel.headColor(1), "A");

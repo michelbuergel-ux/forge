@@ -1691,6 +1691,34 @@ public class HexCampaign {
         return true;
     }
 
+    /**
+     * May the head give this relic to the team mate in town? Only one it wears that is not a boss's trophy, and only
+     * if the mate's slot for it is free (and an avatar only to a companion that can play it).
+     */
+    public boolean canGiveRelic(final String from, final String to, final String relicName) {
+        final HexPlayer giver = player(from);
+        final HexPlayer taker = player(to);
+        final HexRelic relic = relicName == null ? null : HexContent.get().getRelic(relicName);
+        if (!inTown() || giver == null || taker == null || giver == taker || relic == null || relic.trophy != null) {
+            return false;
+        }
+        if (!giver.relics.contains(relic.name) || taker.relics.contains(relic.name) || relicInSlot(taker, relic.slot) != null) {
+            return false;
+        }
+        return relic.avatar == null || !taker.ai || relic.aiPlayable;
+    }
+
+    /** In town a head gives a relic it wears to a team mate whose slot for it is free. */
+    public boolean giveRelic(final String from, final String to, final String relicName) {
+        if (!canGiveRelic(from, to, relicName)) {
+            return false;
+        }
+        player(from).relics.remove(relicName);
+        player(to).relics.add(relicName);
+        log(msg("lblHexJournalGaveRelic", from, to, relicName));
+        return true;
+    }
+
     /** In town a head gives a card of its deck or sideboard to a team mate (it goes to the mate's sideboard). */
     public boolean giveCard(final String from, final String to, final String card, final boolean fromSideboard) {
         final HexPlayer giver = player(from);
@@ -2008,6 +2036,15 @@ public class HexCampaign {
         tally(p, s -> s.cardsBought++);
         p.deck.add(offer.card);
         stock.remove(offer);
+        // remembered for this visit: a misclick is sold back at what it cost
+        if (steps != p.boughtStep || !tile().key().equals(p.boughtTown)) {
+            p.bought.clear();
+            p.boughtPaid.clear();
+            p.boughtTown = tile().key();
+            p.boughtStep = steps;
+        }
+        p.bought.add(offer);
+        p.boughtPaid.add(price);
         log(msg("lblHexJournalBought", p.name, offer.card, String.valueOf(price)));
         return true;
     }
@@ -2367,10 +2404,45 @@ public class HexCampaign {
         if (fromSideboard ? !p.sideboard.remove(card) : p.deck.size() <= MIN_DECK_SIZE || !p.deck.remove(card)) {
             return false;
         }
+        final int back = boughtHere(p, card);
+        if (back >= 0) {
+            // bought during this visit: the price paid comes back, and the card goes back on the shelf
+            final int paid = p.boughtPaid.remove(back);
+            final HexShopOffer offer = p.bought.remove(back);
+            earn(p, paid);
+            tally(p, s -> s.cardsBought--);
+            shop().add(offer);
+            log(msg("lblHexJournalSoldBack", p.name, card, String.valueOf(paid)));
+            return true;
+        }
         final int price = sellPriceFor(p, card);
         earn(p, price);
         tally(p, s -> s.cardsSold++);
         log(msg("lblHexJournalSold", p.name, card, String.valueOf(price)));
         return true;
+    }
+
+    /** Where a card the head bought during this visit of the town is in its purchases (the last copy), or -1. */
+    private int boughtHere(final HexPlayer p, final String card) {
+        if (!inTown() || steps != p.boughtStep || !tile().key().equals(p.boughtTown)) {
+            return -1;
+        }
+        for (int i = p.bought.size() - 1; i >= 0; i--) {
+            if (p.bought.get(i).card.equals(card)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** Did the head buy this card during this visit of the town (so it is sold back at what it cost)? */
+    public boolean isBoughtHere(final HexPlayer p, final String card) {
+        return boughtHere(p, card) >= 0;
+    }
+
+    /** What selling the card brings the head: what it paid if it bought it during this visit, else the usual. */
+    public int sellBackPrice(final HexPlayer p, final String card) {
+        final int i = boughtHere(p, card);
+        return i >= 0 ? p.boughtPaid.get(i) : sellPriceFor(p, card);
     }
 }

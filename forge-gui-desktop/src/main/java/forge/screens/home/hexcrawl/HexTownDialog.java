@@ -1130,8 +1130,11 @@ final class HexTownDialog {
         saleShown = shown;
         pnlSale.removeAll();
         for (final SaleRow row : rows) {
-            final int price = campaign().sellPriceFor(p, row.card());
-            final CounterTile tile = new CounterTile(content.getCard(row.card()), row.card(), counterW, palette, copies(row), "+" + price,
+            // a card bought during this visit goes back for what it cost
+            final int price = campaign().sellBackPrice(p, row.card());
+            final boolean back = !row.sideboard() && campaign().isBoughtHere(p, row.card());
+            final CounterTile tile = new CounterTile(content.getCard(row.card()), row.card(), counterW, palette,
+                    back ? copies(row) + " \u00b7 " + t("lblHexSellBackMark") : copies(row), "+" + price,
                     new TileListener() {
                         @Override
                         public void hovered() { }
@@ -1156,7 +1159,9 @@ final class HexTownDialog {
         if (!row.sideboard() && p.deck.size() <= HexCampaign.MIN_DECK_SIZE) {
             setMessage(t("lblHexDeckTooSmall", String.valueOf(HexCampaign.MIN_DECK_SIZE)), true);
         } else {
-            setMessage(t("lblHexSoldCard", p.name, row.card(), String.valueOf(campaign().sellPriceFor(p, row.card()))), false);
+            final boolean back = !row.sideboard() && campaign().isBoughtHere(p, row.card());
+            setMessage(t(back ? "lblHexSoldBack" : "lblHexSoldCard", p.name, row.card(),
+                    String.valueOf(back ? campaign().sellBackPrice(p, row.card()) : campaign().sellPriceFor(p, row.card()))), false);
             session.sell(p.name, row.card(), row.sideboard());
         }
         fill();
@@ -1164,8 +1169,12 @@ final class HexTownDialog {
 
     // ------------------------------------------------------------------ trading
 
+    /** The relics on the trade page, and what they showed last. */
+    private JPanel pnlTradeRelics;
+    private String tradeRelicsShown;
+
     private JPanel buildTradePage() {
-        final JPanel page = transparent(new MigLayout("insets 0, gap 0, wrap 1, fill", "[grow, fill]", "[]14[]8[]12[grow, fill]"));
+        final JPanel page = transparent(new MigLayout("insets 0, gap 0, wrap 1, fill", "[grow, fill]", "[]14[]8[]8[]12[grow, fill]"));
         page.add(title(t("lblHexTabTrade")));
         final JPanel row = transparent(new MigLayout("insets 0, gap 10, aligny center"));
         row.add(label(t("lblHexTradeTo"), body(Font.PLAIN, 14f), MUTED));
@@ -1197,6 +1206,9 @@ final class HexTownDialog {
         });
         row.add(btnGiveGold, "h 40!");
         page.add(row);
+        // the relics the head wears: one may go to the mate if the mate's slot for it is free
+        pnlTradeRelics = transparent(new MigLayout("insets 0, gap 10, aligny center, wrap 4"));
+        page.add(pnlTradeRelics, "gaptop 4");
         final JPanel hint = transparent(new MigLayout("insets 0, gap 16, aligny center, fillx", "[]push[]"));
         hint.add(label(t("lblHexTradeHint"), body(Font.PLAIN, 13f), MUTED));
         hint.add(sourcePills(tradePills));
@@ -1204,6 +1216,43 @@ final class HexTownDialog {
         pnlTrade = transparent(new MigLayout("insets 0 0 8 0, gap 14, wrap " + COUNTER_COLUMNS, "", "[top]"));
         page.add(scroller(pnlTrade), "wmin 0, hmin 0");
         return page;
+    }
+
+    /** A button per relic the head wears: given to the chosen mate if the mate's slot for it is free. */
+    private void fillTradeRelics(final HexPlayer p) {
+        final HexPlayer taker = mate == null ? null : campaign().player(mate);
+        final String shown = p.name + '/' + mate + '/' + p.relics + '/' + (taker == null ? "" : taker.relics);
+        if (shown.equals(tradeRelicsShown)) {
+            return;
+        }
+        tradeRelicsShown = shown;
+        pnlTradeRelics.removeAll();
+        if (!p.relics.isEmpty() && taker != null) {
+            pnlTradeRelics.add(label(t("lblHexGiveRelicTo", taker.name), body(Font.PLAIN, 14f), MUTED), "span, wrap");
+        }
+        for (final String name : p.relics) {
+            final HexRelic relic = content.getRelic(name);
+            if (relic == null || relic.trophy != null) {
+                continue; // a boss's trophy stays with whoever beat the boss
+            }
+            final boolean can = taker != null && campaign().canGiveRelic(p.name, taker.name, name);
+            final GoldButton button = new GoldButton(name, can ? GoldButton.Kind.GOLD : GoldButton.Kind.OUTLINE, 13f);
+            button.setEnabled(can);
+            final HexRelic worn = taker == null ? null : campaign().relicInSlot(taker, relic.slot);
+            button.setToolTipText(can ? t("lblHexGiveRelicHint", name, taker.name, slotName(relic.slot))
+                    : worn != null ? t("lblHexGiveRelicTaken", taker == null ? "" : taker.name, slotName(relic.slot), worn.name)
+                    : t("lblHexGiveRelicNo"));
+            button.addActionListener(e -> {
+                if (mate != null && campaign().canGiveRelic(p.name, mate, name)) {
+                    setMessage(t("lblHexGaveRelic", name, mate), false);
+                    session.giveRelic(p.name, mate, name);
+                    fill();
+                }
+            });
+            pnlTradeRelics.add(button, "h 36!");
+        }
+        pnlTradeRelics.revalidate();
+        pnlTradeRelics.repaint();
     }
 
     private void fillTrade(final HexPlayer p) {
@@ -1235,6 +1284,7 @@ final class HexTownDialog {
         for (int i = 0; i < matePills.size(); i++) {
             matePills.get(i).setActive(mates.get(i).equals(mate));
         }
+        fillTradeRelics(p);
         final List<SaleRow> rows = shownRows(p, tradePills);
         final String shown = p.name + '/' + rows;
         if (shown.equals(tradeShown)) {

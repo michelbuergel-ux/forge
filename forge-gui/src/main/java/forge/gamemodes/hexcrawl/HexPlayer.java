@@ -25,6 +25,14 @@ public class HexPlayer {
     public String giftGiven;
     public String giftRelic;
     public int giftGold;
+    /**
+     * The cards the head bought during this visit of a town (the town's field and the party's step count), with what
+     * it paid: sold back, each brings that again.
+     */
+    public List<HexShopOffer> bought = new ArrayList<>();
+    public List<Integer> boughtPaid = new ArrayList<>();
+    public String boughtTown;
+    public int boughtStep;
     /** Names of the relics the head carries, at most one per slot. */
     public List<String> relics = new ArrayList<>();
     /** The trophies of the bosses the head has beaten: the boss's colour (HexColor name) to the trophy's tier (1 to 3). */

@@ -87,6 +87,22 @@ public class HexMovementTest extends AITest {
     // ------------------------------------------------------------------ votes
 
     @Test
+    public void testAPingReachesTheOthers() {
+        final HexCampaign c = newCampaign();
+        final HexSession s = session(c, new AtomicInteger());
+        final HexTile there = emptyNeighbour(c);
+        s.handle("Bob", new HexActionEvent(HexActionEvent.PING, there.q, there.r, null, false, null));
+        final String first = s.getPings().get("Bob");
+        AssertJUnit.assertTrue(first.startsWith(there.key() + "#"));
+        // the same field again is a new ping
+        s.handle("Bob", new HexActionEvent(HexActionEvent.PING, there.q, there.r, null, false, null));
+        AssertJUnit.assertFalse(first.equals(s.getPings().get("Bob")));
+        final HexSession guest = HexSession.forGuest();
+        guest.applyState(s.toStateJson(), "Bob");
+        AssertJUnit.assertEquals(s.getPings(), guest.getPings());
+    }
+
+    @Test
     public void testTheOthersSeeWhoIsInTheShops() {
         final HexCampaign c = newCampaign();
         AssertJUnit.assertTrue("the party starts in a town", c.inTown());

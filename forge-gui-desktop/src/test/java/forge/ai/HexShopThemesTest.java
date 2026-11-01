@@ -212,6 +212,85 @@ public class HexShopThemesTest extends AITest {
     }
 
     @Test
+    public void testAPurchaseIsSoldBackForWhatItCostDuringTheVisit() {
+        final HexCampaign c = HexCampaign.create("Test", 42L, 4, java.util.Arrays.asList(new HexPlayer("Ann", false), new HexPlayer("Bob", false)));
+        c.shop();
+        final HexPlayer ann = c.player("Ann");
+        ann.gold = 10000;
+        final HexShopOffer offer = c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_TOWN).get(0);
+        AssertJUnit.assertTrue(c.buy("Ann", offer));
+        final int paid = 10000 - ann.gold;
+        AssertJUnit.assertTrue(c.isBoughtHere(ann, offer.card));
+        AssertJUnit.assertEquals(paid, c.sellBackPrice(ann, offer.card));
+        AssertJUnit.assertTrue(c.sell("Ann", offer.card, false));
+        AssertJUnit.assertEquals("all of it back", 10000, ann.gold);
+        AssertJUnit.assertTrue("back on the shelf", c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_TOWN).stream()
+                .anyMatch(o -> o.card.equals(offer.card)));
+        AssertJUnit.assertFalse(c.isBoughtHere(ann, offer.card));
+
+        // after the party moved on (a step), a purchase sells as any card
+        AssertJUnit.assertTrue(c.buy("Ann", c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_TOWN).get(0)));
+        final String card = ann.deck.get(ann.deck.size() - 1);
+        c.steps++;
+        AssertJUnit.assertFalse(c.isBoughtHere(ann, card));
+        AssertJUnit.assertEquals(c.sellPriceFor(ann, card), c.sellBackPrice(ann, card));
+    }
+
+    @Test
+    public void testARelicGoesToAMateWithAFreeSlot() {
+        final HexCampaign c = HexCampaign.create("Test", 42L, 4, java.util.Arrays.asList(new HexPlayer("Ann", false), new HexPlayer("Bob", false)));
+        AssertJUnit.assertTrue(c.inTown());
+        final HexPlayer ann = c.player("Ann");
+        final HexPlayer bob = c.player("Bob");
+        final List<forge.gamemodes.hexcrawl.HexRelic> relics = HexContent.get().ordinaryRelics();
+        final forge.gamemodes.hexcrawl.HexRelic relic = relics.get(0);
+        forge.gamemodes.hexcrawl.HexRelic sameSlot = null;
+        for (final forge.gamemodes.hexcrawl.HexRelic r : relics) {
+            if (r != relic && r.slot.equals(relic.slot)) {
+                sameSlot = r;
+                break;
+            }
+        }
+        ann.relics.clear();
+        bob.relics.clear();
+        ann.relics.add(relic.name);
+        AssertJUnit.assertFalse("only what Ann wears", c.canGiveRelic("Bob", "Ann", relic.name));
+        if (sameSlot != null) {
+            bob.relics.add(sameSlot.name);
+            AssertJUnit.assertFalse("Bob's slot is taken", c.canGiveRelic("Ann", "Bob", relic.name));
+            bob.relics.clear();
+        }
+        AssertJUnit.assertTrue(c.giveRelic("Ann", "Bob", relic.name));
+        AssertJUnit.assertFalse(ann.relics.contains(relic.name));
+        AssertJUnit.assertTrue(bob.relics.contains(relic.name));
+        // a boss's trophy stays with whoever beat the boss
+        final forge.gamemodes.hexcrawl.HexRelic trophy = HexContent.get().trophy(HexColor.RED, 1);
+        if (trophy != null) {
+            ann.relics.add(trophy.name);
+            AssertJUnit.assertFalse(c.canGiveRelic("Ann", "Bob", trophy.name));
+        }
+    }
+
+    @Test
+    public void testTheNewThemesAndNoCheatRelic() {
+        final HexTheme colorless = HexTheme.get("colorless");
+        AssertJUnit.assertTrue(colorless.isStrict());
+        AssertJUnit.assertTrue(colorless.fits(HexContent.get().getCard("Sol Ring").getRules()));
+        AssertJUnit.assertFalse(colorless.fits(HexContent.get().getCard("Lightning Bolt").getRules()));
+        AssertJUnit.assertTrue(HexTheme.get("critters").fits(HexContent.get().getCard("Plague Rats").getRules()));
+        AssertJUnit.assertTrue(HexTheme.get("tribe.Dwarf").fits(HexContent.get().getCard("Dwarven Trader").getRules()));
+        AssertJUnit.assertTrue(HexTheme.get("tribe.Giant").fits(HexContent.get().getCard("Hill Giant").getRules()));
+        AssertJUnit.assertEquals("the old themes keep their places", "valuable",
+                HexTheme.byIndex(HexTheme.indexOf("tribe.Dwarf") - 1).id);
+        for (int cycle = 1; cycle <= 3; cycle++) {
+            for (final forge.gamemodes.hexcrawl.HexRelic relic : HexContent.get().ordinaryRelics(cycle)) {
+                AssertJUnit.assertFalse("never offered: " + relic.name, relic.name.startsWith("Cheat"));
+            }
+        }
+        AssertJUnit.assertNotNull("one who wears it keeps it", HexContent.get().getRelic("Cheat"));
+    }
+
+    @Test
     public void testEveryHeadHasShelvesOfItsOwn() {
         final HexCampaign c = HexCampaign.create("Test", 42L, 4, java.util.Arrays.asList(new HexPlayer("Ann", false), new HexPlayer("Bob", false)));
         c.shop();

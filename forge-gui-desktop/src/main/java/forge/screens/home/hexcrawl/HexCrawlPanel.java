@@ -255,6 +255,11 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         add(side, "grow");
 
         mapPanel.setOnTileClicked(this::onTileClicked);
+        mapPanel.setOnTilePinged(t -> {
+            if (session != null) {
+                session.ping(t.q, t.r);
+            }
+        });
         labyrinthPanel.setOnRoomClicked(this::onRoomClicked);
         labyrinthPanel.setOnExitClicked(this::onExitClicked);
         btnDungeon.addActionListener(e -> {
@@ -728,6 +733,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         mapPanel.setCampaign(campaign);
         mapPanel.setVotes(session == null ? null : session.getVotes());
+        mapPanel.setPings(session == null ? null : session.getPings());
         labyrinthPanel.setCampaign(campaign);
         labyrinthPanel.setVotes(session == null ? null : session.getVotes());
         mapCards.show(mapArea, campaign != null && campaign.inLabyrinth() ? "labyrinth" : "hex");
@@ -1296,7 +1302,18 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             return true;
         }
         final forge.item.IPaperCard rule = target.dungeon.ruleCard == null ? null : HexContent.get().findStartCard(target.dungeon.ruleCard);
-        return FOptionPane.showConfirmDialog(t("lblHexDungeonConfirm", rule == null ? "-" : rule.getName()), t("lblHexDungeon"));
+        // the rule card itself, big: it is in play in every fight inside
+        JComponent picture = null;
+        if (rule instanceof forge.item.InventoryItem) {
+            final JPanel panel = new JPanel(new MigLayout("insets 0, gap 0, alignx center"));
+            panel.setOpaque(false);
+            panel.add(HexRewardCards.card((forge.item.InventoryItem) rule, null, false), "w " + HexRewardCards.W + "!, h " + HexRewardCards.H + "!");
+            picture = panel;
+        }
+        final int choice = FOptionPane.showOptionDialog(t("lblHexDungeonConfirm", rule == null ? "-" : rule.getName()), t("lblHexDungeon"),
+                picture == null ? FOptionPane.QUESTION_ICON : null, picture,
+                Arrays.asList(Localizer.getInstance().getMessage("lblYes"), Localizer.getInstance().getMessage("lblNo")), 0);
+        return choice == 0;
     }
 
     private void onTileClicked(final HexTile target) {

@@ -25,6 +25,7 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.LinearGradientPaint;
+import java.awt.Point;
 import java.awt.RadialGradientPaint;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -156,6 +157,8 @@ final class HexDeckParts {
     interface RowListener {
         void hovered();
         void move();
+        /** The row was clicked elsewhere than on its arrow: show the card big. */
+        default void open() { }
     }
 
     /**
@@ -220,12 +223,26 @@ final class HexDeckParts {
                     setToolTipText(over ? moveTip : warn ? warnTip : null);
                 }
 
+                private Point pressedAt;
+
                 @Override
-                public void mouseClicked(final MouseEvent e) {
-                    if (e.getButton() == MouseEvent.BUTTON1 && arrowAt(e.getX()) && editable) {
+                public void mousePressed(final MouseEvent e) {
+                    pressedAt = e.getButton() == MouseEvent.BUTTON1 ? e.getPoint() : null;
+                }
+
+                /** A click, taken on the release: Swing drops its own clicks when the mouse moves a pixel in between. */
+                @Override
+                public void mouseReleased(final MouseEvent e) {
+                    final Point from = pressedAt;
+                    pressedAt = null;
+                    if (from == null || from.distance(e.getPoint()) > 8 || !contains(e.getPoint())) {
+                        return;
+                    }
+                    if (arrowAt(e.getX()) && editable) {
                         listener.move();
                     } else {
                         listener.hovered();
+                        listener.open();
                     }
                 }
             };
