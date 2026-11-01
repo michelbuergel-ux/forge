@@ -565,7 +565,7 @@ public class HexMapPanel extends JPanel {
         final boolean aside = here.poi != HexPoi.NONE || campaign.enemyAt(here) != null;
         final int px = (int) Math.round(centerX(here, size) - (aside ? size * 0.45 : 0));
         final int py = (int) Math.round(centerY(here, size) - (aside ? size * 0.45 : 0));
-        drawParty(g, px, py, (int) Math.round(size * 0.3));
+        drawParty(g, px, py, (int) Math.round(size * 0.42));
 
         final long now = System.currentTimeMillis();
         observeCollapses(now);
@@ -800,12 +800,80 @@ public class HexMapPanel extends JPanel {
         g.drawString(txt, vx - fm.stringWidth(txt) / 2, vy + fm.getAscent() / 2 - 1);
     }
 
-    static void drawParty(final Graphics2D g, final int px, final int py, final int pr) {
-        g.setColor(new Color(0xFFD23F));
-        g.fillOval(px - pr, py - pr, pr * 2, pr * 2);
-        g.setColor(Color.BLACK);
-        g.setStroke(new BasicStroke(2f));
-        g.drawOval(px - pr, py - pr, pr * 2, pr * 2);
+    /**
+     * The party: a hero on a golden medallion (a cloaked figure with a raised sword) under a red pennant, drawn,
+     * where the enemies and townsfolk are pixel sprites, so it can't be taken for one of them.
+     */
+    static void drawParty(final Graphics2D g0, final int px, final int py, final int pr) {
+        final Graphics2D g = (Graphics2D) g0.create();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        final double r = Math.max(6, pr);
+        final float line = (float) Math.max(1.2, r / 9);
+
+        // the pennant behind the medallion, on its staff
+        final double sx = px - r * 0.78;
+        final double top = py - r * 1.75;
+        g.setColor(new Color(0x4A3418));
+        g.setStroke(new BasicStroke(line * 1.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.draw(new java.awt.geom.Line2D.Double(sx, py - r * 0.2, sx, top));
+        final java.awt.geom.Path2D flag = new java.awt.geom.Path2D.Double();
+        flag.moveTo(sx, top);
+        flag.lineTo(sx + r * 0.95, top + r * 0.22);
+        flag.lineTo(sx + r * 0.62, top + r * 0.4);
+        flag.lineTo(sx + r * 0.95, top + r * 0.6);
+        flag.lineTo(sx, top + r * 0.62);
+        flag.closePath();
+        g.setColor(new Color(0xD8302A));
+        g.fill(flag);
+        g.setColor(new Color(0x5A0E0A));
+        g.setStroke(new BasicStroke(line * 0.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.draw(flag);
+
+        // a shadow, a glow, and the medallion
+        g.setColor(new Color(0, 0, 0, 90));
+        g.fill(new java.awt.geom.Ellipse2D.Double(px - r * 0.95, py + r * 0.55, r * 1.9, r * 0.75));
+        g.setColor(new Color(255, 236, 150, 70));
+        g.fill(new java.awt.geom.Ellipse2D.Double(px - r * 1.25, py - r * 1.25, r * 2.5, r * 2.5));
+        final java.awt.geom.Ellipse2D disc = new java.awt.geom.Ellipse2D.Double(px - r, py - r, r * 2, r * 2);
+        g.setPaint(new java.awt.RadialGradientPaint(new java.awt.geom.Point2D.Double(px - r * 0.3, py - r * 0.35), (float) (r * 1.4),
+                new float[] { 0f, 0.6f, 1f }, new Color[] { new Color(0xFFF1B0), new Color(0xF2C440), new Color(0xB07A12) }));
+        g.fill(disc);
+
+        // the hero, inside the medallion: cloak, head, and a sword held up
+        final java.awt.Shape clip = g.getClip();
+        g.clip(disc);
+        final Color hero = new Color(0x1E2A4A);
+        final java.awt.geom.Path2D cloak = new java.awt.geom.Path2D.Double();
+        cloak.moveTo(px - r * 0.3, py - r * 0.12);
+        cloak.curveTo(px - r * 0.42, py + r * 0.2, px - r * 0.5, py + r * 0.6, px - r * 0.56, py + r * 1.05);
+        cloak.lineTo(px + r * 0.56, py + r * 1.05);
+        cloak.curveTo(px + r * 0.5, py + r * 0.6, px + r * 0.42, py + r * 0.2, px + r * 0.3, py - r * 0.12);
+        cloak.closePath();
+        g.setColor(hero);
+        g.fill(cloak);
+        // a hood, and the face in it
+        g.fill(new java.awt.geom.Ellipse2D.Double(px - r * 0.25, py - r * 0.66, r * 0.5, r * 0.5));
+        g.setColor(new Color(0xF2C9A0));
+        g.fill(new java.awt.geom.Ellipse2D.Double(px - r * 0.14, py - r * 0.5, r * 0.28, r * 0.3));
+        g.setColor(hero);
+        // the raised arm and the sword
+        g.setStroke(new BasicStroke((float) (r * 0.16), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.draw(new java.awt.geom.Line2D.Double(px + r * 0.24, py - r * 0.02, px + r * 0.46, py - r * 0.3));
+        g.setColor(new Color(0xEDEFF5));
+        g.setStroke(new BasicStroke((float) Math.max(1.5, r * 0.1), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.draw(new java.awt.geom.Line2D.Double(px + r * 0.48, py - r * 0.34, px + r * 0.62, py - r * 0.95));
+        g.setColor(new Color(0x7A5410));
+        g.draw(new java.awt.geom.Line2D.Double(px + r * 0.34, py - r * 0.36, px + r * 0.6, py - r * 0.26));
+        g.setClip(clip);
+
+        // the rim: dark outside, bright inside
+        g.setColor(new Color(0x3A2400));
+        g.setStroke(new BasicStroke(line * 1.6f));
+        g.draw(disc);
+        g.setColor(new Color(255, 250, 220, 200));
+        g.setStroke(new BasicStroke(line * 0.7f));
+        g.draw(new java.awt.geom.Ellipse2D.Double(px - r + line * 1.4, py - r + line * 1.4, (r - line * 1.4) * 2, (r - line * 1.4) * 2));
+        g.dispose();
     }
 
     // ------------------------------------------------------------------ the legend
@@ -841,7 +909,7 @@ public class HexMapPanel extends JPanel {
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawEventCoin(g, cx, cy, size * 0.9), "lblHexLegendEvent" });
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawDungeon(g, cx, cy, (int) Math.round(size * 0.4), false),
                 "lblHexLegendDungeon" });
-        entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawParty(g, cx, cy, (int) Math.round(size * 0.3)), "lblHexLegendParty" });
+        entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawParty(g, cx, cy + (int) Math.round(size * 0.1), (int) Math.round(size * 0.34)), "lblHexLegendParty" });
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> {
             g.setFont(getFont().deriveFont(Font.BOLD, (float) Math.max(9, size * 0.34)));
             drawVote(g, cx, cy, (int) Math.round(size * 0.3), HexCrawlPanel.headColor(1), "A");
