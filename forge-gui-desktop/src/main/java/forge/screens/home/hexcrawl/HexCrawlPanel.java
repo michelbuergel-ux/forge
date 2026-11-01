@@ -1403,6 +1403,44 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
     }
 
+    /**
+     * A chest's relic whose slot is taken: this person clicks the relic their head keeps, the other is sold. Returns
+     * false if the window was closed without a choice.
+     */
+    private boolean promptChestRelic(final HexCampaign campaign, final HexReward reward) {
+        final HexContent content = HexContent.get();
+        final HexRelic worn = content.getRelic(reward.chestRelicWorn);
+        final HexRelic found = content.getRelic(reward.chestRelic);
+        if (worn == null || found == null) {
+            return true;
+        }
+        final JPanel pictures = new JPanel(new MigLayout("insets 0, gap 24"));
+        pictures.setOpaque(false);
+        final List<JComponent> clickable = new ArrayList<>();
+        for (final HexRelic relic : new HexRelic[] { worn, found }) {
+            final JComponent card = HexRewardCards.card(null, relic.name, true);
+            card.setToolTipText(relicEffects(relic, campaign.cycle).trim());
+            clickable.add(card);
+            final String caption = t(relic == worn ? "lblHexChestRelicWorn" : "lblHexChestRelicFound",
+                    String.valueOf(content.relicSellPrice(relic.name)));
+            pictures.add(HexRewardCards.captioned(caption, card, HexRewardCards.W, HexRewardCards.H));
+        }
+        final String message = t("lblHexChestRelicChoice", reward.playerName, found.name, worn.name)
+                + "\n\n" + worn.name + ":\n" + relicEffects(worn, campaign.cycle).trim()
+                + "\n\n" + found.name + ":\n" + relicEffects(found, campaign.cycle).trim();
+        final int choice = HexRewardCards.choose(message, campaign.name, pictures, clickable, Collections.<String>emptyList());
+        if (choice < 0) {
+            return false;
+        }
+        final boolean takeNew = choice == 1;
+        session.chooseChestRelic(takeNew);
+        // what the reward window says next, before the host's state comes back
+        reward.chestRelicWorn = null;
+        reward.chestRelicSold = takeNew ? worn.name : found.name;
+        reward.chestRelicGold = content.relicSellPrice(reward.chestRelicSold);
+        return true;
+    }
+
     /** Lets this person choose the reward of their own head. */
     public void promptReward() {
         final HexCampaign campaign = getCampaign();
@@ -1415,6 +1453,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         rewardPromptOpen = true;
         try {
+            if (reward.chestRelicWorn != null && !promptChestRelic(campaign, reward)) {
+                return; // closed: asked again later
+            }
             final List<String> cards = reward.options();
             // a treasure found without a fight: nothing to choose, only to take
             final boolean onlyTake = reward.gold == 0 && cards.isEmpty();
@@ -1455,7 +1496,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                     message += "\n" + t("lblHexRewardChestGold", String.valueOf(reward.chestGold));
                 }
                 if (reward.chestRelic != null) {
-                    message += "\n" + (reward.chestRelicGold > 0
+                    final boolean swapped = reward.chestRelicSold != null && !reward.chestRelicSold.equals(reward.chestRelic);
+                    message += "\n" + (swapped
+                            ? t("lblHexRewardChestRelicSwapped", reward.chestRelic, reward.chestRelicSold, String.valueOf(reward.chestRelicGold))
+                            : reward.chestRelicGold > 0
                             ? t("lblHexRewardChestRelicSold", reward.chestRelic, String.valueOf(reward.chestRelicGold))
                             : t("lblHexRewardChestRelic", reward.chestRelic));
                 }

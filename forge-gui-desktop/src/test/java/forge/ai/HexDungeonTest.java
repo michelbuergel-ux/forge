@@ -554,6 +554,49 @@ public class HexDungeonTest extends AITest {
     }
 
     @Test
+    public void aChestRelicForATakenSlotIsTheHeadsChoice() {
+        final HexCampaign c = newCampaign(15L, 7);
+        // every slot of every head holds a relic already
+        for (final HexPlayer p : c.players) {
+            p.relics.clear();
+            final Set<String> slots = new HashSet<>();
+            for (final forge.gamemodes.hexcrawl.HexRelic relic : HexContent.get().ordinaryRelics()) {
+                if (slots.add(relic.slot)) {
+                    p.relics.add(relic.name);
+                }
+            }
+        }
+        final HexDungeon d = enter(c);
+        AssertJUnit.assertEquals(HexCampaign.MoveResult.ENCOUNTER, stepInto(c, d, d.boss()));
+        win(c, 5);
+        final HexPlayer ann = c.player("Ann");
+        final HexReward annReward = c.pendingReward("Ann");
+        AssertJUnit.assertFalse("this seed's chest holds a relic Ann does not wear", ann.relics.contains(annReward.chestRelic));
+        final String worn = annReward.chestRelicWorn;
+        AssertJUnit.assertNotNull("Ann chooses", worn);
+        AssertJUnit.assertTrue(ann.relics.contains(worn));
+        AssertJUnit.assertEquals("nothing sold yet", 0, annReward.chestRelicGold);
+
+        // Ann keeps the new relic: the worn one is sold
+        final int gold = ann.gold;
+        AssertJUnit.assertTrue(c.chooseChestRelic("Ann", true));
+        AssertJUnit.assertTrue(ann.relics.contains(annReward.chestRelic));
+        AssertJUnit.assertFalse(ann.relics.contains(worn));
+        AssertJUnit.assertEquals(worn, annReward.chestRelicSold);
+        AssertJUnit.assertEquals(gold + HexContent.get().relicSellPrice(worn), ann.gold);
+        AssertJUnit.assertFalse("only once", c.chooseChestRelic("Ann", false));
+
+        // Bob takes his reward without choosing: his worn relic stays, the new one is sold
+        final HexReward bobReward = c.pendingReward("Bob");
+        final String bobWorn = bobReward.chestRelicWorn;
+        c.chooseReward("Bob", -1);
+        if (bobWorn != null) {
+            AssertJUnit.assertTrue(c.player("Bob").relics.contains(bobWorn));
+            AssertJUnit.assertEquals(bobReward.chestRelic, bobReward.chestRelicSold);
+        }
+    }
+
+    @Test
     public void theRuleCardIsInPlayOnTheEnemySide() {
         final HexCampaign c = newCampaign(17L, 7);
         final HexDungeon d = enter(c);

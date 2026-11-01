@@ -16,6 +16,10 @@ public class HexReward {
     public String chestRelic;
     /** The relic's worth in gold, paid instead because the head wears something on its slot (else 0). */
     public int chestRelicGold;
+    /** The relic the head wears on the chest relic's slot, while it has not chosen which of the two it keeps (else null). */
+    public String chestRelicWorn;
+    /** Once chosen: the relic sold (the chest's, or the one worn before); chestRelicGold is its worth. */
+    public String chestRelicSold;
 
     /** The cards on offer: the three to choose from, or the single card of an older save. */
     public java.util.List<String> options() {

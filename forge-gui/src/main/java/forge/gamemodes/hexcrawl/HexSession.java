@@ -150,6 +150,11 @@ public class HexSession {
         act(new HexActionEvent(HexActionEvent.REWARD, cardIndex, 0, null, cardIndex >= 0, null));
     }
 
+    /** A chest's relic whose slot is taken: keep the new one (the worn one is sold), or the worn one. */
+    public void chooseChestRelic(final boolean takeNew) {
+        act(new HexActionEvent(HexActionEvent.CHEST_RELIC, 0, 0, null, takeNew, null));
+    }
+
     public void choosePerk(final String perk) {
         act(new HexActionEvent(HexActionEvent.PERK, 0, 0, perk, false, null));
     }
@@ -315,6 +320,8 @@ public class HexSession {
                 if (campaign.pendingEncounter != null && !fightRunning) {
                     fightReady.add(actor);
                 }
+            } else if (HexActionEvent.CHEST_RELIC.equals(type)) {
+                campaign.chooseChestRelic(head, action.getFlag());
             } else if (HexActionEvent.REWARD.equals(type)) {
                 if (campaign.pendingEncounter == null) {
                     campaign.chooseReward(head, action.getFlag() ? Math.max(0, action.getQ()) : -1);

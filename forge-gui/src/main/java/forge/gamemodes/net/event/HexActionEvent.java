@@ -34,6 +34,8 @@ public final class HexActionEvent implements NetEvent {
     public static final String WEAR = "WEAR";
     /** A head opened (flag) or closed the town window: the others see who is still in the shops. */
     public static final String SHOPPING = "SHOPPING";
+    /** A chest's relic whose slot is taken: the flag says the head keeps the new one (the worn one is sold). */
+    public static final String CHEST_RELIC = "CHEST_RELIC";
 
     private final String type;
     private final int q;

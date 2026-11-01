@@ -505,12 +505,39 @@ public class HexCampaign {
         }
         final HexRelic relic = content.upgrade(relics.get(rnd.nextInt(relics.size())), cycle, rnd);
         reward.chestRelic = relic.name;
-        if (!p.relics.contains(relic.name) && relicInSlot(p, relic.slot) == null) {
+        final HexRelic worn = relicInSlot(p, relic.slot);
+        if (!p.relics.contains(relic.name) && worn == null) {
             p.relics.add(relic.name);
+        } else if (!p.relics.contains(relic.name) && worn.trophy == null) {
+            reward.chestRelicWorn = worn.name; // the head chooses which of the two it keeps (see chooseChestRelic)
         } else {
             reward.chestRelicGold = content.relicSellPrice(relic.name);
+            reward.chestRelicSold = relic.name;
             earn(p, reward.chestRelicGold);
         }
+    }
+
+    /**
+     * A chest's relic whose slot is taken: the head keeps the new one (the worn one is sold) or the worn one (the new
+     * one is sold).
+     */
+    public boolean chooseChestRelic(final String playerName, final boolean takeNew) {
+        final HexReward reward = pendingReward(playerName);
+        final HexPlayer p = player(playerName);
+        if (reward == null || p == null || reward.chestRelicWorn == null) {
+            return false;
+        }
+        final String sold = takeNew ? reward.chestRelicWorn : reward.chestRelic;
+        if (takeNew) {
+            p.relics.remove(reward.chestRelicWorn);
+            p.relics.add(reward.chestRelic);
+        }
+        reward.chestRelicWorn = null;
+        reward.chestRelicSold = sold;
+        reward.chestRelicGold = HexContent.get().relicSellPrice(sold);
+        earn(p, reward.chestRelicGold);
+        log(msg("lblHexJournalSold", p.name, sold, String.valueOf(reward.chestRelicGold)));
+        return true;
     }
 
     // ------------------------------------------------------------------ sieges
@@ -1395,6 +1422,7 @@ public class HexCampaign {
         if (reward == null || p == null) {
             return;
         }
+        chooseChestRelic(playerName, false); // not chosen: the worn relic stays
         pendingRewards.remove(reward);
         final List<String> options = reward.options();
         if (cardIndex >= 0 && cardIndex < options.size()) {
@@ -1413,6 +1441,11 @@ public class HexCampaign {
         final HexReward reward = pendingReward(playerName);
         if (reward == null) {
             return;
+        }
+        if (reward.chestRelicWorn != null) {
+            // the more valuable relic stays
+            final HexContent content = HexContent.get();
+            chooseChestRelic(playerName, content.relicSellPrice(reward.chestRelic) > content.relicSellPrice(reward.chestRelicWorn));
         }
         final List<String> options = reward.options();
         int best = -1;
