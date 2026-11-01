@@ -16,6 +16,15 @@ public class HexPlayer {
     /** An event that waits for this head's choice (HexEvent name), or null; and the colour of its field. */
     public String eventOffer;
     public HexColor eventColor;
+    /**
+     * The head's last trade at an event, shown on its screen once (a counter for it): the card it gave, and the
+     * cards (a caravan), the relic or the gold (a ruined shrine) it got for it.
+     */
+    public List<String> gifts = new ArrayList<>();
+    public int giftSerial;
+    public String giftGiven;
+    public String giftRelic;
+    public int giftGold;
     /** Names of the relics the head carries, at most one per slot. */
     public List<String> relics = new ArrayList<>();
     /** The trophies of the bosses the head has beaten: the boss's colour (HexColor name) to the trophy's tier (1 to 3). */

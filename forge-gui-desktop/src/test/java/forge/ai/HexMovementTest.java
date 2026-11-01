@@ -87,6 +87,30 @@ public class HexMovementTest extends AITest {
     // ------------------------------------------------------------------ votes
 
     @Test
+    public void testTheOthersSeeWhoIsInTheShops() {
+        final HexCampaign c = newCampaign();
+        AssertJUnit.assertTrue("the party starts in a town", c.inTown());
+        final HexSession s = session(c, new AtomicInteger());
+        final HexActionEvent bobOpens = new HexActionEvent(HexActionEvent.SHOPPING, 0, 0, null, true, null);
+        s.setShopping(true);
+        s.handle("Bob", bobOpens);
+        AssertJUnit.assertEquals(Arrays.asList("Ann", "Bob"), new java.util.ArrayList<>(s.getShopping()));
+
+        // the guests get it with the state
+        final HexSession guest = HexSession.forGuest();
+        guest.applyState(s.toStateJson(), "Bob");
+        AssertJUnit.assertEquals(s.getShopping(), guest.getShopping());
+
+        s.setShopping(false);
+        AssertJUnit.assertEquals(Collections.singleton("Bob"), s.getShopping());
+
+        // once the party moved on nobody is in the shops, and nobody can be
+        c.moveTo(emptyNeighbour(c).q, emptyNeighbour(c).r);
+        s.handle("Bob", bobOpens);
+        AssertJUnit.assertTrue(s.getShopping().isEmpty());
+    }
+
+    @Test
     public void testVotesWaitForEverybodyOrTheClock() {
         final HexCampaign c = newCampaign();
         final AtomicInteger fights = new AtomicInteger();

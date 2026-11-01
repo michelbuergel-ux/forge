@@ -32,6 +32,8 @@ public final class HexActionEvent implements NetEvent {
     public static final String LEADER = "LEADER";
     /** A head wears one of its trophies: text = the boss's colour (HexColor name), or null to wear none. */
     public static final String WEAR = "WEAR";
+    /** A head opened (flag) or closed the town window: the others see who is still in the shops. */
+    public static final String SHOPPING = "SHOPPING";
 
     private final String type;
     private final int q;

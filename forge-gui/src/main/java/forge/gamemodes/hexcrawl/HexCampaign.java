@@ -139,6 +139,9 @@ public class HexCampaign {
     /** The last event the party came across (shown to everybody once), and a counter for it. */
     public String lastEvent;
     public int eventSerial;
+    /** The cards the last event gave, and the head that got each (side by side). */
+    public List<String> lastEventCards = new ArrayList<>();
+    public List<String> lastEventOwners = new ArrayList<>();
     /** Ready check: the heads that looked at their deck since the pending fight came up. */
     public List<String> deckChecked = new ArrayList<>();
     /** How far the party sees: enemies on fields up to this many steps away are shown on the map. */
@@ -689,6 +692,8 @@ public class HexCampaign {
         boostEnemyLife = 0;
         boostDoubleGold = false;
         lastEvent = null;
+        lastEventCards.clear();
+        lastEventOwners.clear();
         deckChecked.clear();
         for (final HexPlayer p : players) {
             p.themes = new String[PICKED_THEMES]; // the towns of the new map have other colours
@@ -1492,6 +1497,8 @@ public class HexCampaign {
             return;
         }
         final StringBuilder text = new StringBuilder(event.getLabel()).append(": ").append(event.getDescription());
+        lastEventCards.clear();
+        lastEventOwners.clear();
         switch (event) {
             case SHRINE:
                 boostLife += HexEvent.SHRINE_LIFE;
@@ -1508,6 +1515,8 @@ public class HexCampaign {
                     final String card = HexContent.get().randomCardOfColor(t.color, rnd);
                     if (card != null) {
                         p.sideboard.add(card);
+                        lastEventCards.add(card);
+                        lastEventOwners.add(p.name);
                         text.append('\n').append(msg("lblHexEventFound", p.name, card));
                     }
                 }
@@ -1558,6 +1567,11 @@ public class HexCampaign {
         }
         (fromSideboard ? p.sideboard : p.deck).remove(card);
         final Random rnd = random();
+        // the trade, shown on the head's screen
+        p.giftGiven = card;
+        p.gifts = new ArrayList<>();
+        p.giftRelic = null;
+        p.giftGold = 0;
         if (event == HexEvent.RUINED_SHRINE) {
             final List<HexRelic> free = new ArrayList<>();
             for (final HexRelic relic : content.ordinaryRelics(cycle)) {
@@ -1567,10 +1581,12 @@ public class HexCampaign {
             }
             if (free.isEmpty()) {
                 earn(p, gold(HexEvent.CHEST_GOLD));
+                p.giftGold = gold(HexEvent.CHEST_GOLD);
                 log(msg("lblHexJournalShrineGold", p.name, card, String.valueOf(gold(HexEvent.CHEST_GOLD))));
             } else {
                 final HexRelic relic = content.upgrade(free.get(rnd.nextInt(free.size())), cycle, rnd); // New Game Plus: maybe a stronger one
                 p.relics.add(relic.name);
+                p.giftRelic = relic.name;
                 log(msg("lblHexJournalShrine", p.name, card, relic.name));
             }
         } else {
@@ -1583,7 +1599,9 @@ public class HexCampaign {
                 }
             }
             log(msg("lblHexJournalCaravan", p.name, card, String.join(", ", got)));
+            p.gifts = got;
         }
+        p.giftSerial++;
         p.eventOffer = null;
         p.eventColor = null;
         return true;

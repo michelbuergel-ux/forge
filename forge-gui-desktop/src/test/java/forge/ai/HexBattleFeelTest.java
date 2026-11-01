@@ -215,6 +215,10 @@ public class HexBattleFeelTest extends AITest {
         AssertJUnit.assertTrue(c.chooseEvent("Ann", "Grizzly Bears", true));
         AssertJUnit.assertFalse(ann.sideboard.contains("Grizzly Bears"));
         AssertJUnit.assertTrue("a relic or, with all slots taken, gold", ann.relics.size() == relics + 1 || ann.gold > gold);
+        // the trade is shown to Ann: the card she gave and what she got
+        AssertJUnit.assertEquals("Grizzly Bears", ann.giftGiven);
+        AssertJUnit.assertTrue(ann.giftRelic != null ? ann.relics.contains(ann.giftRelic) : ann.giftGold > 0);
+        AssertJUnit.assertTrue(ann.gifts.isEmpty());
         AssertJUnit.assertNull(ann.eventOffer);
         AssertJUnit.assertFalse("only once", c.chooseEvent("Ann", "Grizzly Bears", true));
 
@@ -223,8 +227,14 @@ public class HexBattleFeelTest extends AITest {
         ann.eventColor = HexColor.GREEN;
         ann.sideboard.add("Lightning Bolt");
         final int side = ann.sideboard.size();
+        final int gifts = ann.giftSerial;
         AssertJUnit.assertTrue(c.chooseEvent("Ann", "Lightning Bolt", true));
         AssertJUnit.assertEquals(side - 1 + 2, ann.sideboard.size());
+        AssertJUnit.assertEquals("the two cards are shown to Ann", gifts + 1, ann.giftSerial);
+        AssertJUnit.assertEquals(2, ann.gifts.size());
+        AssertJUnit.assertEquals("Lightning Bolt", ann.giftGiven);
+        AssertJUnit.assertNull(ann.giftRelic);
+        AssertJUnit.assertTrue(ann.sideboard.containsAll(ann.gifts));
 
         // the deck keeps its minimum size; leaving it ends the offer
         ann.eventOffer = HexEvent.CARAVAN.name();
@@ -241,6 +251,20 @@ public class HexBattleFeelTest extends AITest {
         AssertJUnit.assertFalse(c.chooseEvent("Ann", nonBasic, false));
         c.skipEvent("Ann");
         AssertJUnit.assertNull(ann.eventOffer);
+    }
+
+    @Test
+    public void testACampShowsTheCardsItGives() {
+        final HexCampaign c = HexCampaign.create("Test", 17L, 4, Arrays.asList(new HexPlayer("Ann", false), new HexPlayer("Bo", false)));
+        c.encounterChance = 0;
+        c.encounterChanceExplored = 0;
+        final HexTile t = emptyNeighbour(c);
+        t.event = HexEvent.CAMP.name();
+        c.moveTo(t.q, t.r);
+        AssertJUnit.assertEquals(Arrays.asList("Ann", "Bo"), c.lastEventOwners);
+        AssertJUnit.assertEquals(2, c.lastEventCards.size());
+        AssertJUnit.assertTrue(c.player("Ann").sideboard.contains(c.lastEventCards.get(0)));
+        AssertJUnit.assertTrue(c.player("Bo").sideboard.contains(c.lastEventCards.get(1)));
     }
 
     // ------------------------------------------------------------------ region rules

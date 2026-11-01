@@ -91,6 +91,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     /** Width of the side panel, and of the text in its scrolling middle part. */
     private static final int SIDE_W = 350;
     private static final int MIDDLE_W = SIDE_W - 32 - 18;
+    /** The cards an event gives, shown a little smaller than the rewards. */
+    private static final int GIFT_W = 200;
+    private static final int GIFT_H = 280;
     private final JLabel lblTitle = label(" ", decorative(22f), TEXT_BRIGHT);
     private final JLabel lblPlace = label(" ", tracked(display(11.5f), 0.12f), MUTED);
     private final GoldButton btnFight = new GoldButton("", GoldButton.Kind.GOLD, 15f);
@@ -142,6 +145,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     private boolean eventPromptOpen;
     /** The last event (see HexCampaign.eventSerial) already shown on this screen. */
     private int shownEventSerial = -1;
+    /** The last cards this person's head got for one of its own (see HexPlayer.giftSerial) already shown. */
+    private int shownGiftSerial = -1;
     /** The last fight summary this screen has shown (-1: none yet, take the campaign's as seen). */
     private int shownSummarySerial = -1;
     /** The last freed town this screen thanked the party for (see {@link #showThanksIfNew()}). */
@@ -381,6 +386,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         // events that happened before this screen knew the campaign are not shown again
         shownEventSerial = session == null || session.getCampaign() == null ? -1 : session.getCampaign().eventSerial;
+        shownGiftSerial = -1;
         shownSummarySerial = session == null || session.getCampaign() == null || session.getCampaign().lastFight == null
                 ? -1 : session.getCampaign().lastFight.serial;
         shownFreedSerial = session == null || session.getCampaign() == null ? -1 : session.getCampaign().freedSerial;
@@ -403,6 +409,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         SwingUtilities.invokeLater(() -> {
             refresh();
             showEventIfNew();
+            showGiftIfNew();
             promptRewardIfWaiting();
             promptPerkIfWaiting();
             promptEventIfWaiting();
@@ -485,8 +492,77 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         if (campaign.eventSerial > shownEventSerial && campaign.lastEvent != null) {
             shownEventSerial = campaign.eventSerial;
-            FOptionPane.showMessageDialog(campaign.lastEvent, t("lblHexEventTitle"));
+            final List<String> cards = campaign.lastEventCards;
+            if (cards.isEmpty()) {
+                FOptionPane.showMessageDialog(campaign.lastEvent, t("lblHexEventTitle"));
+                return;
+            }
+            // the cards the heads found, each under its head's name
+            final JPanel pictures = new JPanel(new MigLayout("insets 0, gap 12"));
+            pictures.setOpaque(false);
+            for (int i = 0; i < cards.size(); i++) {
+                final String owner = i < campaign.lastEventOwners.size() ? campaign.lastEventOwners.get(i) : "";
+                pictures.add(HexRewardCards.captioned(owner, HexRewardCards.card(HexContent.get().getCard(cards.get(i)), null, false),
+                        GIFT_W, GIFT_H));
+            }
+            FOptionPane.showOptionDialog(campaign.lastEvent, t("lblHexEventTitle"), null, pictures, Arrays.asList(t("lblHexClose")), 0);
         }
+    }
+
+    /** This person's head's last trade at an event (a caravan, a ruined shrine): what it gave and what it got, once. */
+    private void showGiftIfNew() {
+        final HexCampaign campaign = getCampaign();
+        final HexPlayer mine = campaign == null || session == null ? null : campaign.player(session.getMyHead());
+        if (mine == null || !isShowing()) {
+            return;
+        }
+        if (shownGiftSerial < 0) {
+            shownGiftSerial = mine.giftSerial; // the first state: nothing to repeat
+            return;
+        }
+        if (mine.giftSerial <= shownGiftSerial) {
+            return;
+        }
+        shownGiftSerial = mine.giftSerial;
+        final List<JComponent> got = new ArrayList<>();
+        final String message;
+        if (mine.giftRelic != null) {
+            // a relic has no card: its name on a blank card, its effects in the text
+            got.add(HexRewardCards.card(null, mine.giftRelic, false));
+            final HexRelic relic = HexContent.get().getRelic(mine.giftRelic);
+            message = t("lblHexTradeShrineRelic", mine.name, String.valueOf(mine.giftGiven), mine.giftRelic)
+                    + (relic == null ? "" : "\n" + relicEffects(relic, campaign.cycle).trim());
+        } else if (mine.giftGold > 0) {
+            got.add(HexRewardCards.card(HexRewardCards.goldToken(), t("lblHexTakeGold", String.valueOf(mine.giftGold)), false));
+            message = t("lblHexTradeShrineGold", mine.name, String.valueOf(mine.giftGiven), String.valueOf(mine.giftGold));
+        } else {
+            for (final String card : mine.gifts) {
+                got.add(HexRewardCards.card(HexContent.get().getCard(card), null, false));
+            }
+            message = t("lblHexGiftReceived", mine.name, String.valueOf(mine.giftGiven));
+        }
+        if (got.isEmpty()) {
+            return;
+        }
+        // the card given, an arrow, and what came back for it
+        final JPanel pictures = new JPanel(new MigLayout("insets 0, gap 12", "", "[center]"));
+        pictures.setOpaque(false);
+        final PaperCard given = mine.giftGiven == null ? null : HexContent.get().getCard(mine.giftGiven);
+        if (given != null) {
+            pictures.add(HexRewardCards.captioned(t("lblHexTradeGave"), HexRewardCards.card(given, null, false), GIFT_W, GIFT_H));
+            pictures.add(label("\u2192", display(40f), GOLD_LIGHT));
+        }
+        final JPanel received = new JPanel(new MigLayout("insets 0, gap 12"));
+        received.setOpaque(false);
+        for (final JComponent card : got) {
+            received.add(card, "w " + GIFT_W + "!, h " + GIFT_H + "!");
+        }
+        final JPanel column = new JPanel(new MigLayout("insets 0, gap 0, wrap 1"));
+        column.setOpaque(false);
+        column.add(label(caps(t("lblHexTradeGot")), tracked(display(12f), 0.16f), GOLD_LIGHT), "alignx center");
+        column.add(received);
+        pictures.add(column);
+        FOptionPane.showOptionDialog(message, t("lblHexEventTitle"), null, pictures, Arrays.asList(t("lblHexClose")), 0);
     }
 
     private void broadcast() {
@@ -765,6 +841,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
 
         // the party
+        final java.util.Set<String> shopping = session.getShopping();
         hdParty.setVisible(true);
         pnlParty.setVisible(true);
         fillLeader(campaign, humans, guest);
@@ -802,6 +879,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             } else if (!votes.isEmpty() && !p.ai && present.contains(p.name)) {
                 doing.add(t("lblHexNotVoted"));
                 statusColor = orange;
+            }
+            if (shopping.contains(p.name)) {
+                doing.add(t("lblHexInShops"));
             }
             if (campaign.pendingEncounter == null && campaign.pendingReward(p.name) != null) {
                 doing.add(t("lblHexChoosing"));
@@ -1335,24 +1415,28 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         rewardPromptOpen = true;
         try {
-            final List<String> options = new ArrayList<>();
             final List<String> cards = reward.options();
             // a treasure found without a fight: nothing to choose, only to take
-            options.add(reward.gold == 0 && cards.isEmpty() ? t("lblHexRewardTakeTreasure") : t("lblHexTakeGold", String.valueOf(reward.gold)));
-            // the cards on offer side by side: take one of them, or the gold
+            final boolean onlyTake = reward.gold == 0 && cards.isEmpty();
+            // the Gold token and the cards on offer side by side: a click takes one (-1 is the gold for chooseReward)
             final JPanel pictures = new JPanel(new MigLayout("insets 0, gap 12"));
             pictures.setOpaque(false);
-            for (final String name : cards) {
-                options.add(t("lblHexTakeCard", name));
-                final PaperCard card = HexContent.get().getCard(name);
-                final CardPicturePanel picture = new CardPicturePanel();
-                picture.setOpaque(false);
-                if (card != null) {
-                    picture.setItem(card);
-                }
-                pictures.add(picture, "w 230!, h 322!");
+            final List<JComponent> clickable = new ArrayList<>();
+            final List<Integer> picks = new ArrayList<>();
+            if (!onlyTake) {
+                final JComponent gold = HexRewardCards.card(HexRewardCards.goldToken(), t("lblHexTakeGold", String.valueOf(reward.gold)), true);
+                gold.setToolTipText(t("lblHexTakeGold", String.valueOf(reward.gold)));
+                clickable.add(gold);
+                picks.add(-1);
+                pictures.add(gold, "w " + HexRewardCards.W + "!, h " + HexRewardCards.H + "!");
             }
-            String message = t(cards.size() > 1 ? "lblHexRewardChooseOne" : "lblHexRewardFor", reward.playerName);
+            for (int i = 0; i < cards.size(); i++) {
+                final JComponent card = HexRewardCards.card(HexContent.get().getCard(cards.get(i)), null, true);
+                clickable.add(card);
+                picks.add(i);
+                pictures.add(card, "w " + HexRewardCards.W + "!, h " + HexRewardCards.H + "!");
+            }
+            String message = t(clickable.size() > 1 ? "lblHexRewardChooseOne" : "lblHexRewardFor", reward.playerName);
             final HexRelic trophy = reward.trophy == null ? null : HexContent.get().getRelic(reward.trophy);
             if (trophy != null) {
                 // a beaten boss's trophy comes on top of the choice
@@ -1377,24 +1461,19 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 }
                 final PaperCard treasure = reward.chestCard == null ? null : HexContent.get().getCard(reward.chestCard);
                 if (treasure != null) {
-                    final CardPicturePanel picture = new CardPicturePanel();
-                    picture.setOpaque(false);
-                    picture.setItem(treasure);
-                    final JPanel chest = new JPanel(new MigLayout("insets 0, gap 0, wrap 1"));
-                    chest.setOpaque(false);
-                    chest.add(label(caps(t("lblHexChest")), tracked(display(12f), 0.16f), GOLD_LIGHT), "alignx center");
-                    chest.add(picture, "w 230!, h 322!");
-                    pictures.add(chest, 0);
-                    if (!cards.isEmpty()) {
+                    // the chest's card is already the head's: only to look at
+                    pictures.add(HexRewardCards.captioned(t("lblHexChest"), HexRewardCards.card(treasure, null, false),
+                            HexRewardCards.W, HexRewardCards.H), 0);
+                    if (!clickable.isEmpty()) {
                         pictures.add(new JLabel(), 1); // a gap between the chest and the choice
                     }
                 }
             }
             final boolean shown = pictures.getComponentCount() > 0;
-            final int choice = FOptionPane.showOptionDialog(message, campaign.name, shown ? null : FOptionPane.QUESTION_ICON,
-                    shown ? pictures : null, options, 0);
-            if (choice >= 0) {
-                session.chooseReward(choice - 1); // the first button is the gold
+            final List<String> buttons = onlyTake ? Arrays.asList(t("lblHexRewardTakeTreasure")) : Collections.<String>emptyList();
+            final int choice = HexRewardCards.choose(message, campaign.name, shown ? pictures : null, clickable, buttons);
+            if (onlyTake ? choice == 0 : choice >= 0 && choice < picks.size()) {
+                session.chooseReward(onlyTake ? -1 : picks.get(choice));
             }
         } finally {
             rewardPromptOpen = false;
@@ -1572,7 +1651,14 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         if (session == null || getCampaign() == null || !getCampaign().inTown()) {
             return;
         }
-        new HexTownDialog(session).show(refresher -> shopRefresher = refresher);
+        // the others see who is still in the shops, and the window shows who wants to move on
+        session.setShopping(true);
+        try {
+            new HexTownDialog(session).describingVotes(key -> describeVote(getCampaign(), key))
+                    .show(refresher -> shopRefresher = refresher);
+        } finally {
+            session.setShopping(false);
+        }
         refresh();
     }
 

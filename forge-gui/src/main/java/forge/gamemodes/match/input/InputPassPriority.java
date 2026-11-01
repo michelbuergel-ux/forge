@@ -113,6 +113,10 @@ public class InputPassPriority extends InputSyncronizedBase {
     /** {@inheritDoc} */
     @Override
     public final void showMessage() {
+        if (isWaitingForMates()) {
+            showWaitingForMates();
+            return;
+        }
         if (!getController().isMacroActive() && !isAlreadyYielding()) {
             // Suppress one prompt after a yield ends — avoids "yielded → ended → yield again?" loop
             if (getController().getYieldController().getBoolPref(FPref.YIELD_SUPPRESS_AFTER_END)
@@ -387,6 +391,9 @@ public class InputPassPriority extends InputSyncronizedBase {
     /** {@inheritDoc} */
     @Override
     protected final void onOk() {
+        if (isWaitingForMates()) {
+            return; // OK said already: waiting for the team mates
+        }
         if (pendingSuggestion != null) {
             // Defensive: state may have flipped (e.g. async multiplayer click).
             if (isAlreadyYielding()) {
@@ -438,16 +445,25 @@ public class InputPassPriority extends InputSyncronizedBase {
     public void passPriority() {
         if (isFinished()) return;
         passPriority(() -> {
-            getController().macros().addRememberedAction(new PassPriorityAction(
-                    getController().getGame().getStack().isEmpty(),
-                    getController().getGame().getPhaseHandler().getPhase()));
-            stop();
+            // with team mates asked at the same time the pass waits for theirs, and may be taken back until then
+            okWithMates(() -> {
+                getController().macros().addRememberedAction(new PassPriorityAction(
+                        getController().getGame().getStack().isEmpty(),
+                        getController().getGame().getPhaseHandler().getPhase()));
+                stop();
+            });
         });
     }
 
     /** {@inheritDoc} */
     @Override
     protected final void onCancel() {
+        if (isWaitingForMates()) {
+            if (takeBackOk()) {
+                showNormalPrompt();
+            }
+            return;
+        }
         if (partnerItem() != null && !partnerHeld) {
             // "Hold": no countdown, the player wants to respond to the team mate's spell
             holdForPartner();
@@ -463,11 +479,11 @@ public class InputPassPriority extends InputSyncronizedBase {
         }
 
         if (!getController().tryUndoLastAction()) { //undo if possible
-            //otherwise end turn
-            passPriority(() -> {
+            //otherwise end turn; with team mates asked at the same time it waits for theirs, and may be taken back until then
+            passPriority(() -> okWithMates(() -> {
                 getController().autoPassUntilEndOfTurn();
                 stop();
-            });
+            }));
         }
     }
 
@@ -511,6 +527,12 @@ public class InputPassPriority extends InputSyncronizedBase {
         if (abilities.isEmpty()) {
             return false;
         }
+        if (isWaitingForMates()) {
+            if (!takeBackOk()) {
+                return false; // too late: the team passed
+            }
+            showNormalPrompt(); // acting takes the pass back
+        }
         holdForPartner();
 
         final SpellAbility ability = getController().getAbilityToPlay(card, abilities, triggerEvent);
@@ -553,6 +575,9 @@ public class InputPassPriority extends InputSyncronizedBase {
     @Override
     public boolean selectAbility(final SpellAbility ab) {
     	if (ab != null) {
+            if (isWaitingForMates() && !takeBackOk()) {
+                return false; // too late: the team passed
+            }
             holdForPartner();
     	    chosenSa = new ArrayList<>();
             chosenSa.add(ab);

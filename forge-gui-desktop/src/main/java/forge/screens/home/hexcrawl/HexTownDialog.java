@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import javax.swing.BorderFactory;
 import javax.swing.JComponent;
@@ -123,6 +124,10 @@ final class HexTownDialog {
     private int questW;
 
     private final List<Pill> headPills = new ArrayList<>();
+    /** The others: who is in the shops too, and who wants to move on. */
+    private final JLabel lblParty = new JLabel(" ");
+    /** Names what a vote is for (see HexCrawlPanel.describeVote). */
+    private Function<String, String> voteNames = key -> "?";
     private GoldChip goldChip;
     private final JLabel lblMessage = new JLabel(" ");
     private final Map<String, NavItem> navItems = new LinkedHashMap<>();
@@ -193,6 +198,12 @@ final class HexTownDialog {
         return loc.getMessage(key, args);
     }
 
+    /** How votes are named in the window. */
+    HexTownDialog describingVotes(final Function<String, String> names) {
+        voteNames = names;
+        return this;
+    }
+
     private HexCampaign campaign() {
         return session.getCampaign();
     }
@@ -223,6 +234,34 @@ final class HexTownDialog {
         return label(caps(text), tracked(display(12f), 0.2f), HEADING);
     }
 
+    /** The others: who is in the shops too, and who wants to move on (with the vote's clock). */
+    private void fillParty() {
+        final String me = session.getMyHead();
+        final List<String> parts = new ArrayList<>();
+        final List<String> shoppers = new ArrayList<>();
+        for (final String name : session.getShopping()) {
+            if (!name.equals(me)) {
+                shoppers.add(name);
+            }
+        }
+        if (!shoppers.isEmpty()) {
+            parts.add(t("lblHexAlsoInShops", String.join(", ", shoppers)));
+        }
+        final Map<String, String> votes = session.getVotes();
+        for (final Map.Entry<String, String> vote : votes.entrySet()) {
+            if (!vote.getKey().equals(me)) { // one's own vote one knows
+                parts.add(t("lblHexWantsToMove", vote.getKey(), voteNames.apply(vote.getValue())));
+            }
+        }
+        String text = String.join("   \u00b7   ", parts);
+        final int seconds = session.voteSecondsLeft(System.currentTimeMillis());
+        if (!votes.isEmpty() && seconds >= 0) {
+            text += "   " + t("lblHexTownVoteClock", String.valueOf(seconds));
+        }
+        lblParty.setText(text.isEmpty() ? " " : text);
+        lblParty.setForeground(votes.isEmpty() ? GOLD_LIGHT : new Color(0xF0A040));
+    }
+
     private void setMessage(final String text, final boolean bad) {
         lblMessage.setText(text == null || text.isEmpty() ? " " : text);
         lblMessage.setForeground(bad ? BAD : palette.light());
@@ -242,9 +281,12 @@ final class HexTownDialog {
         dialog.setSize(width, height);
 
         refreshHook.accept(this::fill); // what others do arrives a moment later, with the next state from the host
+        final javax.swing.Timer clock = new javax.swing.Timer(1000, e -> fillParty()); // the vote's clock runs down
+        clock.start();
         try {
             dialog.setVisible(true);
         } finally {
+            clock.stop();
             refreshHook.accept(null);
             dialog.dispose();
         }
@@ -267,7 +309,10 @@ final class HexTownDialog {
         root.add(buildBanner(town), "h " + (Banner.CLOTH + 10) + "!");
         final JPanel center = transparent(new MigLayout("insets 0 2 2 2, gap 0, fill", "[" + SIDEBAR_W + "!, fill][grow, fill]", "[grow, fill]"));
         center.add(buildSidebar());
-        final JPanel main = transparent(new MigLayout("insets 6 24 10 24, gap 0, wrap 1, fill", "[grow, fill]", "[grow, fill][]"));
+        final JPanel main = transparent(new MigLayout("insets 6 24 10 24, gap 0, wrap 1, fill", "[grow, fill]", "[][grow, fill][]"));
+        lblParty.setFont(body(Font.BOLD, 13f));
+        lblParty.setForeground(GOLD_LIGHT);
+        main.add(lblParty, "h 22!, gapbottom 4");
         body.setOpaque(false);
         body.add(buildCardsPage(height), PAGE_CARDS);
         body.add(buildRelicPage(), HexShopType.RELIC.name());
@@ -577,6 +622,11 @@ final class HexTownDialog {
         if (c == null || p == null) {
             return;
         }
+        if (!c.inTown() && dialog != null && dialog.isVisible()) {
+            dialog.setVisible(false); // the party moved on: the shops are behind it
+            return;
+        }
+        fillParty();
         for (int i = 0; i < headPills.size(); i++) {
             headPills.get(i).setActive(i == headIndex);
         }

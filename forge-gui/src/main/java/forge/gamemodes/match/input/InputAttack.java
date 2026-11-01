@@ -70,6 +70,10 @@ public class InputAttack extends InputSyncronizedBase {
 
     @Override
     public final void showMessage() {
+        if (isWaitingForMates()) {
+            showWaitingForMates();
+            return;
+        }
         setCurrentDefender(defenders.getFirst());
 
         if (currentDefender == null) {
@@ -110,12 +114,22 @@ public class InputAttack extends InputSyncronizedBase {
 
     @Override
     protected final void onOk() {
+        if (isWaitingForMates()) {
+            return; // OK said already: waiting for the team mates
+        }
         // Propaganda costs could have been paid here.
-        stop();
+        // with team mates attacking at the same time the OK waits for theirs, and may be taken back until then
+        okWithMates(this::stop);
     }
 
     @Override
     protected final void onCancel() {
+        if (isWaitingForMates()) {
+            if (takeBackOk()) {
+                updateMessage();
+            }
+            return;
+        }
         //either alpha strike or undeclare all attackers based on whether any attackers have been declared
         if (canCallBackAttackers()) {
             //undeclare all attackers
@@ -172,6 +186,9 @@ public class InputAttack extends InputSyncronizedBase {
 
     @Override
     protected final void onPlayerSelected(Player selected, final ITriggerEvent triggerEvent) {
+        if (isWaitingForMates()) {
+            return; // take the OK back first
+        }
         if (defenders.contains(selected)) {
             setCurrentDefender(selected);
         } else {
@@ -181,6 +198,9 @@ public class InputAttack extends InputSyncronizedBase {
 
     @Override
     protected final boolean onCardSelected(final Card card, final List<Card> otherCardsToSelect, final ITriggerEvent triggerEvent) {
+        if (isWaitingForMates()) {
+            return false; // take the OK back first
+        }
         disablePrompt();
         final List<Card> att = combat.getAttackers();
         if (triggerEvent != null && triggerEvent.getButton() == 3 && att.contains(card)) {

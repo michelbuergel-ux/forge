@@ -36,6 +36,7 @@ public class HexSession {
         public Map<String, String> votes = new LinkedHashMap<>();
         public List<String> fightReady = new ArrayList<>();
         public List<String> present = new ArrayList<>();
+        public List<String> shopping = new ArrayList<>();
         public boolean fightRunning;
         public String hostHead;
         /** The build of the host (see {@link HexNet#BUILD_ID}). */
@@ -56,6 +57,8 @@ public class HexSession {
     private final Map<String, String> votes = new LinkedHashMap<>();
     private final Set<String> fightReady = new LinkedHashSet<>();
     private final Set<String> present = new LinkedHashSet<>();
+    /** The people with the town window open. */
+    private final Set<String> shopping = new LinkedHashSet<>();
     private boolean fightRunning;
     /** When the open vote ends (this computer's clock, ms), 0 if no vote is open. */
     private long voteDeadline;
@@ -96,6 +99,7 @@ public class HexSession {
     public synchronized Map<String, String> getVotes() { return new LinkedHashMap<>(votes); }
     public synchronized Set<String> getFightReady() { return new LinkedHashSet<>(fightReady); }
     public synchronized Set<String> getPresent() { return new LinkedHashSet<>(present); }
+    public synchronized Set<String> getShopping() { return new LinkedHashSet<>(shopping); }
     public boolean isFightRunning() { return fightRunning; }
 
     /** Seconds until the open vote ends, or -1 if no vote is open. */
@@ -158,6 +162,11 @@ public class HexSession {
     /** In town: gives a card of the deck or the sideboard to a team mate. */
     public void giveCard(final String head, final String to, final String card, final boolean fromSideboard) {
         act(new HexActionEvent(HexActionEvent.GIVE, 0, indexOf(to), card, fromSideboard, head));
+    }
+
+    /** This person opened (or closed) the town window. */
+    public void setShopping(final boolean open) {
+        act(new HexActionEvent(HexActionEvent.SHOPPING, 0, 0, null, open, null));
     }
 
     /** Ready check: this person has looked at their deck. */
@@ -324,6 +333,12 @@ public class HexSession {
                 }
             } else if (HexActionEvent.DECK_SEEN.equals(type)) {
                 campaign.markDeckChecked(head);
+            } else if (HexActionEvent.SHOPPING.equals(type)) {
+                if (action.getFlag() && campaign.inTown()) {
+                    shopping.add(actor);
+                } else {
+                    shopping.remove(actor);
+                }
             } else if (HexActionEvent.BUY.equals(type)) {
                 final int shop = action.getQ();
                 campaign.buy(head, shop >= 0 && shop < HexShopType.values().length ? HexShopType.values()[shop] : null,
@@ -391,6 +406,10 @@ public class HexSession {
         final List<String> voters = voters();
         votes.keySet().retainAll(voters);
         fightReady.retainAll(voters);
+        shopping.retainAll(voters);
+        if (!campaign.inTown()) {
+            shopping.clear(); // the party moved on
+        }
 
         // AI heads never keep the others waiting: they take the best card, and a perk
         for (final HexReward reward : new ArrayList<>(campaign.pendingRewards)) {
@@ -588,6 +607,7 @@ public class HexSession {
         s.votes.putAll(votes);
         s.fightReady.addAll(fightReady);
         s.present.addAll(present);
+        s.shopping.addAll(shopping);
         s.fightRunning = fightRunning;
         s.hostHead = hostHead;
         s.buildId = HexNet.BUILD_ID;
@@ -613,6 +633,10 @@ public class HexSession {
             fightReady.addAll(s.fightReady);
             present.clear();
             present.addAll(s.present);
+            shopping.clear();
+            if (s.shopping != null) {
+                shopping.addAll(s.shopping);
+            }
             fightRunning = s.fightRunning;
             hostBuild = s.buildId;
             // the host's clock, counted down on this computer from now on

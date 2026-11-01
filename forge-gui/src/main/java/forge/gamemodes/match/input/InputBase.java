@@ -152,7 +152,26 @@ public abstract class InputBase implements java.io.Serializable, Input {
         showMessage(message, sav.getHostCard());
     }
     protected final void showMessage(final String message, final CardView card) {
-        controller.getGui().showPromptMessage(getOwner(), message, card);
+        lastMessage = message;
+        lastCard = card;
+        controller.getGui().showPromptMessage(getOwner(), decorateMessage(message), card);
+    }
+
+    /** The prompt last shown, to show it again (see reshowMessage). */
+    private volatile String lastMessage;
+    private volatile CardView lastCard;
+
+    /** Shows the last prompt again, e.g. when what decorateMessage adds changed. */
+    protected final void reshowMessage() {
+        final String message = lastMessage;
+        if (message != null && !isFinished()) {
+            controller.getGui().showPromptMessage(getOwner(), decorateMessage(message), lastCard);
+        }
+    }
+
+    /** What the prompt shows for a message: the message itself, unless an input adds something. */
+    protected String decorateMessage(final String message) {
+        return message;
     }
 
     protected String getTurnPhasePriorityMessage(final Game game) {

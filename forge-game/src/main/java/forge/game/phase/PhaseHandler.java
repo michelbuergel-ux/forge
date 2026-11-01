@@ -137,6 +137,13 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         return false;
     }
 
+    /** The team mates asked at the same time right now, whose OKs wait for each other; null if none. */
+    private volatile TeamReady teamReady;
+
+    public TeamReady getTeamReady() {
+        return teamReady;
+    }
+
     public final boolean isSharedTeamTurns() {
         return game.getRules().hasSharedTeamTurns();
     }
@@ -740,6 +747,8 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
 
         if (!attackingPlayers.isEmpty()) {
             boolean success = false;
+            // a team's heads all declare; when their attack breaks a rule only those who can fix it declare again
+            List<Player> declaring = attackingPlayers;
             do {
                 if (game.isGameOver()) { // they just like to close window at any moment
                     return;
@@ -752,7 +761,9 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                     }
                 }
                 // shared team turns: the heads at their own screens declare at the same time
-                declareTogether(attackingPlayers,
+                final List<Player> asked = declaring;
+                declaring = attackingPlayers;
+                declareTogether(asked,
                         p -> Objects.requireNonNullElse(p.getDeclaresAttackers(), p),
                         p -> Objects.requireNonNullElse(p.getDeclaresAttackers(), p).getController().declareAttackers(p, combat));
                 if (game.isGameOver()) {
@@ -762,13 +773,12 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
 
                 success = CombatUtil.validateAttackers(combat);
                 if (!success) {
-                    for (final Player attackingPlayer : attackingPlayers) {
-                        Objects.requireNonNullElse(attackingPlayer.getDeclaresAttackers(), attackingPlayer)
-                                .getController().notifyOfValue(null, null, "Attack declaration invalid");
-                    }
                     if (attackingPlayers.size() > 1) {
-                        // start over, otherwise the heads would stack up on a combat that is already illegal
-                        combat.clearAttackers();
+                        // the attackers stay; the heads that can make it legal declare again, and everybody is told why
+                        declaring = headsToFixAttack(attackingPlayers);
+                        notifyAttackToFix(attackingPlayers, declaring);
+                    } else {
+                        whoDeclares.getController().notifyOfValue(null, null, "Attack declaration invalid");
                     }
                     continue;
                 }
@@ -787,14 +797,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                 List<Card> possibleExerters = CombatUtil.getOptionalAttackCostCreatures(combat.getAttackers(), CostExert.class);
                 if (!possibleExerters.isEmpty()) {
                     if (attackingPlayers.size() > 1) {
-                        final List<Card> chosen = Lists.newArrayList();
-                        for (final Player attackingPlayer : attackingPlayers) {
-                            final List<Card> own = CardLists.filterControlledBy(possibleExerters, attackingPlayer);
-                            if (!own.isEmpty()) {
-                                chosen.addAll(attackingPlayer.getController().exertAttackers(own));
-                            }
-                        }
-                        possibleExerters = chosen;
+                        possibleExerters = chooseTogether(attackingPlayers, possibleExerters, (p, own) -> p.getController().exertAttackers(own));
                     } else {
                         possibleExerters = whoDeclares.getController().exertAttackers(possibleExerters);
                     }
@@ -804,14 +807,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                 if (!possibleEnlisters.isEmpty()) {
                     // TODO might want to skip if can't be paid
                     if (attackingPlayers.size() > 1) {
-                        final List<Card> chosen = Lists.newArrayList();
-                        for (final Player attackingPlayer : attackingPlayers) {
-                            final List<Card> own = CardLists.filterControlledBy(possibleEnlisters, attackingPlayer);
-                            if (!own.isEmpty()) {
-                                chosen.addAll(attackingPlayer.getController().enlistAttackers(own));
-                            }
-                        }
-                        possibleEnlisters = chosen;
+                        possibleEnlisters = chooseTogether(attackingPlayers, possibleEnlisters, (p, own) -> p.getController().enlistAttackers(own));
                     } else {
                         possibleEnlisters = whoDeclares.getController().enlistAttackers(possibleEnlisters);
                     }
@@ -924,6 +920,76 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
     }
 
     /**
+     * The heads of a team whose attack breaks a rule that could make it legal on their own, the others' attackers
+     * kept (all of them if none can): they declare again.
+     */
+    private List<Player> headsToFixAttack(final List<Player> heads) {
+        final forge.game.combat.AttackConstraints constraints = combat.getAttackConstraints();
+        final org.apache.commons.lang3.tuple.Pair<Map<Card, GameEntity>, Integer> best = constraints.getLegalAttackers();
+        final List<Player> fixers = Lists.newArrayList();
+        for (final Player head : heads) {
+            final Map<Card, GameEntity> attack = new HashMap<>();
+            combat.getAttackersAndDefenders().forEach((c, d) -> {
+                if (c.getController() != head) {
+                    attack.put(c, d);
+                }
+            });
+            best.getLeft().forEach((c, d) -> {
+                if (c.getController() == head) {
+                    attack.put(c, d);
+                }
+            });
+            final int violations = constraints.countViolations(attack);
+            if (violations != -1 && violations <= best.getRight()) {
+                fixers.add(head);
+            }
+        }
+        return fixers.isEmpty() ? heads : fixers;
+    }
+
+    /** Tells each head why the team's attack must change: its own (with the creatures that should attack), or a mate's. */
+    private void notifyAttackToFix(final List<Player> heads, final List<Player> fixers) {
+        final forge.util.Localizer loc = forge.util.Localizer.getInstance();
+        final List<String> names = Lists.newArrayList();
+        for (final Player fixer : fixers) {
+            names.add(fixer.getName());
+        }
+        for (final Player head : heads) {
+            final String message;
+            if (fixers.contains(head)) {
+                final List<String> should = Lists.newArrayList();
+                for (final Card c : head.getCreaturesInPlay()) {
+                    if (CombatUtil.couldAttackButNotAttacking(combat, c)) {
+                        should.add(c.getName());
+                    }
+                }
+                message = loc.getMessage("lblTeamAttackFixYours")
+                        + (should.isEmpty() ? "" : " " + loc.getMessage("lblTeamAttackShouldAttack", String.join(", ", should)));
+            } else {
+                message = loc.getMessage("lblTeamAttackFixMate", String.join(", ", names));
+            }
+            Objects.requireNonNullElse(head.getDeclaresAttackers(), head).getController().notifyOfValue(null, null, message);
+        }
+    }
+
+    /**
+     * Each head chooses among its own of the given cards (exert, enlist), the heads at screens of their own at the same
+     * time; returns all the chosen cards.
+     */
+    private List<Card> chooseTogether(final List<Player> heads, final List<Card> cards,
+            final java.util.function.BiFunction<Player, List<Card>, List<Card>> choose) {
+        final List<Card> chosen = Collections.synchronizedList(Lists.newArrayList());
+        final List<Player> asked = Lists.newArrayList();
+        for (final Player head : heads) {
+            if (!CardLists.filterControlledBy(cards, head).isEmpty()) {
+                asked.add(head);
+            }
+        }
+        declareTogether(asked, p -> p, p -> chosen.addAll(choose.apply(p, CardLists.filterControlledBy(cards, p))));
+        return Lists.newArrayList(chosen);
+    }
+
+    /**
      * Lets each of the players declare (attackers or blockers). With shared team turns the heads
      * that sit at screens of their own (the host's and network guests') are asked at the same
      * time; the others (AI heads, heads sharing one screen) first, one after another. Returns
@@ -954,6 +1020,9 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         }
         final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(together.size());
         final Throwable[] error = new Throwable[1];
+        // a head's OK waits for its mates' (and may be taken back until then)
+        final TeamReady team = new TeamReady(Lists.transform(together, declarerOf::apply));
+        teamReady = team;
         for (final Player p : together) {
             forge.util.ThreadUtil.invokeInGameThread(() -> {
                 try {
@@ -965,6 +1034,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                         }
                     }
                 } finally {
+                    team.answered(declarerOf.apply(p));
                     done.countDown();
                 }
             });
@@ -974,6 +1044,9 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
+        } finally {
+            team.close();
+            teamReady = null;
         }
         if (error[0] instanceof RuntimeException re) {
             throw re;
@@ -1672,6 +1745,9 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         for (final Player head : heads) {
             head.getController().setConcurrentSpellAbilityChoice(true);
         }
+        // a head's pass waits for its mates' (and may be taken back until then)
+        final TeamReady team = new TeamReady(heads);
+        teamReady = team;
         try {
             for (final Player head : heads) {
                 forge.util.ThreadUtil.invokeInGameThread(() -> {
@@ -1698,6 +1774,11 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                 if (winner != null || error != null) {
                     continue; // too late: someone else acted first
                 }
+                if (answer.error() != null || answer.chosen() != null) {
+                    team.close(); // the decision is over: no more OKs to wait for
+                } else {
+                    team.answered(answer.player());
+                }
                 if (answer.error() != null) {
                     error = answer.error();
                 } else if (answer.chosen() == null) {
@@ -1722,6 +1803,8 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
             }
             return winner;
         } finally {
+            team.close();
+            teamReady = null;
             for (final Player head : heads) {
                 head.getController().setConcurrentSpellAbilityChoice(false);
             }
