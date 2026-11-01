@@ -244,6 +244,14 @@ public class PlayerView extends GameEntityView {
         set(TrackableProperty.HasPriority, val);
     }
 
+    /** Does the game wait for this player's decision (a prompt of theirs is open, not yet answered)? */
+    public boolean isWaitedFor() {
+        return get(TrackableProperty.WaitedFor);
+    }
+    public void setWaitedFor(final boolean val) {
+        set(TrackableProperty.WaitedFor, val);
+    }
+
     public int getMaxHandSize() {
         return get(TrackableProperty.MaxHandSize);
     }

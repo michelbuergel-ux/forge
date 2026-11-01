@@ -91,9 +91,62 @@ public class VField implements IVDoc<CField> {
         @Override
         protected void paintChildren(final Graphics g) {
             super.paintChildren(g);
+            paintWaitedFor(g);
             paintAITimeoutBar(g);
         }
     };
+
+    // ---- the game waits for this player: a pulsing amber frame and an hourglass on the avatar ----
+    private static final Color WAIT_AMBER = new Color(255, 190, 40);
+    /** One clock for all fields: it repaints the avatars of the players the game waits for (and those it stopped waiting for). */
+    private static Timer waitClock;
+
+    private static void refreshAllWaitedFor() {
+        final List<VField> fields;
+        synchronized (LIVE_FIELDS) { fields = new ArrayList<>(LIVE_FIELDS); }
+        for (final VField f : fields) { f.refreshWaitedFor(); }
+    }
+    private boolean waitedForShown;
+
+    private void refreshWaitedFor() {
+        final boolean waited = player != null && player.isWaitedFor();
+        if (waited || waitedForShown) {
+            avatarArea.repaint();
+        }
+        waitedForShown = waited;
+    }
+
+    private void paintWaitedFor(final Graphics g0) {
+        if (player == null || !player.isWaitedFor()) { return; }
+        final java.awt.Graphics2D g = (java.awt.Graphics2D) g0.create();
+        g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+        final Rectangle r = lblAvatar.getBounds();
+        // the frame breathes, so the eye finds it
+        final double pulse = 0.5 + 0.5 * Math.sin(System.currentTimeMillis() / 260.0);
+        for (int i = 0; i < 4; i++) {
+            final int alpha = (int) Math.round((150 + 105 * pulse) * (1 - i * 0.22));
+            g.setColor(new Color(WAIT_AMBER.getRed(), WAIT_AMBER.getGreen(), WAIT_AMBER.getBlue(), Math.max(0, alpha)));
+            g.setStroke(new java.awt.BasicStroke(2f));
+            g.drawRoundRect(r.x + i, r.y + i, r.width - 1 - 2 * i, r.height - 1 - 2 * i, 8, 8);
+        }
+        // an hourglass in the top right corner
+        final int s = Math.max(12, Math.min(r.width, r.height) / 4);
+        final int bx = r.x + r.width - s - 4;
+        final int by = r.y + 4;
+        g.setColor(new Color(0, 0, 0, 170));
+        g.fillOval(bx - 3, by - 3, s + 6, s + 6);
+        g.setColor(WAIT_AMBER);
+        final java.awt.geom.Path2D glass = new java.awt.geom.Path2D.Double();
+        glass.moveTo(bx + s * 0.22, by + s * 0.15);
+        glass.lineTo(bx + s * 0.78, by + s * 0.15);
+        glass.lineTo(bx + s * 0.5, by + s * 0.5);
+        glass.lineTo(bx + s * 0.78, by + s * 0.85);
+        glass.lineTo(bx + s * 0.22, by + s * 0.85);
+        glass.lineTo(bx + s * 0.5, by + s * 0.5);
+        glass.closePath();
+        g.fill(glass);
+        g.dispose();
+    }
 
     // ---- AI "thinking" timer bar over the avatar (shrinks to 0 at the AI timeout) ----
     private static final Color BAR_BG = new Color(0, 0, 0, 165);
@@ -176,6 +229,10 @@ public class VField implements IVDoc<CField> {
         this.matchUI = matchUI;
         this.player = p;
         LIVE_FIELDS.add(this);
+        if (waitClock == null) {
+            waitClock = new Timer(80, e -> refreshAllWaitedFor());
+            waitClock.start();
+        }
         if (p != null) { tab.setText(Localizer.getInstance().getMessage("lblPlayField", p.getName())); }
         else { tab.setText(Localizer.getInstance().getMessage("lblNoPlayerForEDocID", docID.toString())); }
 

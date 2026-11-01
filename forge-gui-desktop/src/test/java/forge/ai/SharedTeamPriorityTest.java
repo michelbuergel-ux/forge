@@ -175,6 +175,25 @@ public class SharedTeamPriorityTest extends AITest {
         AssertJUnit.assertNull(game.getPhaseHandler().getTeamReady());
     }
 
+    @Test
+    public void testThePlayersSeeWhoTheGameWaitsFor() {
+        final Game game = initAndCreateTeamGame();
+        final Player a1 = game.getPlayers().get(0);
+        final forge.player.PlayerControllerHuman human = new forge.player.PlayerControllerHuman(game, a1, a1.getLobbyPlayer());
+        AssertJUnit.assertFalse(a1.getView().isWaitedFor());
+        human.noteInputOpen(true);
+        AssertJUnit.assertTrue("a prompt of a1 is open", a1.getView().isWaitedFor());
+        human.noteInputOpen(true); // a prompt inside it (a target, say)
+        human.noteInputOpen(false);
+        AssertJUnit.assertTrue("the first prompt is still open", a1.getView().isWaitedFor());
+        human.noteOkSaid(true);
+        AssertJUnit.assertFalse("a1 said OK and waits for its mate", a1.getView().isWaitedFor());
+        human.noteOkSaid(false);
+        AssertJUnit.assertTrue("taken back", a1.getView().isWaitedFor());
+        human.noteInputOpen(false);
+        AssertJUnit.assertFalse(a1.getView().isWaitedFor());
+    }
+
     @Test(timeOut = 60000)
     public void testPhaseEndsOnlyAfterBothTeamsPassed() {
         final Game game = initAndCreateTeamGame();

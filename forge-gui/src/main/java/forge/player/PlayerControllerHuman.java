@@ -130,6 +130,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
     /** Shared team priority: team mates' prompts may scan the game at the same time, so they take turns for that. */
     private static final Object CONCURRENT_SCAN_LOCK = new Object();
     private volatile boolean concurrentChoice;
+    /** The prompts open for this player (nested ones count too), and whether its OK waits for team mates. */
+    private final java.util.concurrent.atomic.AtomicInteger openInputs = new java.util.concurrent.atomic.AtomicInteger();
+    private volatile boolean okSaid;
     private volatile boolean choiceInterrupted;
     private volatile InputPassPriority openPriorityInput;
     /** Shared team priority: what the team mate who acted first is doing (shown while waiting). */
@@ -1854,6 +1857,37 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
             return Collections.emptyList();     // mainLoopStep just prompts again
         }
         return defaultInput.getChosenSa();
+    }
+
+    /** A prompt of this player opens (true) or closes: the game waits for them while one is open. */
+    public void noteInputOpen(final boolean open) {
+        if (open) {
+            openInputs.incrementAndGet();
+        } else if (openInputs.decrementAndGet() <= 0) {
+            openInputs.set(0);
+            okSaid = false;
+        }
+        updateWaitedFor();
+    }
+
+    /** The player said OK and waits for team mates (true), or took it back: the game no longer waits for them. */
+    public void noteOkSaid(final boolean said) {
+        okSaid = said;
+        updateWaitedFor();
+    }
+
+    private void updateWaitedFor() {
+        final Game game = getGame();
+        if (player == null || game == null) {
+            return;
+        }
+        final boolean waited = openInputs.get() > 0 && !okSaid;
+        if (player.getView().isWaitedFor() == waited) {
+            return;
+        }
+        player.getView().setWaitedFor(waited);
+        // the other screens hear of it with the next event
+        ThreadUtil.invokeInGameThread(() -> game.fireEvent(new GameEventPlayerStatsChanged(player)));
     }
 
     @Override

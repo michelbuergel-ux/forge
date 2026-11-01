@@ -46,8 +46,14 @@ public abstract class InputSyncronizedBase extends InputBase implements InputSyn
             // a team mate's OK (or taking it back) shows on this prompt at once
             team.watch(getController().getPlayer(), this::reshowMessage);
         }
-        getController().getInputQueue().setInput(this);
-        awaitLatchRelease();
+        // the game waits for this player while the prompt is open
+        getController().noteInputOpen(true);
+        try {
+            getController().getInputQueue().setInput(this);
+            awaitLatchRelease();
+        } finally {
+            getController().noteInputOpen(false);
+        }
     }
 
     @Override
@@ -95,6 +101,7 @@ public abstract class InputSyncronizedBase extends InputBase implements InputSyn
             waitingForMates = false;
             return;
         }
+        getController().noteOkSaid(true);
         showWaitingForMates();
     }
 
@@ -139,6 +146,7 @@ public abstract class InputSyncronizedBase extends InputBase implements InputSyn
             return false;
         }
         waitingForMates = false;
+        getController().noteOkSaid(false);
         return true;
     }
 }

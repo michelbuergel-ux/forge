@@ -699,6 +699,18 @@ public abstract class AbstractGuiGame implements IGuiGame, IMayViewCards {
 
     private String findWaitingForPlayerName(final PlayerView forPlayer) {
         if (gameView.getPlayers() != null) {
+            // the players whose prompts are open: all of them (team mates decide at the same time)
+            final List<String> waited = new ArrayList<>();
+            for (PlayerView pv : gameView.getPlayers()) {
+                if (pv.isWaitedFor() && (forPlayer == null || pv.getId() != forPlayer.getId())) {
+                    waited.add(pv.getName());
+                }
+            }
+            if (!waited.isEmpty()) {
+                return String.join(", ", waited);
+            }
+        }
+        if (gameView.getPlayers() != null) {
             for (PlayerView pv : gameView.getPlayers()) {
                 if (pv.getHasPriority() && (forPlayer == null || pv.getId() != forPlayer.getId())) {
                     return pv.getName();
