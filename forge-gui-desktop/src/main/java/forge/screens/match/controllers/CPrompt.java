@@ -191,7 +191,7 @@ public class CPrompt implements ICDoc {
      */
     public void showPartnerOption(final boolean show) {
         view.getChkAlwaysOkPartner().setSelected(FModel.getPreferences().getPrefBoolean(ForgePreferences.FPref.YIELD_AUTO_OK_PARTNER));
-        view.getChkAlwaysOkPartner().setVisible(show);
+        view.setPartnerOptionShown(show);
         view.getChkAlwaysOkPartner().setToolTipText(forge.util.Localizer.getInstance().getMessage("lblAlwaysOkPartnerHint"));
     }
 

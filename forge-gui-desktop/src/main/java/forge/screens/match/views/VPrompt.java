@@ -159,7 +159,7 @@ public class VPrompt implements IVDoc<CPrompt> {
         chkAlwaysOkPartner.setForeground(java.awt.Color.WHITE);
         chkAlwaysOkPartner.setFont(FSkin.getBoldFont(13));
         chkAlwaysOkPartner.setBorder(javax.swing.BorderFactory.createEmptyBorder(0, 6, 0, 6));
-        chkAlwaysOkPartner.setVisible(false);
+        chkAlwaysOkPartner.setVisible(partnerOptionShown); // a new layout keeps it as the game set it
         container.add(chkAlwaysOkPartner, "span 2, w 10:100%, h 26px!, gaptop 3px!, hidemode 3");
         if (pnlTeam.getComponentCount() == 0) {
             pnlTeam.setOpaque(false);
@@ -231,6 +231,14 @@ public class VPrompt implements IVDoc<CPrompt> {
     /** @return {@link javax.swing.JButton} */
     public FButton getBtnCancel() {
         return this.btnCancel;
+    }
+
+    /** Whether the game shows "Always OK my partner" (team fights); kept here, since a new layout rebuilds the panel. */
+    private boolean partnerOptionShown;
+
+    public void setPartnerOptionShown(final boolean shown) {
+        partnerOptionShown = shown;
+        chkAlwaysOkPartner.setVisible(shown);
     }
 
     public forge.toolbox.FCheckBox getChkAlwaysOkPartner() {
