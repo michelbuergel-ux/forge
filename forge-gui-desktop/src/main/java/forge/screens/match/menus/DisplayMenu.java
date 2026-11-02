@@ -37,7 +37,8 @@ public final class DisplayMenu {
         menu.add(getSubmenu_StackGroupPermanents());
         menu.add(getMenuItem_TokensSeparateRow());
         menu.add(getMenuItem_SeparateCombatStacks());
-        menu.add(getMenuItem_TeamBattlefield());
+        menu.add(getMenuItem_TeamBattlefield(FPref.UI_TEAM_BATTLEFIELD_OWN, "cbTeamBattlefieldOwn"));
+        menu.add(getMenuItem_TeamBattlefield(FPref.UI_TEAM_BATTLEFIELD_ENEMY, "cbTeamBattlefieldEnemy"));
         menu.add(getMenuItem_ActionableHighlights());
         menu.add(getMenuItem_AutoTapPreview());
         menu.add(getMenuItem_LinkedExileCards());
@@ -115,15 +116,15 @@ public final class DisplayMenu {
         return menuItem;
     }
 
-    /** Team games: one battlefield per side, or a field per head (from the next game on). */
-    private SkinnedCheckBoxMenuItem getMenuItem_TeamBattlefield() {
+    /** Team games: one battlefield for a side (the own team, or the enemy teams), or a field per head (from the next game on). */
+    private SkinnedCheckBoxMenuItem getMenuItem_TeamBattlefield(final FPref pref, final String label) {
         final Localizer localizer = Localizer.getInstance();
-        final SkinnedCheckBoxMenuItem menuItem = MenuUtil.createStayOpenSkinnedCheckBox(localizer.getMessage("cbTeamBattlefield"));
+        final SkinnedCheckBoxMenuItem menuItem = MenuUtil.createStayOpenSkinnedCheckBox(localizer.getMessage(label));
         menuItem.setToolTipText(localizer.getMessage("nlTeamBattlefield"));
-        menuItem.setState(prefs.getPrefBoolean(FPref.UI_TEAM_BATTLEFIELD));
+        menuItem.setState(prefs.getPrefBoolean(pref));
         menuItem.addActionListener(e -> {
-            final boolean enabled = !prefs.getPrefBoolean(FPref.UI_TEAM_BATTLEFIELD);
-            prefs.setPref(FPref.UI_TEAM_BATTLEFIELD, enabled);
+            final boolean enabled = !prefs.getPrefBoolean(pref);
+            prefs.setPref(pref, enabled);
             prefs.save();
         });
         return menuItem;

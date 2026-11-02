@@ -429,7 +429,7 @@ public final class CMatchUI
         }
         view.setTeamFields(teamFields);
         view.setFieldViews(fields);
-        if (teamPlayers != null && FModel.getPreferences().getPrefBoolean(FPref.UI_TEAM_BATTLEFIELD)) {
+        if (teamPlayers != null) {
             formTeamBattlefields(fields);
         }
 
@@ -463,8 +463,12 @@ public final class CMatchUI
             }
             side.add(fields.get(i));
         }
+        // each side as chosen in the Display menu: the own team and the enemy teams apart
+        final boolean own = FModel.getPreferences().getPrefBoolean(FPref.UI_TEAM_BATTLEFIELD_OWN);
+        final boolean enemy = FModel.getPreferences().getPrefBoolean(FPref.UI_TEAM_BATTLEFIELD_ENEMY);
         for (final List<VField> side : sides) {
-            if (side.size() > 1) {
+            final boolean ours = teamPlayers.contains(side.get(0).getPlayer());
+            if (side.size() > 1 && (ours ? own : enemy)) {
                 side.get(0).leadTeam(side);
             }
         }
