@@ -26,9 +26,9 @@ public class HexCampaign {
     /** Every head of the party after the first adds this much to its shared life. */
     public static final int LIFE_PER_EXTRA_HEAD = 10;
     /** How many heads the enemy fights with, by the number of heads of the party (1 to 4). */
-    public static final int[] ENEMY_HEADS = { 1, 2, 2, 3 };
+    public static final int[] ENEMY_HEADS = { 1, 2, 3, 3 };
     /** What the enemy side gets on top of the enemy's own life, by the number of heads of the party (1 to 4). */
-    public static final int[] ENEMY_EXTRA_LIFE = { 0, 5, 30, 40 };
+    public static final int[] ENEMY_EXTRA_LIFE = { 0, 5, 10, 40 };
     public static final int QUESTS_PER_TOWN = 2;
     /** One in this many new tasks is an archenemy (at most one per notice board). */
     public static final int ARCHENEMY_ODDS = 3;

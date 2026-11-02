@@ -74,6 +74,15 @@ public class HexArchenemyTest extends AITest {
     }
 
     @Test
+    public void testThreeHeadsMeetThreeEnemyHeads() {
+        final HexCampaign c = HexCampaign.create("Test", 3, 4,
+                Arrays.asList(new HexPlayer("Ann", false), new HexPlayer("Bob", false), new HexPlayer("Cid", false)));
+        AssertJUnit.assertEquals(3, c.enemyHeads());
+        final HexEncounter ordinary = HexContent.get().questEncounter(task(c, false));
+        AssertJUnit.assertEquals(3, enemySide(HexBattle.createPlayers(c, ordinary, true)).size());
+    }
+
+    @Test
     public void testAnArchenemyFightsAloneWithSchemes() {
         final HexCampaign c = party(3);
         AssertJUnit.assertEquals("two heads against this party", 2, c.enemyHeads());
