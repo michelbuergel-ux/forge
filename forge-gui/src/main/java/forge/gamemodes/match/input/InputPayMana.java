@@ -21,6 +21,7 @@ import forge.game.spellability.AbilityManaPart;
 import forge.game.spellability.SpellAbility;
 import forge.game.spellability.SpellAbilityView;
 import forge.gui.FThreads;
+import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.player.PlayerControllerHuman;
 import forge.util.Evaluator;
 import forge.util.ITriggerEvent;
@@ -411,6 +412,9 @@ public abstract class InputPayMana extends InputSyncronizedBase {
         }
     }
 
+    /** "Always pay mana automatically": Auto is pressed by itself once per payment, if it can pay everything. */
+    private boolean autoPaidByChoice;
+
     protected final void updateMessage() {
         locked = false;
         if (activateDelayedCard()) {
@@ -419,6 +423,11 @@ public abstract class InputPayMana extends InputSyncronizedBase {
         if (supportAutoPay()) {
             ensureAutoPayManaSources();
             if (autoPayManaSources != null) { //enabled Auto button if mana cost can be paid
+                if (!autoPaidByChoice && getController().getYieldController().getBoolPref(FPref.UI_ALWAYS_AUTO_PAY)) {
+                    autoPaidByChoice = true;
+                    onOk();
+                    return;
+                }
                 getController().getGui().updateButtons(getOwner(), Localizer.getInstance().getMessage("lblAuto"), Localizer.getInstance().getMessage("lblCancel"), true, !mandatory, true);
             }
         }

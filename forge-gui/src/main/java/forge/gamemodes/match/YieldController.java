@@ -69,7 +69,9 @@ public class YieldController {
             // Not yield prefs, but seeded the same way: the host runs preview scans on
             // the remote player's behalf and must use that client's highlight settings, not its own.
             FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS,
-            FPref.UI_SHOW_AUTOTAP_PREVIEW);
+            FPref.UI_SHOW_AUTOTAP_PREVIEW,
+            // the host pays a remote player's mana on their behalf, by their choice
+            FPref.UI_ALWAYS_AUTO_PAY);
 
     private final PlayerControllerHuman owner;
 

@@ -149,6 +149,8 @@ public class ForgePreferences extends AbstractPreferences<ForgePreferences.FPref
         YIELD_AUTO_PASS_NO_ACTIONS ("false"),
         /** Team games with streamlined priority: OK a team mate's spells and abilities at once (kept for later fights). */
         YIELD_AUTO_OK_PARTNER ("false"),
+        /** Mana costs are paid by themselves (as with the Auto button) whenever the sources can pay all of it. */
+        UI_ALWAYS_AUTO_PAY ("false"),
         /** Hex Campaign: the map's legend is open. */
         HEXCRAWL_LEGEND_OPEN ("false"),
         YIELD_AUTO_PASS_RESPECTS_INTERRUPTS ("false"),

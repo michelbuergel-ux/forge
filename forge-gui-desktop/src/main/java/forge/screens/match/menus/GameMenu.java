@@ -49,6 +49,7 @@ public final class GameMenu {
         menu.add(getMenuItem_YieldSettings());
         final SkinnedCheckBoxMenuItem autoPassItem = getMenuItem_AutoPass();
         menu.add(autoPassItem);
+        menu.add(getMenuItem_AlwaysAutoPay());
         menu.add(getMenuItem_ClearRememberedAbilityOrders());
         menu.addMenuListener(new MenuListener() {
             @Override public void menuSelected(final MenuEvent e) {
@@ -131,6 +132,23 @@ public final class GameMenu {
         final Localizer localizer = Localizer.getInstance();
         final SkinnedMenuItem menuItem = new SkinnedMenuItem(localizer.getMessage("lblYieldSettings"));
         menuItem.addActionListener(e -> new VYieldSettings(matchUI).showDialog());
+        return menuItem;
+    }
+
+    /** Mana costs paid by themselves whenever the sources can pay all of it (as with the Auto button). */
+    private SkinnedCheckBoxMenuItem getMenuItem_AlwaysAutoPay() {
+        final Localizer localizer = Localizer.getInstance();
+        final SkinnedCheckBoxMenuItem menuItem = new SkinnedCheckBoxMenuItem(localizer.getMessage("lblAlwaysAutoPay"));
+        menuItem.setToolTipText(localizer.getMessage("nlAlwaysAutoPay"));
+        menuItem.setState(prefs.getPrefBoolean(FPref.UI_ALWAYS_AUTO_PAY));
+        menuItem.addActionListener(e -> {
+            final boolean on = !prefs.getPrefBoolean(FPref.UI_ALWAYS_AUTO_PAY);
+            prefs.setPref(FPref.UI_ALWAYS_AUTO_PAY, String.valueOf(on));
+            prefs.save();
+            // in a network game the host pays on this player's behalf: it needs to know
+            matchUI.getGameController().setYieldPref(FPref.UI_ALWAYS_AUTO_PAY, String.valueOf(on));
+            menuItem.setState(on);
+        });
         return menuItem;
     }
 
