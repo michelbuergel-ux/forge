@@ -241,6 +241,32 @@ public class SharedTeamPriorityTest extends AITest {
         AssertJUnit.assertNull(game.getPhaseHandler().getTeamReady());
     }
 
+    private static void cast(final AITest t, final Game game, final Player p) {
+        final Card bears = t.addCardToZone("Grizzly Bears", p, ZoneType.Hand);
+        final SpellAbility sa = bears.getSpellAbilities().get(0);
+        sa.setActivatingPlayer(p);
+        game.getStack().addAndUnfreeze(sa);
+    }
+
+    @Test
+    public void testTheOwnSpellOnTopIsOkdAtOnceInHexFights() throws Exception {
+        final Game game = initAndCreateTeamGame();
+        final Player a1 = game.getPlayers().get(0);
+        final Player b1 = game.getPlayers().get(1);
+        final forge.player.PlayerControllerHuman human = new forge.player.PlayerControllerHuman(game, a1, a1.getLobbyPlayer());
+        final java.lang.reflect.Method okOwn = forge.player.PlayerControllerHuman.class.getDeclaredMethod("okOwnStackItem");
+        okOwn.setAccessible(true);
+        game.getRules().setStreamlinedPriority(true);
+        AssertJUnit.assertFalse("nothing on the stack", (Boolean) okOwn.invoke(human));
+        cast(this, game, a1);
+        AssertJUnit.assertTrue("a1's own spell on top: OK'd at once", (Boolean) okOwn.invoke(human));
+        cast(this, game, b1);
+        AssertJUnit.assertFalse("an opponent answered: a1 is asked", (Boolean) okOwn.invoke(human));
+        game.getRules().setStreamlinedPriority(false);
+        cast(this, game, a1);
+        AssertJUnit.assertFalse("only in Hex fights", (Boolean) okOwn.invoke(human));
+    }
+
     @Test
     public void testThePlayersSeeWhoTheGameWaitsFor() {
         final Game game = initAndCreateTeamGame();

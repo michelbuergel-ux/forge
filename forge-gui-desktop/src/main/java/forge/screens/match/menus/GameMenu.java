@@ -50,6 +50,7 @@ public final class GameMenu {
         final SkinnedCheckBoxMenuItem autoPassItem = getMenuItem_AutoPass();
         menu.add(autoPassItem);
         menu.add(getMenuItem_AlwaysAutoPay());
+        menu.add(getMenuItem_OkOwnSpells());
         menu.add(getMenuItem_ClearRememberedAbilityOrders());
         menu.addMenuListener(new MenuListener() {
             @Override public void menuSelected(final MenuEvent e) {
@@ -132,6 +133,23 @@ public final class GameMenu {
         final Localizer localizer = Localizer.getInstance();
         final SkinnedMenuItem menuItem = new SkinnedMenuItem(localizer.getMessage("lblYieldSettings"));
         menuItem.addActionListener(e -> new VYieldSettings(matchUI).showDialog());
+        return menuItem;
+    }
+
+    /** Hex fights: the own spell or ability on top of the stack OK'd at once. */
+    private SkinnedCheckBoxMenuItem getMenuItem_OkOwnSpells() {
+        final Localizer localizer = Localizer.getInstance();
+        final SkinnedCheckBoxMenuItem menuItem = new SkinnedCheckBoxMenuItem(localizer.getMessage("lblOkOwnSpells"));
+        menuItem.setToolTipText(localizer.getMessage("nlOkOwnSpells"));
+        menuItem.setState(prefs.getPrefBoolean(FPref.YIELD_AUTO_OK_OWN));
+        menuItem.addActionListener(e -> {
+            final boolean on = !prefs.getPrefBoolean(FPref.YIELD_AUTO_OK_OWN);
+            prefs.setPref(FPref.YIELD_AUTO_OK_OWN, String.valueOf(on));
+            prefs.save();
+            // in a network game the host asks on this player's behalf: it needs to know
+            matchUI.getGameController().setYieldPref(FPref.YIELD_AUTO_OK_OWN, String.valueOf(on));
+            menuItem.setState(on);
+        });
         return menuItem;
     }
 

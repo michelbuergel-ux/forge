@@ -18,6 +18,8 @@ public class HexFightSummary {
         /** The card of this head that dealt the most damage, or null. */
         public String topCard;
         public int topCardDamage;
+        /** A lost fight: the card this head lost, or null if it had none it could lose. */
+        public String lostCard;
     }
 
     public String enemyName;

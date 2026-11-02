@@ -76,6 +76,44 @@ public class HexSiegeTest extends AITest {
     }
 
     @Test
+    public void aLostFightCostsOnlyACheapCardAndTheSummaryNamesIt() {
+        final HexCampaign c = newCampaign(5L, 7);
+        final HexTile town = besiegedNextToParty(c);
+        final forge.gamemodes.hexcrawl.HexContent content = forge.gamemodes.hexcrawl.HexContent.get();
+        AssertJUnit.assertTrue(content.price("Grizzly Bears") < HexCampaign.ANTE_MAX_PRICE);
+        AssertJUnit.assertTrue(content.price("Black Lotus") >= HexCampaign.ANTE_MAX_PRICE);
+        // Ann has one cheap card besides her lands and a valuable one; Bob only valuable ones
+        final forge.gamemodes.hexcrawl.HexPlayer ann = c.player("Ann");
+        final forge.gamemodes.hexcrawl.HexPlayer bob = c.player("Bob");
+        for (final forge.gamemodes.hexcrawl.HexPlayer p : Arrays.asList(ann, bob)) {
+            p.deck.clear();
+            for (int i = 0; i < 39; i++) {
+                p.deck.add("Forest");
+            }
+            p.deck.add("Black Lotus");
+        }
+        ann.deck.add("Grizzly Bears");
+
+        AssertJUnit.assertEquals(HexCampaign.MoveResult.ENCOUNTER, c.moveTo(town.q, town.r));
+        final forge.gamemodes.hexcrawl.HexFightSummary summary = new forge.gamemodes.hexcrawl.HexFightSummary();
+        summary.enemyName = c.pendingEncounter.enemyName;
+        summary.result = "LOST";
+        for (final String name : Arrays.asList("Ann", "Bob")) {
+            final forge.gamemodes.hexcrawl.HexFightSummary.Head h = new forge.gamemodes.hexcrawl.HexFightSummary.Head();
+            h.name = name;
+            summary.heads.add(h);
+        }
+        c.recordFight(summary);
+        c.resolveBattle(HexBattle.Result.LOST);
+
+        AssertJUnit.assertFalse("the cheap card is lost", ann.deck.contains("Grizzly Bears"));
+        AssertJUnit.assertTrue("the valuable one never", ann.deck.contains("Black Lotus"));
+        AssertJUnit.assertEquals("Grizzly Bears", c.lastFight.head("Ann").lostCard);
+        AssertJUnit.assertTrue(bob.deck.contains("Black Lotus"));
+        AssertJUnit.assertNull("Bob had nothing to lose", c.lastFight.head("Bob").lostCard);
+    }
+
+    @Test
     public void theGatesStayShutUntilTheBesiegerIsBeaten() {
         final HexCampaign c = newCampaign(5L, 7);
         final HexTile town = besiegedNextToParty(c);

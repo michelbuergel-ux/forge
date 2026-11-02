@@ -472,6 +472,19 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 pic.setItem(top);
                 col.add(pic, "h 224!, w 160!");
             }
+            if ("LOST".equals(s.result)) {
+                // what the defeat cost this head
+                final PaperCard lost = h.lostCard == null ? null : HexContent.get().getCard(h.lostCard);
+                col.add(new FLabel.Builder().text(h.lostCard == null ? t("lblHexSummaryNothingLost", String.valueOf(HexCampaign.ANTE_MAX_PRICE))
+                        : t("lblHexSummaryLostCard", h.lostCard)).fontSize(12).fontStyle(java.awt.Font.BOLD)
+                        .fontAlign(SwingConstants.LEFT).build(), "h 18!, gaptop 6");
+                if (lost != null) {
+                    final CardPicturePanel lostPic = new CardPicturePanel();
+                    lostPic.setOpaque(false);
+                    lostPic.setItem(lost);
+                    col.add(lostPic, "h 224!, w 160!");
+                }
+            }
             panel.add(col);
         }
         final String title = t("lblHexSummary_" + s.result, s.enemyName, String.valueOf(s.turns));

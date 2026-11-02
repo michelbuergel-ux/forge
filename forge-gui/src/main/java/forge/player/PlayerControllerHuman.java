@@ -1793,7 +1793,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         // Only a real yield counts here: this tracks when one ends, and skipped phases happen every turn
         boolean autoPassing = mayAutoPass();
         yieldController.noteMayAutoPassResult(autoPassing);
-        boolean nowMayAutoPass = autoPassing || skipsPromptForStackOrPhase();
+        boolean nowMayAutoPass = autoPassing || skipsPromptForStackOrPhase() || okOwnStackItem();
 
         if (nowMayAutoPass) {
             // A skipped phase has no priority input to record its implicit pass.
@@ -4118,6 +4118,21 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         final PlayerView turnPlayer = gameView.getPlayerTurn();
         final PhaseType phase = gameView.getPhase();
         return turnPlayer != null && phase != null && isUiSetToSkipPhase(turnPlayer, phase);
+    }
+
+    /**
+     * Games with streamlined priority (Hex fights): the player's own spell or ability on top of the stack is OK'd at
+     * once. The rules give priority back after casting (CR 117.3c), which is hardly ever wanted; an opponent's
+     * response puts their item on top, and then the player is asked as usual.
+     */
+    private boolean okOwnStackItem() {
+        final Game game = getGame();
+        if (game == null || player == null || isMacroActive() || !game.getRules().hasStreamlinedPriority()
+                || !yieldController.getBoolPref(FPref.YIELD_AUTO_OK_OWN)) {
+            return false;
+        }
+        final SpellAbilityStackInstance top = game.getStack().peek();
+        return top != null && player.equals(top.getActivatingPlayer());
     }
 
     public void autoPassUntilEndOfTurn() {

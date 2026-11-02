@@ -25,6 +25,8 @@ public class HexCampaign {
     public static final int START_GOLD = 60;
     /** Every head of the party after the first adds this much to its shared life. */
     public static final int LIFE_PER_EXTRA_HEAD = 10;
+    /** A lost fight costs every head a card worth less than this (the valuable ones are never lost). */
+    public static final int ANTE_MAX_PRICE = 500;
     /** How many heads the enemy fights with, by the number of heads of the party (1 to 4). */
     public static final int[] ENEMY_HEADS = { 1, 2, 3, 3 };
     /** What the enemy side gets on top of the enemy's own life, by the number of heads of the party (1 to 4). */
@@ -1335,10 +1337,17 @@ public class HexCampaign {
             if (enc.boss) {
                 log(msg("lblHexJournalBossInsult", enc.enemyName, HexContent.get().bossInsult(enc, random())));
             }
+            // the summary of this fight (just recorded) shows what every head lost
+            final HexFightSummary summary = lastFight != null && "LOST".equals(lastFight.result)
+                    && enc.enemyName != null && enc.enemyName.equals(lastFight.enemyName) ? lastFight : null;
             for (final HexPlayer p : players) {
                 final String lost = loseRandomCard(p);
                 if (lost != null) {
                     log(msg("lblHexJournalAnteLost", p.name, lost));
+                }
+                final HexFightSummary.Head h = summary == null ? null : summary.head(p.name);
+                if (h != null) {
+                    h.lostCard = lost;
                 }
             }
             final HexDungeon lostIn = dungeonOf(enc);
@@ -1375,12 +1384,16 @@ public class HexCampaign {
         return t != null && t.poi == HexPoi.TOWN && t.siege == null;
     }
 
-    /** Removes a random card that is not a basic land; a deck at minimum size gets a basic land in return. */
+    /**
+     * Removes a random card that is not a basic land and is worth less than ANTE_MAX_PRICE (null if there is none); a
+     * deck at minimum size gets a basic land in return.
+     */
     private String loseRandomCard(final HexPlayer p) {
         final HexContent content = HexContent.get();
         final List<Integer> candidates = new ArrayList<>();
         for (int i = 0; i < p.deck.size(); i++) {
-            if (!content.isBasicLand(p.deck.get(i))) {
+            final String card = p.deck.get(i);
+            if (!content.isBasicLand(card) && content.price(card) < ANTE_MAX_PRICE) {
                 candidates.add(i);
             }
         }
