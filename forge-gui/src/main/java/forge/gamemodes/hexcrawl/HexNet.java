@@ -30,7 +30,27 @@ public final class HexNet {
      * Changes whenever the campaign's network messages change; host and guests have to use
      * the same build. Shown as a warning when they differ.
      */
-    public static final String BUILD_ID = "hex-2026-11-01";
+    public static final String BUILD_ID = "hex-2026-11-02";
+
+    private static volatile String buildId;
+
+    /**
+     * What host and guests have to share: the campaign's build and Forge's own network protocol
+     * (its list of messages). Programs that differ here cannot play a fight together: the first
+     * message the other side does not know breaks the connection.
+     */
+    public static String buildId() {
+        String id = buildId;
+        if (id == null) {
+            final StringBuilder methods = new StringBuilder();
+            for (final forge.gamemodes.net.ProtocolMethod m : forge.gamemodes.net.ProtocolMethod.values()) {
+                methods.append(m.name()).append(',');
+            }
+            id = BUILD_ID + "/" + Integer.toHexString(methods.toString().hashCode()) + System.getProperty("forge.hex.buildSuffix", ""); // suffix: tests
+            buildId = id;
+        }
+        return id;
+    }
 
     /** What fleeing from the current fight costs every head (gold multiplier included), for the match screen. */
     private static volatile int fleePrice = HexFight.FLEE_GOLD;
@@ -127,11 +147,34 @@ public final class HexNet {
         }
     }
 
+    /**
+     * A state from the host. It is handed on from a thread of its own, never from the network
+     * thread: that thread also carries the game, and reading a whole campaign there would hold up
+     * what happens on the table. If several states arrive in the meantime, only the newest counts.
+     */
     public static void fromServer(final HexStateEvent state) {
         lastState = state;
+        if (pendingState.getAndSet(state) == null) {
+            DELIVERY.execute(HexNet::deliverPending);
+        }
+    }
+
+    private static final java.util.concurrent.atomic.AtomicReference<HexStateEvent> pendingState = new java.util.concurrent.atomic.AtomicReference<>();
+    private static final java.util.concurrent.Executor DELIVERY = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+        final Thread t = new Thread(r, "Hex campaign state");
+        t.setDaemon(true);
+        return t;
+    });
+
+    private static void deliverPending() {
+        final HexStateEvent state = pendingState.getAndSet(null);
         final GuestListener l = guestListener;
-        if (l != null) {
-            l.onState(state);
+        if (state != null && l != null) {
+            try {
+                l.onState(state);
+            } catch (final RuntimeException e) {
+                e.printStackTrace();
+            }
         }
     }
 

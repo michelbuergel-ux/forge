@@ -42,6 +42,8 @@ public final class HexActionEvent implements NetEvent {
     public static final String GIVE_RELIC = "GIVE_RELIC";
     /** The host renames the campaign (text: the new name). */
     public static final String RENAME = "RENAME";
+    /** A guest's first message: it only tells the host the guest's build. */
+    public static final String HELLO = "HELLO";
 
     private final String type;
     private final int q;
@@ -49,6 +51,8 @@ public final class HexActionEvent implements NetEvent {
     private final String text;
     private final boolean flag;
     private final String head;
+    /** The sender's build (see {@link forge.gamemodes.hexcrawl.HexNet#buildId()}). */
+    private final String build = forge.gamemodes.hexcrawl.HexNet.buildId();
 
     public HexActionEvent(final String type0, final int q0, final int r0, final String text0, final boolean flag0, final String head0) {
         type = type0;
@@ -68,4 +72,6 @@ public final class HexActionEvent implements NetEvent {
     public boolean getFlag() { return flag; }
     /** The head the action is for; null means the sender's own head. */
     public String getHead() { return head; }
+    /** The build of the program that sent the action. */
+    public String getBuild() { return build; }
 }
