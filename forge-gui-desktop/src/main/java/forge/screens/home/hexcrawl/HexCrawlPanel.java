@@ -203,12 +203,12 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnNew.setText(t("lblHexNewCampaign"));
         btnLoad.setText(t("lblHexLoadCampaign"));
         side.add(lblTitle);
-        // the host renames the campaign by clicking its name
+        // a click on the campaign's name: rename it (the host) or export it, without more buttons in the sidebar
         lblTitle.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseReleased(final java.awt.event.MouseEvent e) {
-                if (javax.swing.SwingUtilities.isLeftMouseButton(e) && lblTitle.contains(e.getPoint())) {
-                    renameCampaign();
+                if (lblTitle.contains(e.getPoint()) && getCampaign() != null) {
+                    titleMenu().show(lblTitle, e.getX(), e.getY());
                 }
             }
         });
@@ -828,8 +828,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnShop.setVisible(campaign.inTown());
 
         lblTitle.setText(campaign.cycle > 1 ? campaign.name + "  –  " + t("lblHexCycle", String.valueOf(campaign.cycle - 1)) : campaign.name);
-        lblTitle.setToolTipText(isGuest() ? lblTitle.getText() : lblTitle.getText() + " – " + t("lblHexRenameHint"));
-        lblTitle.setCursor(java.awt.Cursor.getPredefinedCursor(isGuest() ? java.awt.Cursor.DEFAULT_CURSOR : java.awt.Cursor.HAND_CURSOR));
+        lblTitle.setToolTipText(lblTitle.getText() + " – " + t(isGuest() ? "lblHexExportHint" : "lblHexRenameHint"));
+        lblTitle.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
         final HexTile here = campaign.tile();
         String place = t(here.color.getLabelKey());
         if (here.poi == HexPoi.TOWN) {
@@ -1897,6 +1897,70 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         refresh();
     }
 
+    /** What a click on the campaign's name offers: renaming (the host only) and exporting. */
+    private javax.swing.JPopupMenu titleMenu() {
+        final javax.swing.JPopupMenu menu = new javax.swing.JPopupMenu();
+        if (!isGuest()) {
+            final javax.swing.JMenuItem rename = new javax.swing.JMenuItem(t("lblHexRename") + "...");
+            rename.addActionListener(e -> renameCampaign());
+            menu.add(rename);
+        }
+        final javax.swing.JMenuItem export = new javax.swing.JMenuItem(t("lblHexExport") + "...");
+        export.addActionListener(e -> exportCampaign());
+        menu.add(export);
+        return menu;
+    }
+
+    /** Writes the campaign to a file the person picks (a guest exports what the host shared). */
+    private void exportCampaign() {
+        final HexCampaign campaign = getCampaign();
+        if (campaign == null) {
+            return;
+        }
+        final javax.swing.JFileChooser chooser = new javax.swing.JFileChooser();
+        chooser.setDialogTitle(t("lblHexExport"));
+        chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(t("lblHexSaveFiles"), "json"));
+        chooser.setSelectedFile(new java.io.File(campaign.name.replaceAll("[^A-Za-z0-9 _.-]", "_") + ".json"));
+        if (chooser.showSaveDialog(this) != javax.swing.JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        java.io.File target = chooser.getSelectedFile();
+        if (!target.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".json")) {
+            target = new java.io.File(target.getParentFile(), target.getName() + ".json");
+        }
+        if (target.exists() && !FOptionPane.showConfirmDialog(t("lblHexExportOverwrite", target.getName()), t("lblHexExport"))) {
+            return;
+        }
+        try {
+            HexCampaignIO.exportTo(campaign, target);
+            FOptionPane.showMessageDialog(t("lblHexExported", campaign.name, target.getPath()), t("lblHexExport"));
+        } catch (final RuntimeException e) {
+            FOptionPane.showErrorDialog(t("lblHexExportFailed", target.getPath()), t("lblHexExport"));
+        }
+    }
+
+    /** Reads a campaign from a file the person picks, saves it under a free name and opens it. */
+    private void importCampaign() {
+        final javax.swing.JFileChooser chooser = new javax.swing.JFileChooser();
+        chooser.setDialogTitle(t("lblHexImport"));
+        chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(t("lblHexSaveFiles"), "json"));
+        if (chooser.showOpenDialog(this) != javax.swing.JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        final java.io.File source = chooser.getSelectedFile();
+        final HexCampaign campaign = HexCampaignIO.importFrom(source);
+        if (campaign == null) {
+            FOptionPane.showErrorDialog(t("lblHexImportFailed", source.getName()), t("lblHexImport"));
+            return;
+        }
+        final String wanted = campaign.name;
+        final String name = HexCampaignIO.saveImported(campaign);
+        if (!name.equals(wanted)) {
+            FOptionPane.showMessageDialog(t("lblHexImportedAs", wanted, name), t("lblHexImport"));
+        }
+        openCampaign(campaign);
+    }
+
     /** The host gives the campaign a new name (its save is renamed too). */
     private void renameCampaign() {
         final HexCampaign campaign = getCampaign();
@@ -1955,21 +2019,31 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     }
 
     private void loadCampaign() {
-        final List<String> saved = HexCampaignIO.list();
-        if (saved.isEmpty()) {
-            FOptionPane.showMessageDialog(t("lblHexNoSaves"), t("lblHexLoadCampaign"));
+        // the saved campaigns, and last a way to bring one in from a file
+        final List<String> choices = new ArrayList<>(HexCampaignIO.list());
+        final String importEntry = "\u2192 " + t("lblHexImport") + "...";
+        if (choices.isEmpty() && !FOptionPane.showConfirmDialog(t("lblHexNoSaves") + "\n" + t("lblHexImportAsk"), t("lblHexLoadCampaign"))) {
             return;
         }
-        final String choice = FOptionPane.showInputDialog(t("lblHexLoadCampaign"), t("lblHexLoadCampaign"), null, saved.get(0), saved);
-        if (choice != null) {
+        choices.add(importEntry);
+        final String choice = choices.size() == 1 ? importEntry
+                : FOptionPane.showInputDialog(t("lblHexLoadCampaign"), t("lblHexLoadCampaign"), null, choices.get(0), choices);
+        if (importEntry.equals(choice)) {
+            importCampaign();
+        } else if (choice != null) {
             final HexCampaign campaign = HexCampaignIO.load(choice);
             if (campaign != null) {
-                setSession(new HexSession(campaign));
-                if (HostingServer.isHosting()) {
-                    hostTimer.start();
-                }
-                broadcast();
+                openCampaign(campaign);
             }
         }
+    }
+
+    /** Plays this campaign from now on (as the host of any table). */
+    private void openCampaign(final HexCampaign campaign) {
+        setSession(new HexSession(campaign));
+        if (HostingServer.isHosting()) {
+            hostTimer.start();
+        }
+        broadcast();
     }
 }

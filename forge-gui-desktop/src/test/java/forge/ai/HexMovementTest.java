@@ -87,6 +87,39 @@ public class HexMovementTest extends AITest {
     // ------------------------------------------------------------------ votes
 
     @Test
+    public void testACampaignIsExportedAndImported() throws Exception {
+        final HexCampaign c = newCampaign();
+        final String stamp = Long.toHexString(System.nanoTime());
+        c.name = "ExportTest " + stamp;
+        final java.io.File dir = forge.gamemodes.hexcrawl.HexCampaignIO.dir();
+        final java.io.File exported = java.io.File.createTempFile("hexexport", ".json");
+        final java.io.File junk = java.io.File.createTempFile("hexjunk", ".json");
+        final java.io.File first = new java.io.File(dir, c.name + ".json");
+        final java.io.File second = new java.io.File(dir, c.name + " 2.json");
+        try {
+            forge.gamemodes.hexcrawl.HexCampaignIO.exportTo(c, exported);
+            final HexCampaign back = forge.gamemodes.hexcrawl.HexCampaignIO.importFrom(exported);
+            AssertJUnit.assertNotNull(back);
+            AssertJUnit.assertEquals(c.players.size(), back.players.size());
+            AssertJUnit.assertEquals(c.map.tiles.size(), back.map.tiles.size());
+            AssertJUnit.assertEquals(c.name, forge.gamemodes.hexcrawl.HexCampaignIO.saveImported(back));
+            AssertJUnit.assertTrue(first.isFile());
+            // imported again: the name is taken, it gets another
+            final HexCampaign again = forge.gamemodes.hexcrawl.HexCampaignIO.importFrom(exported);
+            AssertJUnit.assertEquals(c.name + " 2", forge.gamemodes.hexcrawl.HexCampaignIO.saveImported(again));
+            AssertJUnit.assertTrue(second.isFile());
+            // a file that is no campaign
+            java.nio.file.Files.writeString(junk.toPath(), "{\"deck\": [1, 2, 3]}");
+            AssertJUnit.assertNull(forge.gamemodes.hexcrawl.HexCampaignIO.importFrom(junk));
+        } finally {
+            exported.delete();
+            junk.delete();
+            first.delete();
+            second.delete();
+        }
+    }
+
+    @Test
     public void testTheHostRenamesTheCampaignAndItsSave() {
         final HexCampaign c = newCampaign();
         final String stamp = Long.toHexString(System.nanoTime());

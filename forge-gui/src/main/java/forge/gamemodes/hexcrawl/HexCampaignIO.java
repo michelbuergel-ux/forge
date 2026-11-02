@@ -74,6 +74,44 @@ public final class HexCampaignIO {
         return true;
     }
 
+    /** Writes the campaign to a file of its own, to keep or to pass on (the same as its save). */
+    public static void exportTo(final HexCampaign campaign, final File target) {
+        try (Writer w = new OutputStreamWriter(new FileOutputStream(target), StandardCharsets.UTF_8)) {
+            GSON.toJson(campaign, w);
+        } catch (final Exception e) {
+            throw new IllegalStateException("Could not export campaign " + campaign.name + " to " + target, e);
+        }
+    }
+
+    /** Reads a campaign from an exported (or saved) file; null if the file holds no campaign. */
+    public static HexCampaign importFrom(final File source) {
+        try (Reader r = new InputStreamReader(new FileInputStream(source), StandardCharsets.UTF_8)) {
+            final HexCampaign c = GSON.fromJson(r, HexCampaign.class);
+            final boolean whole = c != null && c.map != null && c.map.tiles != null && !c.map.tiles.isEmpty()
+                    && c.players != null && !c.players.isEmpty();
+            return whole ? c : null;
+        } catch (final Exception e) {
+            return null; // not JSON, or not a campaign
+        }
+    }
+
+    /** A name no saved campaign has: the given one, else with " 2", " 3", ... */
+    public static String freeName(final String name) {
+        final String base = name == null || name.trim().isEmpty() ? "Campaign" : name.trim();
+        String free = base;
+        for (int n = 2; file(free).exists(); n++) {
+            free = base + " " + n;
+        }
+        return free;
+    }
+
+    /** Saves an imported campaign under a free name (which it takes on) and returns that name. */
+    public static String saveImported(final HexCampaign campaign) {
+        campaign.name = freeName(campaign.name);
+        save(campaign);
+        return campaign.name;
+    }
+
     public static HexCampaign load(final String name) {
         final File f = file(name);
         if (!f.isFile()) {
