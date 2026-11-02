@@ -41,11 +41,7 @@ public abstract class InputSyncronizedBase extends InputBase implements InputSyn
     }
 
     public void showAndWait() {
-        final TeamReady team = teamReady();
-        if (team != null) {
-            // a team mate's OK (or taking it back) shows on this prompt at once
-            team.watch(getController().getPlayer(), this::reshowMessage);
-        }
+        watchTeam();
         // the game waits for this player while the prompt is open
         getController().noteInputOpen(true);
         try {
@@ -103,6 +99,22 @@ public abstract class InputSyncronizedBase extends InputBase implements InputSyn
         }
         getController().noteOkSaid(true);
         showWaitingForMates();
+    }
+
+    /** A team mate's OK (or taking it back) shows on this prompt at once. */
+    protected final void watchTeam() {
+        final TeamReady team = teamReady();
+        if (team != null) {
+            team.watch(getController().getPlayer(), this::reshowMessage);
+        }
+    }
+
+    /** A new round of the team's decision (the game changed): an OK said before no longer counts. */
+    protected final void forgetOk() {
+        if (waitingForMates) {
+            waitingForMates = false;
+            getController().noteOkSaid(false);
+        }
     }
 
     /** A line on top of the prompt: the team mates asked at the same time that said OK already. */

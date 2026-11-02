@@ -67,7 +67,14 @@ public class InputPassPriority extends InputSyncronizedBase {
     private String pendingSuggestionMessage = null;
 
     /** Team games with streamlined priority: a team mate's spell or ability is OK'd by itself after this many seconds. */
-    public static final int PARTNER_AUTO_OK_SECONDS = 5;
+    public static final int PARTNER_AUTO_OK_SECONDS = 2;
+    /** A team mate acts (casts, pays) while this prompt stays open: what it does, and its card. */
+    private volatile String mateActing;
+    private volatile CardView mateCard;
+    /** A card picked while the mate acted: it is played right after (see mateDone). */
+    private Card queuedCard;
+    private List<Card> queuedOthers;
+    private ITriggerEvent queuedEvent;
     /** The running countdown for a team mate's stack item, if any. */
     private ScheduledFuture<?> partnerCountdown;
     private int partnerSecondsLeft;
@@ -113,6 +120,10 @@ public class InputPassPriority extends InputSyncronizedBase {
     /** {@inheritDoc} */
     @Override
     public final void showMessage() {
+        if (mateActing != null) {
+            showMateActingPrompt();
+            return;
+        }
         if (isWaitingForMates()) {
             showWaitingForMates();
             return;
@@ -162,6 +173,69 @@ public class InputPassPriority extends InputSyncronizedBase {
         }
 
         showNormalPrompt();
+    }
+
+    /** Is this prompt still open (not answered or interrupted)? */
+    public boolean isOpen() {
+        return !isFinished() && !interrupted;
+    }
+
+    // ------------------------------------------------------------------ a team mate acts while this prompt stays open
+
+    /** A team mate acts: the prompt says so and shows its card; no OK meanwhile, and a card picked waits for the mate. */
+    public void showMateActing(final String what, final CardView card) {
+        mateActing = what;
+        mateCard = card;
+        cancelPartnerCountdown();
+        if (!isFinished()) {
+            showMateActingPrompt();
+        }
+    }
+
+    public boolean hasQueuedCard() {
+        return queuedCard != null;
+    }
+
+    private void showMateActingPrompt() {
+        final Localizer loc = Localizer.getInstance();
+        final String hint = queuedCard == null ? loc.getMessage("lblTeamMateActingHint")
+                : loc.getMessage("lblTeamCardQueued", forge.util.CardTranslation.getTranslatedName(queuedCard.getName()));
+        final String box = "<table width=\"100%\" cellpadding=\"6\" bgcolor=\"#5a4a1f\"><tr><td><font color=\"#ffffff\"><b>"
+                + escape(mateActing) + "</b><br>" + escape(hint) + "</font></td></tr></table>";
+        showMessage(box + getTurnPhasePriorityMessage(getController().getGame()), mateCard);
+        if (mateCard != null) {
+            getController().getGui().setCard(mateCard); // the mate's card big in the picture panel
+        }
+        getController().getGui().updateButtons(getOwner(), loc.getMessage("lblOK"), loc.getMessage("lblCancel"), false, false, false);
+    }
+
+    /**
+     * The mate's action is done: the prompt shows the new state (an OK said before is void, the game changed), and a
+     * card picked meanwhile is played now.
+     */
+    public void mateDone() {
+        mateActing = null;
+        mateCard = null;
+        if (isFinished()) {
+            return;
+        }
+        partnerHeld = false;
+        forgetOk();
+        watchTeam();
+        final Card card = queuedCard;
+        final List<Card> others = queuedOthers;
+        final ITriggerEvent event = queuedEvent;
+        queuedCard = null;
+        queuedOthers = null;
+        queuedEvent = null;
+        showMessage();
+        if (card != null) {
+            forge.gui.FThreads.invokeInEdtLater(() -> {
+                if (!isFinished()) {
+                    onCardSelected(card, others, event);
+                }
+            });
+        }
     }
 
     /** Ends this prompt without an action; the game thread then performs a pending undo. */
@@ -391,8 +465,8 @@ public class InputPassPriority extends InputSyncronizedBase {
     /** {@inheritDoc} */
     @Override
     protected final void onOk() {
-        if (isWaitingForMates()) {
-            return; // OK said already: waiting for the team mates
+        if (isWaitingForMates() || mateActing != null) {
+            return; // OK said already, or a mate acts: wait
         }
         if (pendingSuggestion != null) {
             // Defensive: state may have flipped (e.g. async multiplayer click).
@@ -458,6 +532,13 @@ public class InputPassPriority extends InputSyncronizedBase {
     /** {@inheritDoc} */
     @Override
     protected final void onCancel() {
+        if (mateActing != null) {
+            if (queuedCard != null) {
+                queuedCard = null; // the card picked is dropped again
+                showMateActingPrompt();
+            }
+            return;
+        }
         if (isWaitingForMates()) {
             if (takeBackOk()) {
                 showNormalPrompt();
@@ -527,6 +608,14 @@ public class InputPassPriority extends InputSyncronizedBase {
         if (abilities.isEmpty()) {
             return false;
         }
+        if (mateActing != null) {
+            // the mate is in the middle of its action: the card is played right after it
+            queuedCard = card;
+            queuedOthers = otherCardsToSelect;
+            queuedEvent = triggerEvent;
+            showMateActingPrompt();
+            return true;
+        }
         if (isWaitingForMates()) {
             if (!takeBackOk()) {
                 return false; // too late: the team passed
@@ -575,6 +664,9 @@ public class InputPassPriority extends InputSyncronizedBase {
     @Override
     public boolean selectAbility(final SpellAbility ab) {
     	if (ab != null) {
+            if (mateActing != null) {
+                return false; // a mate acts: pick its card instead, it waits
+            }
             if (isWaitingForMates() && !takeBackOk()) {
                 return false; // too late: the team passed
             }

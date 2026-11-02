@@ -322,6 +322,25 @@ public abstract class PlayerController {
      * @param card the card it plays (or activates), may be null
      */
     public void interruptSpellAbilityChoice(final Player actedFirst, final Card card) { }
+    /**
+     * A team mate acts (casts, activates, pays) while this controller's {@link #chooseSpellAbilityToPlay()} stays
+     * open: it may show what the mate does.
+     * @param mate the team mate who acts
+     * @param card the card it plays (or activates), may be null
+     */
+    public void mateActing(final Player mate, final Card card) { }
+    /**
+     * Can this controller's {@link #chooseSpellAbilityToPlay()} stay open while a team mate acts (see
+     * {@link #mateActing} and {@link #refreshSpellAbilityChoice()})? Otherwise it is interrupted and asked again.
+     */
+    public boolean canKeepSpellAbilityChoiceOpen() {
+        return false;
+    }
+    /**
+     * The game changed (a mate's action is done) while this controller's {@link #chooseSpellAbilityToPlay()} stayed
+     * open: show it anew, or pass if there is nothing to do any more.
+     */
+    public void refreshSpellAbilityChoice() { }
     public abstract boolean playChosenSpellAbility(SpellAbility sa);
 
     public abstract List<AbilitySub> chooseModeForAbility(SpellAbility sa, List<AbilitySub> possible, int min, int num, boolean allowRepeat);

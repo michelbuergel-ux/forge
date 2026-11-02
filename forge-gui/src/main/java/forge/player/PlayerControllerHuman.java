@@ -1908,6 +1908,41 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
     }
 
     @Override
+    public boolean canKeepSpellAbilityChoiceOpen() {
+        return true;
+    }
+
+    @Override
+    public void mateActing(final Player mate, final Card card) {
+        final InputPassPriority inp = openPriorityInput;
+        if (inp == null || mate == null) {
+            return;
+        }
+        final boolean shown = card != null && card.getView().canBeShownTo(player.getView());
+        final String what = shown
+                ? localizer.getMessage("lblTeamMatePlaying", mate.getName(), CardTranslation.getTranslatedName(card.getName()))
+                : localizer.getMessage("lblTeamMateActing", mate.getName());
+        inp.showMateActing(what, shown ? card.getView() : null);
+    }
+
+    @Override
+    public void refreshSpellAbilityChoice() {
+        final InputPassPriority inp = openPriorityInput;
+        if (inp == null || !inp.isOpen()) {
+            return;
+        }
+        // what may be played now (the mate's spell is on the stack)
+        synchronized (CONCURRENT_SCAN_LOCK) {
+            refreshAvailableActions();
+        }
+        if (mayAutoPass() && !inp.hasQueuedCard()) {
+            inp.interrupt(); // nothing to do any more: this head passes
+            return;
+        }
+        inp.mateDone();
+    }
+
+    @Override
     public void interruptSpellAbilityChoice(final Player actedFirst, final Card card) {
         if (actedFirst != null && actedFirst != player) {
             // shown while waiting, until this head gets priority again

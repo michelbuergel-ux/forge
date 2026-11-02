@@ -94,7 +94,16 @@ public class YieldController {
         this.owner = owner;
     }
 
+    /** Always on in games with streamlined priority (Hex Campaign fights; see StreamlinedPriority), for remote players too. */
+    private static final java.util.Set<FPref> STREAMLINED_ON = java.util.EnumSet.of(FPref.YIELD_AUTO_PASS_NO_ACTIONS,
+            FPref.YIELD_SKIP_PHASE_DELAY, FPref.YIELD_SKIP_RESOLVE_DELAY);
+
     public synchronized String getStringPref(FPref pref) {
+        // the host's proxy of a guest reads the guest's settings, which may have been sent before the fight began
+        if (STREAMLINED_ON.contains(pref) && owner != null && owner.getGame() != null
+                && owner.getGame().getRules().hasStreamlinedPriority()) {
+            return "true";
+        }
         String override = prefOverrides.get(pref);
         return override != null ? override : FModel.getPreferences().getPref(pref);
     }

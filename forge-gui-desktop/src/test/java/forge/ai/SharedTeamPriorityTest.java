@@ -115,6 +115,72 @@ public class SharedTeamPriorityTest extends AITest {
         AssertJUnit.assertTrue(game.getPhaseHandler().is(PhaseType.MAIN1));
     }
 
+    /** A head whose prompt stays open while its mate acts: it is told, and shown anew afterwards. */
+    private static class KeepOpenHead extends ConcurrentHead {
+        final java.util.List<String> mateActs = new java.util.concurrent.CopyOnWriteArrayList<>();
+        final CountDownLatch refreshed = new CountDownLatch(1);
+
+        KeepOpenHead(final Game game, final Player p) {
+            super(game, p);
+        }
+
+        @Override
+        public boolean canKeepSpellAbilityChoiceOpen() {
+            return true;
+        }
+
+        @Override
+        public void mateActing(final Player mate, final Card card) {
+            mateActs.add(mate.getName() + ":" + (card == null ? "-" : card.getName()));
+        }
+
+        @Override
+        public void refreshSpellAbilityChoice() {
+            refreshed.countDown();
+        }
+    }
+
+    @Test(timeOut = 60000)
+    public void testAPromptStaysOpenWhileTheMateActs() {
+        final Game game = initAndCreateTeamGame();
+        final Player a1 = game.getPlayers().get(0);
+        final Player a2 = game.getPlayers().get(2);
+        final Card forest = addCardToZone("Forest", a2, ZoneType.Hand);
+        final KeepOpenHead c1 = new KeepOpenHead(game, a1);
+        final ConcurrentHead c2 = new ConcurrentHead(game, a2);
+        a1.dangerouslySetController(c1);
+        a2.dangerouslySetController(c2);
+
+        final CountDownLatch a1Thinking = new CountDownLatch(1);
+        // a1 thinks through a2's land: its prompt is never closed, only shown anew; then it passes
+        c1.script = n -> {
+            a1Thinking.countDown();
+            await(c1.refreshed);
+            return null;
+        };
+        c2.script = n -> {
+            if (n == 1) {
+                await(a1Thinking);
+                for (final SpellAbility sa : forest.getAllPossibleAbilities(a2, true)) {
+                    if (sa.isLandAbility()) {
+                        return Collections.singletonList(sa);
+                    }
+                }
+            }
+            return null;
+        };
+
+        game.getPhaseHandler().mainLoopStep();
+
+        AssertJUnit.assertTrue(a2.getCardsIn(ZoneType.Battlefield).contains(game.getCardState(forest)));
+        AssertJUnit.assertEquals("never interrupted", 0, c1.interrupts.get());
+        AssertJUnit.assertEquals("one prompt, kept open", 1, c1.prompts.get());
+        AssertJUnit.assertEquals("told who acts with what", Collections.singletonList(a2.getName() + ":Forest"), c1.mateActs);
+        AssertJUnit.assertEquals(0, c1.refreshed.getCount());
+        AssertJUnit.assertEquals("a2 was asked again after its land", 2, c2.prompts.get());
+        AssertJUnit.assertFalse(game.getPhaseHandler().getPriorityPlayer().sameTeam(a1));
+    }
+
     private static void await(final CountDownLatch latch) {
         try {
             AssertJUnit.assertTrue(latch.await(10, TimeUnit.SECONDS));

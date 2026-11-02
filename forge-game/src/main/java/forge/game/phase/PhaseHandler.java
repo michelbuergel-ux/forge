@@ -1651,6 +1651,8 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
     private boolean teamPriorityStep() {
         final Player first = pPlayerPriority;
         final Set<Player> passed = new HashSet<>();
+        // the prompts of the heads asked at the same time: they stay open while a mate acts
+        final OpenPrompts prompts = new OpenPrompts();
         int aiLoops = 0;
         try {
             while (true) {
@@ -1696,7 +1698,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                         break;
                     }
                 }
-                if (choice == null && concurrent.size() == 1) {
+                if (choice == null && concurrent.size() == 1 && !prompts.isOpen(concurrent.get(0))) {
                     final Player head = concurrent.get(0);
                     pPlayerPriority = head;
                     final List<SpellAbility> chosen = head.getController().chooseSpellAbilityToPlay();
@@ -1706,7 +1708,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                         choice = new PriorityChoice(head, chosen, null);
                     }
                 } else if (choice == null && !concurrent.isEmpty()) {
-                    choice = chooseConcurrently(concurrent, passed);
+                    choice = chooseConcurrently(concurrent, passed, prompts);
                 }
                 if (choice == null) {
                     continue;
@@ -1733,81 +1735,168 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
             }
         } finally {
             priorityTeam = Collections.emptyList();
+            prompts.closeAll();
         }
     }
 
     /**
-     * Prompts the given heads at the same time. Returns the first decision to act (the other prompts
-     * are interrupted and their answers dropped), or null if all of them passed.
+     * The prompts of the heads asked at the same time during one team priority. A prompt stays open while a team
+     * mate acts (the head may go on thinking, and even pick a card for afterwards); it is shown anew once the
+     * mate's action is done. Used on the game thread only.
      */
-    private PriorityChoice chooseConcurrently(final List<Player> heads, final Set<Player> passed) {
-        final java.util.concurrent.BlockingQueue<PriorityChoice> answers = new java.util.concurrent.LinkedBlockingQueue<>();
-        for (final Player head : heads) {
-            head.getController().setConcurrentSpellAbilityChoice(true);
+    private final class OpenPrompts {
+        private final java.util.concurrent.BlockingQueue<PriorityChoice> answers = new java.util.concurrent.LinkedBlockingQueue<>();
+        /** The heads whose prompt runs (their answer not taken yet). */
+        private final Set<Player> open = new HashSet<>();
+        /** Every head asked, to be told when the team priority is over. */
+        private final Set<Player> asked = new HashSet<>();
+
+        boolean isOpen(final Player head) {
+            return open.contains(head);
         }
+
+        /** Opens the head's prompt on a thread of its own, unless it is open still. */
+        void ask(final Player head) {
+            if (!open.add(head)) {
+                return;
+            }
+            asked.add(head);
+            head.getController().setConcurrentSpellAbilityChoice(true);
+            forge.util.ThreadUtil.invokeInGameThread(() -> {
+                List<SpellAbility> chosen = null;
+                Throwable error = null;
+                try {
+                    chosen = head.getController().chooseSpellAbilityToPlay();
+                } catch (final Throwable t) {
+                    error = t;
+                }
+                answers.add(new PriorityChoice(head, chosen, error));
+            });
+        }
+
+        /** The next answer of an open prompt. */
+        PriorityChoice take() {
+            try {
+                final PriorityChoice answer = answers.take();
+                open.remove(answer.player());
+                return answer;
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+        }
+
+        /**
+         * Ends these heads' prompts without a decision (a mate acted first) and waits for them, so their empty
+         * answers are not taken for passes. Answers of other prompts that come meanwhile stay for later.
+         */
+        void interrupt(final List<Player> heads, final Player actedFirst, final Card card) {
+            final Set<Player> waiting = new HashSet<>();
+            for (final Player head : heads) {
+                if (open.contains(head)) {
+                    head.getController().interruptSpellAbilityChoice(actedFirst, card);
+                    waiting.add(head);
+                }
+            }
+            final List<PriorityChoice> later = Lists.newArrayList();
+            try {
+                while (!waiting.isEmpty()) {
+                    final PriorityChoice answer = answers.take();
+                    if (waiting.remove(answer.player())) {
+                        open.remove(answer.player());
+                    } else {
+                        later.add(answer);
+                    }
+                }
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            } finally {
+                answers.addAll(later);
+            }
+        }
+
+        /** The team priority is over: the prompts still open end without a decision. */
+        void closeAll() {
+            for (final Player head : open) {
+                head.getController().interruptSpellAbilityChoice(null, null);
+            }
+            final long until = System.currentTimeMillis() + 5000;
+            while (!open.isEmpty() && System.currentTimeMillis() < until) {
+                try {
+                    final PriorityChoice answer = answers.poll(200, java.util.concurrent.TimeUnit.MILLISECONDS);
+                    if (answer != null) {
+                        open.remove(answer.player());
+                    }
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+            for (final Player head : asked) {
+                head.getController().setConcurrentSpellAbilityChoice(false);
+            }
+        }
+    }
+
+    /**
+     * Prompts the given heads at the same time (those whose prompt is still open from before are shown anew).
+     * Returns the first decision to act, or null if all of them passed. The other prompts stay open while the
+     * decision is played: they are told who acts, and see the result when they are asked next.
+     */
+    private PriorityChoice chooseConcurrently(final List<Player> heads, final Set<Player> passed, final OpenPrompts prompts) {
         // a head's pass waits for its mates' (and may be taken back until then)
         final TeamReady team = new TeamReady(heads);
         teamReady = team;
         try {
             for (final Player head : heads) {
-                forge.util.ThreadUtil.invokeInGameThread(() -> {
-                    List<SpellAbility> chosen = null;
-                    Throwable error = null;
-                    try {
-                        chosen = head.getController().chooseSpellAbilityToPlay();
-                    } catch (final Throwable t) {
-                        error = t;
-                    }
-                    answers.add(new PriorityChoice(head, chosen, error));
-                });
-            }
-            PriorityChoice winner = null;
-            Throwable error = null;
-            for (int open = heads.size(); open > 0; open--) {
-                final PriorityChoice answer;
-                try {
-                    answer = answers.take();
-                } catch (final InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(e);
-                }
-                if (winner != null || error != null) {
-                    continue; // too late: someone else acted first
-                }
-                if (answer.error() != null || answer.chosen() != null) {
-                    team.close(); // the decision is over: no more OKs to wait for
+                if (prompts.isOpen(head)) {
+                    head.getController().refreshSpellAbilityChoice(); // a mate's action is done: it shows the new state
                 } else {
-                    team.answered(answer.player());
+                    prompts.ask(head);
+                }
+            }
+            while (true) {
+                if (!heads.stream().anyMatch(prompts::isOpen)) {
+                    return null; // all of them passed
+                }
+                final PriorityChoice answer = prompts.take();
+                if (!heads.contains(answer.player())) {
+                    continue; // a head no longer at the table
                 }
                 if (answer.error() != null) {
-                    error = answer.error();
-                } else if (answer.chosen() == null) {
-                    passed.add(answer.player());
-                    continue;
-                } else {
-                    winner = answer;
+                    final Throwable error = answer.error();
+                    if (error instanceof RuntimeException re) {
+                        throw re;
+                    } else if (error instanceof Error e) {
+                        throw e;
+                    }
+                    throw new RuntimeException(error);
                 }
-                final Card played = winner != null && !winner.chosen().isEmpty() ? winner.chosen().get(0).getHostCard() : null;
+                if (answer.chosen() == null) {
+                    passed.add(answer.player());
+                    team.answered(answer.player());
+                    continue;
+                }
+                team.close(); // the decision is over: no more OKs to wait for
+                final Card played = answer.chosen().isEmpty() ? null : answer.chosen().get(0).getHostCard();
+                final List<Player> stopped = Lists.newArrayList();
                 for (final Player other : heads) {
-                    if (other != answer.player()) {
-                        other.getController().interruptSpellAbilityChoice(answer.player(), played);
+                    if (other == answer.player() || !prompts.isOpen(other)) {
+                        continue;
+                    }
+                    if (other.getController().canKeepSpellAbilityChoiceOpen()) {
+                        other.getController().mateActing(answer.player(), played); // it stays open, and shows what happens
+                    } else {
+                        stopped.add(other); // asked again afterwards
                     }
                 }
+                prompts.interrupt(stopped, answer.player(), played);
+                return answer;
             }
-            if (error instanceof RuntimeException re) {
-                throw re;
-            } else if (error instanceof Error e) {
-                throw e;
-            } else if (error != null) {
-                throw new RuntimeException(error);
-            }
-            return winner;
         } finally {
             team.close();
             teamReady = null;
-            for (final Player head : heads) {
-                head.getController().setConcurrentSpellAbilityChoice(false);
-            }
         }
     }
 
