@@ -203,6 +203,15 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnNew.setText(t("lblHexNewCampaign"));
         btnLoad.setText(t("lblHexLoadCampaign"));
         side.add(lblTitle);
+        // the host renames the campaign by clicking its name
+        lblTitle.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseReleased(final java.awt.event.MouseEvent e) {
+                if (javax.swing.SwingUtilities.isLeftMouseButton(e) && lblTitle.contains(e.getPoint())) {
+                    renameCampaign();
+                }
+            }
+        });
         side.add(lblPlace, "gaptop 2");
         side.add(lblConnection, "gaptop 6");
 
@@ -817,7 +826,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnShop.setVisible(campaign.inTown());
 
         lblTitle.setText(campaign.cycle > 1 ? campaign.name + "  –  " + t("lblHexCycle", String.valueOf(campaign.cycle - 1)) : campaign.name);
-        lblTitle.setToolTipText(lblTitle.getText());
+        lblTitle.setToolTipText(isGuest() ? lblTitle.getText() : lblTitle.getText() + " – " + t("lblHexRenameHint"));
+        lblTitle.setCursor(java.awt.Cursor.getPredefinedCursor(isGuest() ? java.awt.Cursor.DEFAULT_CURSOR : java.awt.Cursor.HAND_CURSOR));
         final HexTile here = campaign.tile();
         String place = t(here.color.getLabelKey());
         if (here.poi == HexPoi.TOWN) {
@@ -1862,6 +1872,24 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         forge.screens.home.online.VSubmenuOnlineLobby.SINGLETON_INSTANCE.closeConn(null);
         HexNet.leave();
         session = null;
+        refresh();
+    }
+
+    /** The host gives the campaign a new name (its save is renamed too). */
+    private void renameCampaign() {
+        final HexCampaign campaign = getCampaign();
+        if (campaign == null || isGuest()) {
+            return;
+        }
+        final String name = FOptionPane.showInputDialog(t("lblHexCampaignName"), t("lblHexRename"), null, campaign.name);
+        if (name == null || name.trim().isEmpty() || name.trim().equals(campaign.name)) {
+            return;
+        }
+        if (!HexCampaignIO.canRename(campaign, name)) {
+            FOptionPane.showErrorDialog(t("lblHexRenameTaken", name.trim()), t("lblHexRename"));
+            return;
+        }
+        session.rename(name.trim());
         refresh();
     }
 

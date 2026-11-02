@@ -179,6 +179,11 @@ public class HexSession {
         act(new HexActionEvent(HexActionEvent.GIVE, 0, indexOf(to), card, fromSideboard, head));
     }
 
+    /** The host renames the campaign (and its save). */
+    public void rename(final String name) {
+        act(new HexActionEvent(HexActionEvent.RENAME, 0, 0, name, false, null));
+    }
+
     /** Points at a field of the map for the others. */
     public void ping(final int q, final int r) {
         act(new HexActionEvent(HexActionEvent.PING, q, r, null, false, null));
@@ -334,6 +339,10 @@ public class HexSession {
             } else if (HexActionEvent.FIGHT.equals(type)) {
                 if (campaign.pendingEncounter != null && !fightRunning) {
                     fightReady.add(actor);
+                }
+            } else if (HexActionEvent.RENAME.equals(type)) {
+                if (actor.equals(hostHead)) {
+                    HexCampaignIO.rename(campaign, action.getText()); // the save lives on the host's computer
                 }
             } else if (HexActionEvent.PING.equals(type)) {
                 final HexTile pinged = campaign.map.get(action.getQ(), action.getR());

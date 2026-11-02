@@ -40,6 +40,8 @@ public final class HexActionEvent implements NetEvent {
     public static final String PING = "PING";
     /** In town a head gives a relic it wears (text) to a team mate (index r). */
     public static final String GIVE_RELIC = "GIVE_RELIC";
+    /** The host renames the campaign (text: the new name). */
+    public static final String RENAME = "RENAME";
 
     private final String type;
     private final int q;

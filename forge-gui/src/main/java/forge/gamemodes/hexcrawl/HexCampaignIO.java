@@ -49,6 +49,31 @@ public final class HexCampaignIO {
         }
     }
 
+    /** May a campaign be named so (not empty, and no other campaign's save has that name)? */
+    public static boolean canRename(final HexCampaign campaign, final String newName) {
+        final String name = newName == null ? "" : newName.trim();
+        if (name.isEmpty() || name.equals(campaign.name)) {
+            return false;
+        }
+        final File target = file(name);
+        return !target.exists() || target.getAbsoluteFile().equals(file(campaign.name).getAbsoluteFile()); // only a different case
+    }
+
+    /** Renames the campaign: saved under the new name, the old save is removed. False if the name can't be taken. */
+    public static boolean rename(final HexCampaign campaign, final String newName) {
+        if (!canRename(campaign, newName)) {
+            return false;
+        }
+        final File old = file(campaign.name);
+        campaign.name = newName.trim();
+        save(campaign);
+        final File target = file(campaign.name);
+        if (old.isFile() && !old.getAbsoluteFile().equals(target.getAbsoluteFile()) && !old.delete()) {
+            old.deleteOnExit();
+        }
+        return true;
+    }
+
     public static HexCampaign load(final String name) {
         final File f = file(name);
         if (!f.isFile()) {

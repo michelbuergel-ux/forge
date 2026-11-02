@@ -87,6 +87,31 @@ public class HexMovementTest extends AITest {
     // ------------------------------------------------------------------ votes
 
     @Test
+    public void testTheHostRenamesTheCampaignAndItsSave() {
+        final HexCampaign c = newCampaign();
+        final String stamp = Long.toHexString(System.nanoTime());
+        c.name = "RenameTest " + stamp;
+        final java.io.File dir = forge.gamemodes.hexcrawl.HexCampaignIO.dir();
+        final java.io.File before = new java.io.File(dir, c.name + ".json");
+        final java.io.File after = new java.io.File(dir, "Renamed " + stamp + ".json");
+        try {
+            forge.gamemodes.hexcrawl.HexCampaignIO.save(c);
+            final HexSession s = session(c, new AtomicInteger());
+            s.handle("Bob", new HexActionEvent(HexActionEvent.RENAME, 0, 0, "Bob's name", false, null));
+            AssertJUnit.assertEquals("only the host", "RenameTest " + stamp, c.name);
+            AssertJUnit.assertFalse("not empty", forge.gamemodes.hexcrawl.HexCampaignIO.canRename(c, "  "));
+            s.rename("Renamed " + stamp);
+            AssertJUnit.assertEquals("Renamed " + stamp, c.name);
+            AssertJUnit.assertTrue(after.isFile());
+            AssertJUnit.assertFalse("the old save is gone", before.exists());
+            AssertJUnit.assertEquals("Renamed " + stamp, forge.gamemodes.hexcrawl.HexCampaignIO.load("Renamed " + stamp).name);
+        } finally {
+            before.delete();
+            after.delete();
+        }
+    }
+
+    @Test
     public void testAPingReachesTheOthers() {
         final HexCampaign c = newCampaign();
         final HexSession s = session(c, new AtomicInteger());
