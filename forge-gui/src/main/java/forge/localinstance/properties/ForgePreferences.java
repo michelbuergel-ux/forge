@@ -121,6 +121,8 @@ public class ForgePreferences extends AbstractPreferences<ForgePreferences.FPref
         UI_HIDE_GAME_TABS ("false"),
         UI_MULTIPLAYER_FIELD_LAYOUT ("OFF"),
         UI_MULTIPLAYER_FIELD_PANELS ("SPLIT"),
+        /** Team games: one battlefield for all heads of a side (else a field per head). */
+        UI_TEAM_BATTLEFIELD ("true"),
         UI_CLOSE_ACTION ("NONE"),
         UI_MANA_LOST_PROMPT ("false"),
         UI_STACK_EFFECT_NOTIFICATION_POLICY ("Never"),

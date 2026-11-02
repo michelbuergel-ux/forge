@@ -37,6 +37,7 @@ public final class DisplayMenu {
         menu.add(getSubmenu_StackGroupPermanents());
         menu.add(getMenuItem_TokensSeparateRow());
         menu.add(getMenuItem_SeparateCombatStacks());
+        menu.add(getMenuItem_TeamBattlefield());
         menu.add(getMenuItem_ActionableHighlights());
         menu.add(getMenuItem_AutoTapPreview());
         menu.add(getMenuItem_LinkedExileCards());
@@ -110,6 +111,20 @@ public final class DisplayMenu {
             prefs.setPref(FPref.UI_SEPARATE_COMBAT_STACKS, enabled);
             prefs.save();
             relayoutFields();
+        });
+        return menuItem;
+    }
+
+    /** Team games: one battlefield per side, or a field per head (from the next game on). */
+    private SkinnedCheckBoxMenuItem getMenuItem_TeamBattlefield() {
+        final Localizer localizer = Localizer.getInstance();
+        final SkinnedCheckBoxMenuItem menuItem = MenuUtil.createStayOpenSkinnedCheckBox(localizer.getMessage("cbTeamBattlefield"));
+        menuItem.setToolTipText(localizer.getMessage("nlTeamBattlefield"));
+        menuItem.setState(prefs.getPrefBoolean(FPref.UI_TEAM_BATTLEFIELD));
+        menuItem.addActionListener(e -> {
+            final boolean enabled = !prefs.getPrefBoolean(FPref.UI_TEAM_BATTLEFIELD);
+            prefs.setPref(FPref.UI_TEAM_BATTLEFIELD, enabled);
+            prefs.save();
         });
         return menuItem;
     }

@@ -429,7 +429,7 @@ public final class CMatchUI
         }
         view.setTeamFields(teamFields);
         view.setFieldViews(fields);
-        if (teamPlayers != null) {
+        if (teamPlayers != null && FModel.getPreferences().getPrefBoolean(FPref.UI_TEAM_BATTLEFIELD)) {
             formTeamBattlefields(fields);
         }
 

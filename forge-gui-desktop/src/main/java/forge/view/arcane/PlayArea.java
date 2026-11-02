@@ -309,7 +309,62 @@ public class PlayArea extends CardPanelContainer implements CardPanelMouseListen
     }
 
     private void sortCombatantsByOpponentPosition(final CardStackRow row) {
-        row.sort(Comparator.comparingDouble(this::getCombatOpponentPositionSortKey));
+        // a shared battlefield keeps every head's cards together; combat lines them up within each head
+        row.sort(Comparator.comparingInt(this::stackHead).thenComparingDouble(this::getCombatOpponentPositionSortKey));
+    }
+
+    /** The head of a stack's cards on a shared battlefield (0 elsewhere). */
+    private int stackHead(final CardStack stack) {
+        return stack.isEmpty() ? 0 : Math.floorMod(headIndex(stack.get(0).getCard()), Math.max(1, team.size()));
+    }
+
+    /** On a shared battlefield, the room left between two heads' cards in a row. */
+    private int headGap(final CardStackRow row, final int index) {
+        if (!isTeamArea() || index <= 0 || index >= row.size() || stackHead(row.get(index)) == stackHead(row.get(index - 1))) {
+            return 0;
+        }
+        return Math.max(12, this.cardWidth / 4);
+    }
+
+    /** On a shared battlefield, every head's cards in a row stand on a box in its colour (behind the cards). */
+    @Override
+    protected void paintComponent(final Graphics g) {
+        super.paintComponent(g);
+        if (!isTeamArea()) {
+            return;
+        }
+        final Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        final int pad = Math.max(4, this.cardSpacingX / 3);
+        for (final CardStackRow row : rows) {
+            Rectangle box = null;
+            int head = -1;
+            for (int i = 0; i <= row.size(); i++) {
+                final int h = i < row.size() ? stackHead(row.get(i)) : -1;
+                if (box != null && h != head) {
+                    final Color c = headColor(head);
+                    final int arc = Math.max(10, this.cardWidth / 8);
+                    g2.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 55));
+                    g2.fillRoundRect(box.x - pad, box.y - pad, box.width + 2 * pad, box.height + 2 * pad, arc, arc);
+                    g2.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 170));
+                    g2.setStroke(new BasicStroke(2f));
+                    g2.drawRoundRect(box.x - pad, box.y - pad, box.width + 2 * pad, box.height + 2 * pad, arc, arc);
+                    box = null;
+                }
+                if (i == row.size()) {
+                    break;
+                }
+                head = h;
+                for (final CardPanel panel : row.get(i)) {
+                    if (!panel.isDisplayEnabled() || panel.getCardWidth() <= 0) {
+                        continue;
+                    }
+                    final Rectangle r = new Rectangle(panel.getCardX(), panel.getCardY(), panel.getCardWidth(), panel.getCardHeight());
+                    box = box == null ? r : box.union(r);
+                }
+            }
+        }
+        g2.dispose();
     }
 
     private double getCombatOpponentPositionSortKey(final CardStack stack) {
@@ -582,9 +637,10 @@ public class PlayArea extends CardPanelContainer implements CardPanelMouseListen
         for (final CardStackRow row : this.rows) {
             int rowBottom = 0;
             x = PlayArea.GUTTER_X;
-            for (final CardStack stack : row) {
+            for (int i = 0; i < row.size(); i++) {
+                final CardStack stack = row.get(i);
                 rowBottom = Math.max(rowBottom, y + stack.getHeight());
-                x += stack.getWidth();
+                x += stack.getWidth() + headGap(row, i);
             }
             y = rowBottom;
             maxRowWidth = Math.max(maxRowWidth, x);
@@ -613,8 +669,10 @@ public class PlayArea extends CardPanelContainer implements CardPanelMouseListen
                     x = (this.playAreaWidth - PlayArea.GUTTER_X) + this.extraCardSpacingX;
                     for (int i = stackIndex, n = row.size(); i < n; i++) {
                         CardStack r = row.get(i);
-                        x -= r.getWidth();
+                        x -= r.getWidth() + (i > stackIndex ? headGap(row, i) : 0);
                     }
+                } else {
+                    x += headGap(row, stackIndex); // a shared battlefield: room between two heads' cards
                 }
                 int maxVisible = maxStackDepth;
 
@@ -655,6 +713,9 @@ public class PlayArea extends CardPanelContainer implements CardPanelMouseListen
                 }
                 rowBottom = Math.max(rowBottom, y + stack.getHeight());
                 x += stack.getWidth();
+                if (stack.alignRight && stackIndex + 1 < row.size()) {
+                    x += headGap(row, stackIndex + 1);
+                }
             }
             y = rowBottom;
         }
@@ -1319,8 +1380,8 @@ public class PlayArea extends CardPanelContainer implements CardPanelMouseListen
                 return 0;
             }
             int width = 0;
-            for (final CardStack stack : this) {
-                width += stack.getWidth();
+            for (int i = 0; i < this.size(); i++) {
+                width += this.get(i).getWidth() + PlayArea.this.headGap(this, i);
             }
             return (width + (PlayArea.GUTTER_X * 2)) - PlayArea.this.extraCardSpacingX;
         }
