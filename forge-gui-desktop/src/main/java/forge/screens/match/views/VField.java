@@ -86,7 +86,12 @@ public class VField implements IVDoc<CField> {
 
     // Top-level containers
     private final FScrollPane scroller = new FScrollPane(false);
-    private final PlayArea tabletop;
+    private PlayArea tabletop;
+    /** Team battlefields: the field that shows this head's team (null if it shows itself), and the heads it shows. */
+    private VField teamLead;
+    private final List<VField> teamMembers = new ArrayList<>();
+    /** This head's place in its team (its colour on the shared battlefield). */
+    private int headIndex;
     private final SkinnedPanel avatarArea = new SkinnedPanel() {
         @Override
         protected void paintChildren(final Graphics g) {
@@ -285,10 +290,57 @@ public class VField implements IVDoc<CField> {
         updateDetails();
     }
 
+    /**
+     * Team games: this field shows the battlefields of all these heads (one team, this one first) in its own area,
+     * and their avatars and details in a column; the other heads' fields are not shown on their own.
+     */
+    public void leadTeam(final List<VField> members) {
+        teamMembers.clear();
+        teamMembers.addAll(members);
+        final List<PlayerView> heads = new ArrayList<>();
+        for (int i = 0; i < members.size(); i++) {
+            final VField m = members.get(i);
+            heads.add(m.player);
+            m.headIndex = i;
+            if (m != this) {
+                m.teamLead = this;
+                m.tabletop = tabletop; // a lookup of this head's battlefield finds the shared one
+            }
+        }
+        tabletop.setTeam(heads);
+        for (final VField m : members) {
+            m.updateDetails();
+        }
+    }
+
+    /** Is this head shown on a team mate's field (and not on a field of its own)? */
+    public boolean isTeamMember() {
+        return teamLead != null;
+    }
+
+    /** The field that is on screen for this head: its own, or its team's. */
+    public VField docked() {
+        return teamLead == null ? this : teamLead;
+    }
+
     @Override
     public void populate() {
         final JPanel pnl = parentCell.getBody();
         pnl.setLayout(new MigLayout("insets 0, gap 0"));
+        if (teamMembers.size() > 1) {
+            // a team's field: its heads in a column (avatar and details each), and one battlefield for all of them
+            final int n = teamMembers.size();
+            final JPanel heads = new JPanel(new MigLayout("insets 0, gap 0, wrap 1", "[grow, fill]"));
+            heads.setOpaque(false);
+            for (final VField m : teamMembers) {
+                heads.add(m.avatarArea, "w 100%!, h " + (35f / n) + "%!");
+                heads.add(m.detailsPanel, "w 100%!, h " + (64f / n) + "%!, gapleft 1px");
+            }
+            pnl.add(heads, "w 10%!, h 100%!, span 1 2");
+            pnl.add(phaseIndicator, "w 5%!, h 100%!, span 1 2");
+            pnl.add(scroller, "w 85%!, h 100%!, span 1 2, wrap");
+            return;
+        }
 
         pnl.add(avatarArea, "w 10%!, h 35%!");
         pnl.add(phaseIndicator, "w 5%!, h 100%!, span 1 2");
@@ -323,6 +375,10 @@ public class VField implements IVDoc<CField> {
 
     public PlayArea getTabletop() {
         return this.tabletop;
+    }
+
+    public PlayerView getPlayer() {
+        return player;
     }
 
     public JPanel getAvatarArea() {
@@ -366,7 +422,16 @@ public class VField implements IVDoc<CField> {
             return;
         }
         final int delta = tabDiff.update(tabletop.getCardPanels().size(), tab);
-        String label = Localizer.getInstance().getMessage("lblPlayField", player.getName());
+        String name = player.getName();
+        if (teamMembers.size() > 1) {
+            // a team's battlefield: all its heads
+            final List<String> names = new ArrayList<>();
+            for (final VField m : teamMembers) {
+                names.add(m.player.getName());
+            }
+            name = String.join(" · ", names);
+        }
+        String label = Localizer.getInstance().getMessage("lblPlayField", name);
         if (delta != 0) {
             label += " (" + delta + " new)";
         }
@@ -476,6 +541,11 @@ public class VField implements IVDoc<CField> {
             lblLife.setForeground(FSkin.getColor(FSkin.Colors.CLR_TEXT));
         } else {
             lblLife.setForeground(Color.RED);
+        }
+        if (teamLead != null || teamMembers.size() > 1) {
+            // a team's column: every head named in its colour (as on its cards), the shared life once, at the first
+            lblLife.setText(teamLead == null ? player.getName() + "  \u2665 " + life : player.getName());
+            lblLife.setForeground(teamLead == null && life <= LIFE_CRITICAL ? Color.RED : forge.view.arcane.PlayArea.headColor(headIndex));
         }
 
         // Update poison and/or energy counters, poison counters take precedence

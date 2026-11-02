@@ -296,8 +296,8 @@ public class VMatchUI implements IVTopLevelUI {
      */
     /**
      * Team games (shared turns): our side of the table is the bottom row, the opponents' side the
-     * top row. A side of two heads shows both fields next to each other; a bigger side shows one
-     * field at a time, the others are tabs of the same cell.
+     * top row. A side of several heads shares one battlefield (see CMatchUI.formTeamBattlefields);
+     * any other field of a side sits next to its first or as a tab of the same cell.
      */
     private void assignTeamFieldsToCells() {
         final DragCell bottom = lstFields.get(0).getParentCell();
@@ -309,6 +309,9 @@ public class VMatchUI implements IVTopLevelUI {
         final List<VField> foes = new ArrayList<>();
         for (int i = 2; i < lstFields.size(); i++) {
             final VField vField = lstFields.get(i);
+            if (vField.isTeamMember()) {
+                continue; // shown on its team's battlefield, with its avatar in the team's column
+            }
             (teamFields.contains(vField) ? mates : foes).add(vField);
         }
         boolean split = placeTeamRow(bottom, mates);

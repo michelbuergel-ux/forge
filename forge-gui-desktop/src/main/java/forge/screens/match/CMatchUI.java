@@ -135,6 +135,7 @@ import forge.util.collect.FCollectionView;
 import forge.view.FView;
 import forge.view.arcane.CardPanel;
 import forge.view.arcane.FloatingZone;
+import forge.view.arcane.PlayArea;
 
 import net.miginfocom.layout.LinkHandler;
 import net.miginfocom.swing.MigLayout;
@@ -428,11 +429,56 @@ public final class CMatchUI
         }
         view.setTeamFields(teamFields);
         view.setFieldViews(fields);
+        if (teamPlayers != null) {
+            formTeamBattlefields(fields);
+        }
 
         initHandViews();
         registerDocs();
 
         screen.setCloseButtonTooltip(getConcedeCaption() + " Game");
+    }
+
+    /**
+     * Team games: each side of several heads (ours, and every opposing team) gets one battlefield for all its heads,
+     * on the field of its first head; the others' avatars and details join that field in a column.
+     */
+    private void formTeamBattlefields(final List<VField> fields) {
+        final List<List<VField>> sides = new ArrayList<>();
+        for (int i = 0; i < sortedPlayers.size() && i < fields.size(); i++) {
+            final PlayerView p = sortedPlayers.get(i);
+            List<VField> side = null;
+            for (final List<VField> s : sides) {
+                final PlayerView first = s.get(0).getPlayer();
+                final boolean together = teamPlayers.contains(p) ? teamPlayers.contains(first)
+                        : !teamPlayers.contains(first) && !first.isOpponentOf(p);
+                if (together) {
+                    side = s;
+                    break;
+                }
+            }
+            if (side == null) {
+                side = new ArrayList<>();
+                sides.add(side);
+            }
+            side.add(fields.get(i));
+        }
+        for (final List<VField> side : sides) {
+            if (side.size() > 1) {
+                side.get(0).leadTeam(side);
+            }
+        }
+    }
+
+    /** The battlefields on screen, each once (team members share their team's). */
+    public List<PlayArea> getTabletops() {
+        final List<PlayArea> result = new ArrayList<>();
+        for (final VField f : getFieldViews()) {
+            if (!result.contains(f.getTabletop())) {
+                result.add(f.getTabletop());
+            }
+        }
+        return result;
     }
 
     /** Shared team turns: a team mate's hand gets its own tab, like the own hand. */
@@ -851,8 +897,8 @@ public final class CMatchUI
         for (final VHand h : view.getHands()) {
             panels.addAll(h.getHandArea().getCardPanels());
         }
-        for (final VField f : view.getFieldViews()) {
-            panels.addAll(f.getTabletop().getCardPanels());
+        for (final PlayArea area : getTabletops()) {
+            panels.addAll(area.getCardPanels());
         }
         return panels;
     }
@@ -877,7 +923,7 @@ public final class CMatchUI
             for (final VField f : view.getFieldViews()) {
                 final CardPanel panel = f.getTabletop().getCardPanel(id);
                 if (panel != null) {
-                    SDisplayUtil.showTab(f);
+                    SDisplayUtil.showTab(f.docked());
                     return panel;
                 }
             }
@@ -1131,7 +1177,9 @@ public final class CMatchUI
         FThreads.invokeInEdtNowOrLater(this::updateTeamControls);
         FThreads.invokeInEdtNowOrLater(this::refreshFightBanner);
         final VField nextField = getFieldViewFor(player);
-        SDisplayUtil.showTab(nextField);
+        if (nextField != null) {
+            SDisplayUtil.showTab(nextField.docked());
+        }
         cPrompt.updateText();
         repaintCardOverlays();
     }
@@ -1193,9 +1241,8 @@ public final class CMatchUI
      * Clear all visually highlighted card panels on the battlefield.
      */
     public void clearPanelSelections() {
-        final List<VField> fields = view.getFieldViews();
-        for (final VField field : fields) {
-            for (final CardPanel p : field.getTabletop().getCardPanels()) {
+        for (final PlayArea area : getTabletops()) {
+            for (final CardPanel p : area.getCardPanels()) {
                 p.setSelected(false);
             }
         }

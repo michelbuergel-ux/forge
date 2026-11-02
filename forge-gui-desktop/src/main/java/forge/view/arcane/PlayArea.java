@@ -17,15 +17,22 @@
  */
 package forge.view.arcane;
 
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.IllegalComponentStateException;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.event.MouseEvent;
 import java.util.*;
 import java.util.function.BiPredicate;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import forge.game.GameEntityView;
@@ -94,6 +101,10 @@ public class PlayArea extends CardPanelContainer implements CardPanelMouseListen
 
     private final PlayerView model;
     private final ZoneType zone;
+    /** Team games: the heads whose battlefields this area shows together, its own first; empty otherwise. */
+    private List<PlayerView> team = new ArrayList<>();
+    /** The colours of the heads on a shared battlefield, by their place in the team. */
+    private static final Color[] HEAD_COLORS = { new Color(0x3F7FD9), new Color(0xD9533F), new Color(0x46A85A), new Color(0xA35BD6) };
 
     private boolean makeTokenRow = true;
     private boolean stackCreatures = false;
@@ -108,6 +119,67 @@ public class PlayArea extends CardPanelContainer implements CardPanelMouseListen
         this.model = player;
         this.zone = zone;
         updateGroupScope();
+    }
+
+    /** Shows the battlefields of all these heads (one team, its own head first) in this one area. */
+    public void setTeam(final List<PlayerView> team0) {
+        team = new ArrayList<>(team0);
+    }
+
+    /** Does this area show a whole team's battlefield? */
+    public boolean isTeamArea() {
+        return team.size() > 1;
+    }
+
+    /** The place in the team of the head that controls the card (0 outside a team area, -1 if none of them). */
+    private int headIndex(final CardView card) {
+        if (!isTeamArea() || card == null || card.getController() == null) {
+            return 0;
+        }
+        for (int i = 0; i < team.size(); i++) {
+            if (team.get(i).getId() == card.getController().getId()) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** A head's colour on a shared battlefield. */
+    public static Color headColor(final int index) {
+        return HEAD_COLORS[Math.floorMod(index, HEAD_COLORS.length)];
+    }
+
+    /** On a shared battlefield, a small badge on every card: the colour and initial of the head that controls it. */
+    @Override
+    protected void paintChildren(final Graphics g) {
+        super.paintChildren(g);
+        if (!isTeamArea()) {
+            return;
+        }
+        final Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        for (final CardPanel panel : getCardPanels()) {
+            final int head = headIndex(panel.getCard());
+            if (head < 0 || !panel.isShowing() || panel.getCardWidth() < 20) {
+                continue;
+            }
+            final PlayerView owner = team.get(head);
+            final String initial = owner.getName() == null || owner.getName().isEmpty() ? "?" : owner.getName().substring(0, 1).toUpperCase();
+            final int r = Math.max(7, panel.getCardWidth() / 9);
+            final int cx = panel.getCardX() + r + 2;
+            final int cy = panel.getCardY() + panel.getCardHeight() - r - 2;
+            g2.setColor(new Color(0, 0, 0, 140));
+            g2.fillOval(cx - r - 1, cy - r - 1, 2 * r + 2, 2 * r + 2);
+            g2.setColor(headColor(head));
+            g2.fillOval(cx - r, cy - r, 2 * r, 2 * r);
+            g2.setColor(Color.WHITE);
+            g2.setStroke(new BasicStroke(Math.max(1f, r / 6f)));
+            g2.drawOval(cx - r, cy - r, 2 * r, 2 * r);
+            g2.setFont(g2.getFont().deriveFont(Font.BOLD, (float) Math.max(9, r * 1.2)));
+            final FontMetrics fm = g2.getFontMetrics();
+            g2.drawString(initial, cx - fm.stringWidth(initial) / 2, cy + fm.getAscent() / 2 - 1);
+        }
+        g2.dispose();
     }
 
     private void updateGroupScope() {
@@ -174,7 +246,9 @@ public class PlayArea extends CardPanelContainer implements CardPanelMouseListen
                 final CardPanel firstPanel = stack.get(0);
                 final CardView firstCard = firstPanel.getCard();
                 // State-level name so transform/MDFC creatures group by current face, not back face
-                if (!firstCard.getCurrentState().getOracleName().equals(state.getOracleName())) {
+                // on a shared battlefield, the cards of different heads never stack together
+                if (!firstCard.getCurrentState().getOracleName().equals(state.getOracleName())
+                        || headIndex(card) != headIndex(firstCard)) {
                     if (insertIndex != -1) { break; }
                     continue;
                 }
@@ -433,6 +507,10 @@ public class PlayArea extends CardPanelContainer implements CardPanelMouseListen
 
         List<CardPanel> unsorted = new LinkedList<>(this.getCardPanels());
         unsorted.removeIf(p -> p.getAttachedToPanel() != null);
+        if (isTeamArea()) {
+            // on a shared battlefield every row shows one head's cards after the other's
+            unsorted.sort(java.util.Comparator.comparingInt(p -> Math.floorMod(headIndex(p.getCard()), team.size())));
+        }
 
         final CardStackRow lands = collectAllLands(unsorted);
         final CardStackRow tokens = collectAllTokens(unsorted);
@@ -750,7 +828,9 @@ public class PlayArea extends CardPanelContainer implements CardPanelMouseListen
             getMatchUI().getGameController().selectCard(panel.getCard(), null, new MouseTriggerEvent(evt));
             return;
         }
-        boolean isLocal = getMatchUI().isLocalPlayer(model);
+        // on a shared battlefield: whether the card's own head sits at this screen
+        boolean isLocal = getMatchUI().isLocalPlayer(isTeamArea() && panel.getCard() != null && panel.getCard().getController() != null
+                ? panel.getCard().getController() : model);
         boolean selectAll = evt.isShiftDown();
         if (!selectAll && panel.getGroupCount() >= 2) {
             selectAll = panel.isBadgeHit(evt.getX(), evt.getY());
@@ -964,9 +1044,14 @@ public class PlayArea extends CardPanelContainer implements CardPanelMouseListen
     }
 
     private void recalculateCardPanels(final PlayerView model, final ZoneType zone) {
-        final List<CardView> modelCopy;
-        synchronized (model) {
-            modelCopy = Lists.newArrayList(model.getCards(zone));
+        final List<CardView> modelCopy = new ArrayList<>();
+        for (final PlayerView head : isTeamArea() ? team : java.util.Collections.singletonList(model)) {
+            synchronized (head) {
+                final Iterable<CardView> cards = head.getCards(zone);
+                if (cards != null) {
+                    Iterables.addAll(modelCopy, cards);
+                }
+            }
         }
 
         final List<CardView> oldCards = Lists.newArrayList();
