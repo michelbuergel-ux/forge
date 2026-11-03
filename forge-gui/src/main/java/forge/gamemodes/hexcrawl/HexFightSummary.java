@@ -20,6 +20,19 @@ public class HexFightSummary {
         public int topCardDamage;
         /** A lost fight: the card this head lost, or null if it had none it could lose. */
         public String lostCard;
+        /** Every card the head lost (more than one on the hardest level); null in summaries saved before. */
+        public java.util.List<String> lostCards;
+
+        /** The cards lost, created when needed. */
+        public java.util.List<String> lostCards() {
+            if (lostCards == null) {
+                lostCards = new java.util.ArrayList<>();
+                if (lostCard != null) {
+                    lostCards.add(lostCard);
+                }
+            }
+            return lostCards;
+        }
     }
 
     public String enemyName;

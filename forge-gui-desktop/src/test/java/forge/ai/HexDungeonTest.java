@@ -264,6 +264,21 @@ public class HexDungeonTest extends AITest {
     }
 
     @Test
+    public void theLevelSaysHowMuchLifeComesBackBetweenTheFights() {
+        for (final forge.gamemodes.hexcrawl.HexDifficulty level : forge.gamemodes.hexcrawl.HexDifficulty.values()) {
+            final HexCampaign c = newCampaign(5L, 7);
+            c.difficulty = level;
+            final HexDungeon d = enter(c);
+            final HexRoom room = first(d, HexRoom.Kind.TREASURE);
+            AssertJUnit.assertEquals(HexCampaign.MoveResult.ENCOUNTER, stepInto(c, d, guarded(c, d, room)));
+            win(c, 9);
+            AssertJUnit.assertEquals(level.name(), Math.min(c.fightLife(), 9 + level.dungeonHeal), d.lifeLeft);
+        }
+        AssertJUnit.assertEquals(10, forge.gamemodes.hexcrawl.HexDifficulty.EASY.dungeonHeal);
+        AssertJUnit.assertEquals(0, forge.gamemodes.hexcrawl.HexDifficulty.BRUTAL.dungeonHeal);
+    }
+
+    @Test
     public void treasuresGiveEveryHeadTheirShareAndTheLifeCarriesOver() {
         final HexCampaign c = newCampaign(5L, 7);
         final HexDungeon d = enter(c);

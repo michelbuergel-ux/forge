@@ -120,6 +120,8 @@ public class HexCampaign {
     public int teamLife = 20;
     /** Multiplies the starting gold and all gold rewards (fights and bounties); 1 = normal. */
     public int goldMultiplier = 1;
+    /** How hard the campaign is (null: saved before there were levels, plays as Normal); see difficulty(). */
+    public HexDifficulty difficulty;
     /** New Game Plus: the run of the campaign, 1 for the first; every new one makes the enemies stronger. */
     public int cycle = 1;
     /** New Game Plus: the steps of every advantage the enemies have (HexAdvantage names). */
@@ -195,11 +197,20 @@ public class HexCampaign {
     }
 
     public static HexCampaign create(final String name, final long seed, final int radius, final List<HexPlayer> players, final int goldMultiplier) {
+        return create(name, seed, radius, players, goldMultiplier, HexDifficulty.NORMAL);
+    }
+
+    public static HexCampaign create(final String name, final long seed, final int radius, final List<HexPlayer> players,
+            final int goldMultiplier, final HexDifficulty difficulty0) {
         final HexCampaign c = new HexCampaign();
         c.name = name;
         c.goldMultiplier = Math.max(1, goldMultiplier);
+        c.difficulty = HexDifficulty.of(difficulty0);
+        c.teamLife = c.difficulty.teamLife;
         c.seed = seed;
         c.newMap(seed, radius);
+        // the harder levels: advantages from the first fight on, as New Game Plus rolls them (not yet the extra draws)
+        c.rollAdvantages(c.difficulty.startAdvantages, 2, null);
         final HexContent content = HexContent.get();
         for (final HexPlayer p : players) {
             p.gold = c.gold(START_GOLD);
@@ -637,6 +648,13 @@ public class HexCampaign {
         return t != null && t.freed ? Math.max(1, price * (100 - SIEGE_DISCOUNT_PERCENT) / 100) : price;
     }
 
+    // ------------------------------------------------------------------ difficulty
+
+    /** The level of the campaign (Normal for a campaign saved before there were levels). */
+    public HexDifficulty difficulty() {
+        return HexDifficulty.of(difficulty);
+    }
+
     // ------------------------------------------------------------------ New Game Plus
 
     /** The steps of an advantage the enemies have in this cycle. */
@@ -645,18 +663,47 @@ public class HexCampaign {
         return n == null ? 0 : Math.max(0, Math.min(a.getCap(), n));
     }
 
+    /**
+     * Rolls advantages for the enemies, one step each, among those open in this cycle and not at their cap (and not
+     * rolled in this go); returns how many it rolled. The rolled names go to rolled when it is given.
+     */
+    private int rollAdvantages(final int count, final int forCycle, final List<String> rolled) {
+        if (count <= 0) {
+            return 0; // no draw from the campaign's random numbers: a Normal campaign is the same as before the levels
+        }
+        final Random rnd = random();
+        final List<String> now = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            final List<HexAdvantage> open = new ArrayList<>();
+            for (final HexAdvantage a : HexAdvantage.values()) {
+                if (forCycle >= a.getFromCycle() && advantage(a) < a.getCap() && !now.contains(a.name())) {
+                    open.add(a);
+                }
+            }
+            if (open.isEmpty()) {
+                break; // everything at its cap: from now on only the life grows
+            }
+            final HexAdvantage a = open.get(rnd.nextInt(open.size()));
+            enemyAdvantages.put(a.name(), advantage(a) + 1);
+            now.add(a.name());
+        }
+        if (rolled != null) {
+            rolled.addAll(now);
+        }
+        return now.size();
+    }
+
     /** The extra life the enemies have in this cycle. */
     public int cycleLife() {
         return LIFE_PER_CYCLE * Math.max(0, cycle - 1);
     }
 
-    /** What the enemies of this cycle have, one line each; empty in the first run. */
+    /** What the enemies of this cycle have, one line each; empty in the first run on Normal. */
     public List<String> cycleAdvantages() {
         final List<String> result = new ArrayList<>();
-        if (cycle <= 1) {
-            return result;
+        if (cycle > 1) {
+            result.add(msg("lblHexAdvLife", String.valueOf(cycleLife())));
         }
-        result.add(msg("lblHexAdvLife", String.valueOf(cycleLife())));
         for (final HexAdvantage a : HexAdvantage.values()) {
             if (advantage(a) > 0) {
                 result.add(msg(a.getLabelKey(), String.valueOf(advantage(a))));
@@ -675,22 +722,8 @@ public class HexCampaign {
             return false; // not before everybody has taken the reward of the last fight
         }
         cycle++;
-        final Random rnd = random();
         newAdvantages.clear();
-        for (int i = 0; i < ADVANTAGES_PER_CYCLE; i++) {
-            final List<HexAdvantage> open = new ArrayList<>();
-            for (final HexAdvantage a : HexAdvantage.values()) {
-                if (cycle >= a.getFromCycle() && advantage(a) < a.getCap() && !newAdvantages.contains(a.name())) {
-                    open.add(a);
-                }
-            }
-            if (open.isEmpty()) {
-                break; // everything at its cap: from now on only the life grows
-            }
-            final HexAdvantage a = open.get(rnd.nextInt(open.size()));
-            enemyAdvantages.put(a.name(), advantage(a) + 1);
-            newAdvantages.add(a.name());
-        }
+        rollAdvantages(ADVANTAGES_PER_CYCLE, cycle, newAdvantages);
 
         final HexCycleRecord record = new HexCycleRecord();
         record.cycle = cycle - 1;
@@ -846,8 +879,16 @@ public class HexCampaign {
         return target != null && HexMap.distance(partyQ, partyR, target.q, target.r) == 1;
     }
 
-    /** How dangerous a field is: 0 at the start, 1 at the rim of the map. */
+    /**
+     * How dangerous a field is for the enemy chosen there: 0 at the start, 1 at the rim of the map; the harder levels
+     * add to it (stronger decks earlier), the easy one takes from it.
+     */
     public double danger(final HexTile t) {
+        return Math.max(0.0, Math.min(1.0, distanceDanger(t) + difficulty().dangerShift));
+    }
+
+    /** The danger by distance alone (where roaming enemies may appear), the same on every level. */
+    public double distanceDanger(final HexTile t) {
         final int fromStart = HexMap.distance(t.q, t.r, map.startQ, map.startR);
         return Math.min(1.0, fromStart / (double) Math.max(1, map.radius + 2));
     }
@@ -902,7 +943,7 @@ public class HexCampaign {
                 t.enemy.q = t.q;
                 t.enemy.r = t.r;
                 // a few of the tougher ones hunt the party
-                if (danger(t) >= ROAMING_DANGER && roamers().size() < MAX_ROAMERS && rnd.nextInt(100) < ROAMING_CHANCE) {
+                if (distanceDanger(t) >= ROAMING_DANGER && roamers().size() < MAX_ROAMERS && rnd.nextInt(100) < ROAMING_CHANCE) {
                     t.enemy.roaming = true;
                 }
             } else if (first && rnd.nextInt(100) < EVENT_CHANCE) {
@@ -1266,7 +1307,7 @@ public class HexCampaign {
                     dungeon.see(dungeon.here()); // the enemy no longer blocks the view
                 }
                 final int left = lastFight != null && lastFight.partyLife > 0 ? lastFight.partyLife : fightLife();
-                dungeon.lifeLeft = Math.min(fightLife() + DUNGEON_SHRINE_LIFE * dungeon.buffCount("LIFE"), left + DUNGEON_HEAL);
+                dungeon.lifeLeft = Math.min(fightLife() + DUNGEON_SHRINE_LIFE * dungeon.buffCount("LIFE"), left + difficulty().dungeonHeal);
                 if (enc.isGuardian()) {
                     dungeon.cleared = true;
                     dungeon.reset(); // the party is out again, on the dungeon's field
@@ -1340,14 +1381,21 @@ public class HexCampaign {
             // the summary of this fight (just recorded) shows what every head lost
             final HexFightSummary summary = lastFight != null && "LOST".equals(lastFight.result)
                     && enc.enemyName != null && enc.enemyName.equals(lastFight.enemyName) ? lastFight : null;
+            final HexDifficulty level = difficulty();
             for (final HexPlayer p : players) {
-                final String lost = loseRandomCard(p);
-                if (lost != null) {
-                    log(msg("lblHexJournalAnteLost", p.name, lost));
-                }
                 final HexFightSummary.Head h = summary == null ? null : summary.head(p.name);
-                if (h != null) {
-                    h.lostCard = lost;
+                for (int i = 0; i < level.cardsLost; i++) {
+                    final String lost = loseRandomCard(p, level.lossMaxPrice);
+                    if (lost == null) {
+                        break;
+                    }
+                    log(msg("lblHexJournalAnteLost", p.name, lost));
+                    if (h != null) {
+                        h.lostCards().add(lost);
+                        if (h.lostCard == null) {
+                            h.lostCard = lost; // the first, as summaries before the levels had it
+                        }
+                    }
                 }
             }
             final HexDungeon lostIn = dungeonOf(enc);
@@ -1385,15 +1433,15 @@ public class HexCampaign {
     }
 
     /**
-     * Removes a random card that is not a basic land and is worth less than ANTE_MAX_PRICE (null if there is none); a
+     * Removes a random card that is not a basic land and is worth less than maxPrice (null if there is none); a
      * deck at minimum size gets a basic land in return.
      */
-    private String loseRandomCard(final HexPlayer p) {
+    private String loseRandomCard(final HexPlayer p, final int maxPrice) {
         final HexContent content = HexContent.get();
         final List<Integer> candidates = new ArrayList<>();
         for (int i = 0; i < p.deck.size(); i++) {
             final String card = p.deck.get(i);
-            if (!content.isBasicLand(card) && content.price(card) < ANTE_MAX_PRICE) {
+            if (!content.isBasicLand(card) && content.price(card) < maxPrice) {
                 candidates.add(i);
             }
         }
@@ -2342,7 +2390,8 @@ public class HexCampaign {
      * follower, and what the relics of the party do to it.
      */
     public int enemyLife(final HexEncounter enc) {
-        int life = enc.life + ENEMY_EXTRA_LIFE[Math.max(1, Math.min(ENEMY_EXTRA_LIFE.length, players.size())) - 1] + boostEnemyLife + cycleLife();
+        // the level scales the enemy's own life; the bonuses below are the same on every level
+        int life = Math.max(1, (int) Math.round(enc.life * difficulty().enemyLifePercent / 100.0)) + ENEMY_EXTRA_LIFE[Math.max(1, Math.min(ENEMY_EXTRA_LIFE.length, players.size())) - 1] + boostEnemyLife + cycleLife();
         if (enc.archenemy) {
             life += ARCHENEMY_LIFE_PER_MISSING_HEAD * (enemyHeads() - 1); // alone instead of with heads
         }

@@ -117,10 +117,13 @@ final class HexStatsDialog {
         body.add(buildHeads(), "wmin 0, hmin 0");
         body.add(buildDefeated(), "wmin 0, hmin 0");
         root.add(body, "wmin 0, hmin 0");
-        final JPanel footer = transparent(new MigLayout("insets 0 26 0 26, gap 0, fill"));
+        final JPanel footer = transparent(new MigLayout("insets 0 26 0 26, gap 0, fill", "[][grow]"));
         if (campaign.cycle > 1) {
             footer.add(label(t("lblHexChronicleTotalNote"), body(Font.ITALIC, 12f), FAINT), "aligny center");
         }
+        // the level the campaign plays on
+        footer.add(label(t("lblHexDifficultyLine", t(campaign.difficulty().key())), body(Font.ITALIC, 12f), FAINT),
+                "cell 1 0, alignx right, aligny center");
         root.add(footer, "h 34!");
         root.setPreferredSize(new java.awt.Dimension(width, height));
         return root;

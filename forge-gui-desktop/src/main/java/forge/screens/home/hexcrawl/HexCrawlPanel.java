@@ -480,12 +480,19 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 col.add(pic, "h 224!, w 160!");
             }
             if ("LOST".equals(s.result)) {
-                // what the defeat cost this head
-                final PaperCard lost = h.lostCard == null ? null : HexContent.get().getCard(h.lostCard);
-                col.add(new FLabel.Builder().text(h.lostCard == null ? t("lblHexSummaryNothingLost", String.valueOf(HexCampaign.ANTE_MAX_PRICE))
-                        : t("lblHexSummaryLostCard", h.lostCard)).fontSize(12).fontStyle(java.awt.Font.BOLD)
-                        .fontAlign(SwingConstants.LEFT).build(), "h 18!, gaptop 6");
-                if (lost != null) {
+                // what the defeat cost this head (on the easy level nothing, on the hardest two cards)
+                final forge.gamemodes.hexcrawl.HexDifficulty level = getCampaign() == null
+                        ? forge.gamemodes.hexcrawl.HexDifficulty.NORMAL : getCampaign().difficulty();
+                final List<String> lostNames = h.lostCards();
+                final String none = level.cardsLost == 0 ? t("lblHexSummaryNoLossLevel", t(level.key()))
+                        : t("lblHexSummaryNothingLost", String.valueOf(level.lossMaxPrice));
+                col.add(new FLabel.Builder().text(lostNames.isEmpty() ? none : t("lblHexSummaryLostCard", String.join(", ", lostNames)))
+                        .fontSize(12).fontStyle(java.awt.Font.BOLD).fontAlign(SwingConstants.LEFT).build(), "h 18!, gaptop 6");
+                for (final String name : lostNames) {
+                    final PaperCard lost = HexContent.get().getCard(name);
+                    if (lost == null) {
+                        continue;
+                    }
                     final CardPicturePanel lostPic = new CardPicturePanel();
                     lostPic.setOpaque(false);
                     lostPic.setItem(lost);
@@ -965,6 +972,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         String record = t("lblHexRecord", String.valueOf(campaign.battlesWon), String.valueOf(campaign.battlesLost));
         if (campaign.goldMultiplier > 1) {
             record += "  ·  " + t("lblHexGoldMultiplierInfo", String.valueOf(campaign.goldMultiplier));
+        }
+        if (campaign.difficulty() != forge.gamemodes.hexcrawl.HexDifficulty.NORMAL) {
+            record += "  ·  " + t(campaign.difficulty().key());
         }
         lblRecord.setText(record);
         for (final JComponent c : new JComponent[] { hdBosses, bossTrack, lblRecord }) {
@@ -1782,7 +1792,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         final List<String> cycleAdvantages = campaign.cycleAdvantages();
         if (!cycleAdvantages.isEmpty()) {
-            sb.append(' ').append(loc.getMessage("lblHexEnemyCycle", String.valueOf(campaign.cycle - 1), String.join(", ", cycleAdvantages)));
+            sb.append(' ').append(campaign.cycle > 1
+                    ? loc.getMessage("lblHexEnemyCycle", String.valueOf(campaign.cycle - 1), String.join(", ", cycleAdvantages))
+                    : loc.getMessage("lblHexEnemyLevel", loc.getMessage(campaign.difficulty().key()), String.join(", ", cycleAdvantages)));
         }
         final forge.gamemodes.hexcrawl.HexBiomeRule biome = forge.gamemodes.hexcrawl.HexBiomeRule.forFight(campaign, enc);
         if (biome != null) {
@@ -2143,7 +2155,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             players.add(new HexPlayer(t("lblHexCompanion") + " " + i, true));
         }
         final HexCampaign campaign = HexCampaign.create(settings.name(), new Random().nextLong(), HexMap.radiusFor(players.size()), players,
-                settings.goldMultiplier());
+                settings.goldMultiplier(), settings.difficulty());
         HexCampaignIO.save(campaign);
         setSession(new HexSession(campaign));
         if (HostingServer.isHosting()) {

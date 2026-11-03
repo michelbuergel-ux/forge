@@ -40,6 +40,7 @@ import javax.swing.event.DocumentListener;
 import forge.gamemodes.hexcrawl.HexCampaign;
 import forge.gamemodes.hexcrawl.HexCampaignIO;
 import forge.gamemodes.hexcrawl.HexColor;
+import forge.gamemodes.hexcrawl.HexDifficulty;
 import forge.gamemodes.hexcrawl.HexInvite;
 import forge.gamemodes.net.server.HostingServer;
 import forge.screens.home.hexcrawl.HexSidebarParts.Heading;
@@ -58,7 +59,7 @@ import net.miginfocom.swing.MigLayout;
  */
 final class HexNewCampaignPage extends JPanel {
     /** What the page was filled in with. */
-    record Settings(String name, int companions, int goldMultiplier, boolean host) { }
+    record Settings(String name, int companions, int goldMultiplier, HexDifficulty difficulty, boolean host) { }
 
     private static final int PLATE_W = 640;
     private static final int TEXT_W = PLATE_W - 64;
@@ -69,6 +70,8 @@ final class HexNewCampaignPage extends JPanel {
     private final JPanel nameNote = holder();
     private final List<Pill> companionPills = new ArrayList<>();
     private final List<Pill> goldPills = new ArrayList<>();
+    private final List<Pill> difficultyPills = new ArrayList<>();
+    private final JPanel difficultyNote = holder();
     private final Pill pillAlone;
     private final Pill pillHost;
     private final JPanel hostingNote = holder();
@@ -87,6 +90,7 @@ final class HexNewCampaignPage extends JPanel {
 
     private int companions;
     private int goldChoice;
+    private HexDifficulty difficulty = HexDifficulty.NORMAL;
     private boolean host;
     private String code;
     private Consumer<Settings> onStart;
@@ -121,6 +125,17 @@ final class HexNewCampaignPage extends JPanel {
         }
         plate.add(companionRow, "gaptop 8, growx 0");
         plate.add(wrapped(t("lblHexSetupCompanionsHint"), body(Font.PLAIN, 12f), FAINT, TEXT_W), "gaptop 6");
+
+        plate.add(new Heading(t("lblHexDifficulty")), "gaptop 18");
+        final JPanel difficultyRow = row();
+        for (final HexDifficulty d : HexDifficulty.values()) {
+            final Pill pill = new Pill(t(d.key()));
+            pill.addActionListener(e -> { difficulty = d; update(); });
+            difficultyPills.add(pill);
+            difficultyRow.add(pill, "h 34!, wmin 56");
+        }
+        plate.add(difficultyRow, "gaptop 8, growx 0");
+        plate.add(difficultyNote, "gaptop 6");
 
         plate.add(new Heading(t("lblHexSetupGold")), "gaptop 18");
         final JPanel goldRow = row();
@@ -203,6 +218,7 @@ final class HexNewCampaignPage extends JPanel {
         txtName.setText(defaultName);
         companions = 0;
         goldChoice = 0;
+        difficulty = HexDifficulty.NORMAL;
         host = HostingServer.isHosting();
         code = null;
         btnCopy.setText(t("lblHexCopy"));
@@ -225,7 +241,7 @@ final class HexNewCampaignPage extends JPanel {
             return;
         }
         close();
-        onStart.accept(new Settings(txtName.getText().trim(), companions, HexCampaign.GOLD_MULTIPLIERS[goldChoice], host));
+        onStart.accept(new Settings(txtName.getText().trim(), companions, HexCampaign.GOLD_MULTIPLIERS[goldChoice], difficulty, host));
     }
 
     private void cancel() {
@@ -243,6 +259,10 @@ final class HexNewCampaignPage extends JPanel {
         for (int i = 0; i < goldPills.size(); i++) {
             goldPills.get(i).setActive(i == goldChoice);
         }
+        for (int i = 0; i < difficultyPills.size(); i++) {
+            difficultyPills.get(i).setActive(HexDifficulty.values()[i] == difficulty);
+        }
+        setText(difficultyNote, describe(difficulty), body(Font.PLAIN, 12f), FAINT);
         final boolean hosting = HostingServer.isHosting();
         pillAlone.setActive(!host);
         pillHost.setActive(host);
@@ -297,6 +317,29 @@ final class HexNewCampaignPage extends JPanel {
         final Graphics2D g2 = smooth(g);
         weave(g2, getWidth(), getHeight(), palette.ground(), palette);
         g2.dispose();
+    }
+
+    /** What a level changes, in one line (Normal: the game as it was before the levels). */
+    static String describe(final HexDifficulty d) {
+        final Localizer l = Localizer.getInstance();
+        final List<String> parts = new ArrayList<>();
+        if (d.enemyLifePercent != 100) {
+            final int change = d.enemyLifePercent - 100;
+            parts.add(l.getMessage("lblHexDiffEnemyLife", (change > 0 ? "+" : "\u2212") + Math.abs(change)));
+        }
+        if (d.dangerShift > 0) {
+            parts.add(l.getMessage("lblHexDiffDecksStronger"));
+        } else if (d.dangerShift < 0) {
+            parts.add(l.getMessage("lblHexDiffDecksWeaker"));
+        }
+        if (d.startAdvantages > 0) {
+            parts.add(l.getMessage("lblHexDiffAdvantages", String.valueOf(d.startAdvantages)));
+        }
+        parts.add(l.getMessage("lblHexDiffTeamLife", String.valueOf(d.teamLife)));
+        parts.add(d.cardsLost == 0 ? l.getMessage("lblHexDiffNoLoss")
+                : l.getMessage("lblHexDiffLoss", String.valueOf(d.cardsLost), String.valueOf(d.lossMaxPrice)));
+        parts.add(d.dungeonHeal == 0 ? l.getMessage("lblHexDiffNoHeal") : l.getMessage("lblHexDiffHeal", String.valueOf(d.dungeonHeal)));
+        return (d == HexDifficulty.NORMAL ? l.getMessage("lblHexDiffNormal") + " " : "") + String.join("  \u00b7  ", parts);
     }
 
     // ------------------------------------------------------------------ parts
