@@ -1703,8 +1703,6 @@ public final class CMatchUI
             // a guest's match has no music of its own (the host's HostedMatch sets it there)
             forge.sound.SoundSystem.instance.setBackgroundMusic(forge.gamemodes.hexcrawl.HexNet.getFightMusic());
         }
-        getCPrompt().showPartnerOption(getGameView() != null && getGameView().isStreamlinedPriority()
-                && teamPlayers != null && teamPlayers.size() > 1);
         updateTeamControls();
         final ForgePreferences prefs = FModel.getPreferences();
         final List<VField> fieldViews = getFieldViews();

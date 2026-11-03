@@ -133,6 +133,8 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
     /** The prompts open for this player (nested ones count too), and whether its OK waits for team mates. */
     private final java.util.concurrent.atomic.AtomicInteger openInputs = new java.util.concurrent.atomic.AtomicInteger();
     private volatile boolean okSaid;
+    /** The cards whose notices (a die rolled, a coin flipped...) this player muted for the rest of this game. */
+    private final Set<String> mutedNotices = Sets.newConcurrentHashSet();
     private volatile boolean choiceInterrupted;
     private volatile InputPassPriority openPriorityInput;
     /** Shared team priority: what the team mate who acted first is doing (shown while waiting). */
@@ -2137,7 +2139,24 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
                 cardView = sa.getHostCard().getView();
             getGui().confirm(cardView, message, true, ImmutableList.of(localizer.getMessage("lblOK")));
         } else {
-            getGui().message(message, sa == null || sa.getHostCard() == null ? "" : CardView.get(sa.getHostCard()).toString());
+            final String title = sa == null || sa.getHostCard() == null ? "" : CardView.get(sa.getHostCard()).toString();
+            final String source = sa == null || sa.getHostCard() == null ? null : sa.getHostCard().getName();
+            if (source == null) {
+                getGui().message(message, title);
+                return;
+            }
+            if (mutedNotices.contains(source)) {
+                // muted for this game: only into the log
+                getGame().fireEvent(new GameEventAddLog(GameLogEntryType.INFORMATION, message));
+                return;
+            }
+            // the window offers to stop such notices of this card for the rest of the game
+            final int choice = getGui().showOptionDialog(message, title, forge.localinstance.skin.FSkinProp.ICO_INFORMATION,
+                    ImmutableList.of(localizer.getMessage("lblOK"),
+                            localizer.getMessage("lblMuteNoticesOf", CardTranslation.getTranslatedName(source))), 0);
+            if (choice == 1) {
+                mutedNotices.add(source);
+            }
         }
     }
 

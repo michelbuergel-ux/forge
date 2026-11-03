@@ -62,7 +62,6 @@ public class VPrompt implements IVDoc<CPrompt> {
     private final FButton btnOK = new FButton(localizer.getMessage("lblOK"));
     private final FButton btnCancel = new FButton(localizer.getMessage("lblCancel"));
     /** Team games with streamlined priority (Hex Campaign fights): OK the team mates' spells at once. */
-    private final forge.toolbox.FCheckBox chkAlwaysOkPartner = new forge.toolbox.FCheckBox(localizer.getMessage("lblAlwaysOkPartner"));
     /** Team games: what a team mate just signalled ("Hold!"), on a coloured strip for a few seconds. */
     private final FLabel lblSignal = new FLabel.Builder().fontSize(13).fontStyle(Font.BOLD).fontAlign(SwingConstants.CENTER).opaque().build();
     /** Team games: quick signals to the team mates; Hex Campaign fights also Flee / Fight on. */
@@ -153,14 +152,6 @@ public class VPrompt implements IVDoc<CPrompt> {
 
         container.add(btnOK, constraints);
         container.add(btnCancel, constraints);
-        // a green strip like the team mate's prompt above, so that it is seen at once
-        chkAlwaysOkPartner.setOpaque(true);
-        chkAlwaysOkPartner.setBackground(new java.awt.Color(0x1F6F43));
-        chkAlwaysOkPartner.setForeground(java.awt.Color.WHITE);
-        chkAlwaysOkPartner.setFont(FSkin.getBoldFont(13));
-        chkAlwaysOkPartner.setBorder(javax.swing.BorderFactory.createEmptyBorder(0, 6, 0, 6));
-        chkAlwaysOkPartner.setVisible(partnerOptionShown); // a new layout keeps it as the game set it
-        container.add(chkAlwaysOkPartner, "span 2, w 10:100%, h 26px!, gaptop 3px!, hidemode 3");
         if (pnlTeam.getComponentCount() == 0) {
             pnlTeam.setOpaque(false);
             for (final forge.gamemodes.match.TeamSignal signal : forge.gamemodes.match.TeamSignal.BUTTONS) {
@@ -231,18 +222,6 @@ public class VPrompt implements IVDoc<CPrompt> {
     /** @return {@link javax.swing.JButton} */
     public FButton getBtnCancel() {
         return this.btnCancel;
-    }
-
-    /** Whether the game shows "Always OK my partner" (team fights); kept here, since a new layout rebuilds the panel. */
-    private boolean partnerOptionShown;
-
-    public void setPartnerOptionShown(final boolean shown) {
-        partnerOptionShown = shown;
-        chkAlwaysOkPartner.setVisible(shown);
-    }
-
-    public forge.toolbox.FCheckBox getChkAlwaysOkPartner() {
-        return this.chkAlwaysOkPartner;
     }
 
     public FLabel getLblSignal() {

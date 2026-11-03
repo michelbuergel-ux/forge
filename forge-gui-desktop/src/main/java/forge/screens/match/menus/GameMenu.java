@@ -51,6 +51,7 @@ public final class GameMenu {
         menu.add(autoPassItem);
         menu.add(getMenuItem_AlwaysAutoPay());
         menu.add(getMenuItem_OkOwnSpells());
+        menu.add(getMenuItem_AlwaysOkPartner());
         menu.add(getMenuItem_ClearRememberedAbilityOrders());
         menu.addMenuListener(new MenuListener() {
             @Override public void menuSelected(final MenuEvent e) {
@@ -133,6 +134,23 @@ public final class GameMenu {
         final Localizer localizer = Localizer.getInstance();
         final SkinnedMenuItem menuItem = new SkinnedMenuItem(localizer.getMessage("lblYieldSettings"));
         menuItem.addActionListener(e -> new VYieldSettings(matchUI).showDialog());
+        return menuItem;
+    }
+
+    /** Team fights: a team mate's spells and abilities OK'd at once (saved for later fights too). */
+    private SkinnedCheckBoxMenuItem getMenuItem_AlwaysOkPartner() {
+        final Localizer localizer = Localizer.getInstance();
+        final SkinnedCheckBoxMenuItem menuItem = new SkinnedCheckBoxMenuItem(localizer.getMessage("lblAlwaysOkPartner"));
+        menuItem.setToolTipText(localizer.getMessage("lblAlwaysOkPartnerHint"));
+        menuItem.setState(prefs.getPrefBoolean(FPref.YIELD_AUTO_OK_PARTNER));
+        menuItem.addActionListener(e -> {
+            final boolean on = !prefs.getPrefBoolean(FPref.YIELD_AUTO_OK_PARTNER);
+            prefs.setPref(FPref.YIELD_AUTO_OK_PARTNER, String.valueOf(on));
+            prefs.save();
+            // the game is told at once (in a network game the host, which asks on this player's behalf)
+            matchUI.getGameController().setYieldPref(FPref.YIELD_AUTO_OK_PARTNER, String.valueOf(on));
+            menuItem.setState(on);
+        });
         return menuItem;
     }
 
