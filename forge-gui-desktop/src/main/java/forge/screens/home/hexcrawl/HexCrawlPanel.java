@@ -108,13 +108,19 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     private final GoldButton btnStats = new GoldButton("", GoldButton.Kind.OUTLINE, 13f);
     /** "Always OK my partner" in the fights, switched here as well (a saved setting of this computer). */
     private final GoldButton btnAutoOk = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
+    /** New, load, export, import and joining a friend: one menu instead of a row of buttons. */
+    private final GoldButton btnMenu = new GoldButton("", GoldButton.Kind.OUTLINE, 11f).withGlyph(HexTownStyle.Glyph.MENU);
     private final GoldButton btnInvite = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
-    private final GoldButton btnJoin = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
     private final GoldButton btnLeave = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
     /** Who is connected to whom: shown to the host and to guests. */
     private final JLabel lblConnection = label(" ", body(java.awt.Font.BOLD, 12f), MUTED);
-    private final GoldButton btnNew = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
-    private final GoldButton btnLoad = new GoldButton("", GoldButton.Kind.OUTLINE, 11f);
+    /** The side panel: the campaign menu opens beside it, over the map. */
+    private final Plate sidePanel = new Plate(this::palette, new MigLayout());
+    /** The campaign menu (see openMenu), open or not. */
+    private HexMenuOverlay menu = new HexMenuOverlay(this::palette);
+    /** The page of a new campaign, in place of the map while it is filled in. */
+    private final HexNewCampaignPage setupPage = new HexNewCampaignPage();
+    private boolean settingUp;
 
     // the side panel's parts: the enemy ahead, the vote, the party, the archmages, tasks, the journal
     private final JPanel threatBox = box();
@@ -189,9 +195,11 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         mapArea.setOpaque(false);
         mapArea.add(mapPanel, "hex");
         mapArea.add(labyrinthPanel, "labyrinth");
+        mapArea.add(setupPage, "setup");
         add(mapArea, "grow");
 
-        final Plate side = new Plate(this::palette, new MigLayout("insets 18 16 14 16, gap 0, wrap 1, fillx, hidemode 3",
+        final Plate side = sidePanel;
+        side.setLayout(new MigLayout("insets 18 16 14 16, gap 0, wrap 1, fillx, hidemode 3",
                 "[grow, fill]"));
         btnRewards.setText(t("lblHexRewards"));
         btnPerk.setText(t("lblHexChoosePerk"));
@@ -200,15 +208,14 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnDecks.setText(t("lblHexDecks"));
         btnStats.setText(t("lblHexChronicle"));
         btnInvite.setText(t("lblHexInvite"));
-        btnNew.setText(t("lblHexNewCampaign"));
-        btnLoad.setText(t("lblHexLoadCampaign"));
+        btnMenu.setText(t("lblHexCampaignMenu"));
         side.add(lblTitle);
         // a click on the campaign's name: rename it (the host) or export it, without more buttons in the sidebar
         lblTitle.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseReleased(final java.awt.event.MouseEvent e) {
                 if (lblTitle.contains(e.getPoint()) && getCampaign() != null) {
-                    titleMenu().show(lblTitle, e.getX(), e.getY());
+                    openMenu(lblTitle);
                 }
             }
         });
@@ -253,13 +260,11 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         side.add(scroll, "gaptop 14, grow, push, h 120:120:n"); // whatever room the rest leaves
 
         // campaigns and friends
-        final JPanel footer = transparent(new MigLayout("insets 0, gap 6 6, wrap 2, hidemode 3", "[grow, fill][grow, fill]"));
-        footer.add(new Heading(t("lblHexFilesTitle")), "span 2");
-        footer.add(btnInvite, "span 2, h 32!");
-        footer.add(btnJoin, "span 2, h 32!");
-        footer.add(btnLeave, "span 2, h 32!");
-        footer.add(btnNew, "h 32!");
-        footer.add(btnLoad, "h 32!");
+        final JPanel footer = transparent(new MigLayout("insets 0, gap 0 6, wrap 1, hidemode 3", "[grow, fill]"));
+        footer.add(new Heading(t("lblHexFilesTitle")));
+        footer.add(btnMenu, "h 32!");
+        footer.add(btnInvite, "h 32!");
+        footer.add(btnLeave, "h 32!");
         side.add(footer, "gaptop 10");
         add(side, "grow");
 
@@ -301,15 +306,17 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             showAutoOk();
         });
         btnInvite.addActionListener(e -> invite());
-        btnJoin.setText(t("lblHexJoinButton"));
         btnLeave.setText(t("lblHexLeave"));
-        btnJoin.addActionListener(e -> new HexJoinDialog().show());
         btnLeave.addActionListener(e -> leaveHost());
-        btnNew.addActionListener(e -> newCampaign());
-        btnLoad.addActionListener(e -> loadCampaign());
+        btnMenu.addActionListener(e -> openMenu(btnMenu));
+        setupPage.setOnStart(this::createCampaign);
+        setupPage.setOnCancel(this::endSetup);
 
         // a reward waiting for us is offered as soon as this screen is visible again after a fight
         addHierarchyListener(e -> {
+            if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && !isShowing()) {
+                menu.close();
+            }
             if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && !isShowing()
                     && !fightOnScreen && !HexNet.isCampaignFight()) {
                 forge.gamemodes.hexcrawl.HexMusic.leave(); // another part of Forge: its own music again
@@ -760,16 +767,17 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         mapPanel.setPings(session == null ? null : session.getPings());
         labyrinthPanel.setCampaign(campaign);
         labyrinthPanel.setVotes(session == null ? null : session.getVotes());
-        mapCards.show(mapArea, campaign != null && campaign.inLabyrinth() ? "labyrinth" : "hex");
-        final Palette palette = palette();
-        lblPlace.setForeground(palette.light());
         final boolean has = campaign != null;
         final boolean guest = isGuest() || HexNet.isGuest();
-        btnNew.setVisible(!guest);
-        btnLoad.setVisible(!guest);
+        if (settingUp && guest) { // joined a friend's campaign meanwhile
+            endSetup();
+            return;
+        }
+        mapCards.show(mapArea, settingUp ? "setup" : campaign != null && campaign.inLabyrinth() ? "labyrinth" : "hex");
+        final Palette palette = palette();
+        lblPlace.setForeground(palette.light());
         btnInvite.setVisible(has && !guest);
         btnInvite.setText(t(HostingServer.isHosting() ? "lblHexInviteShow" : "lblHexInvite"));
-        btnJoin.setVisible(!guest && !HostingServer.isHosting());
         btnLeave.setVisible(HexNet.isGuest());
         showConnection(guest);
         btnDecks.setVisible(has);
@@ -841,7 +849,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnShop.setVisible(campaign.inTown());
 
         lblTitle.setText(campaign.cycle > 1 ? campaign.name + "  –  " + t("lblHexCycle", String.valueOf(campaign.cycle - 1)) : campaign.name);
-        lblTitle.setToolTipText(lblTitle.getText() + " – " + t(isGuest() ? "lblHexExportHint" : "lblHexRenameHint"));
+        lblTitle.setToolTipText(lblTitle.getText() + " – " + t("lblHexTitleHint"));
         lblTitle.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
         final HexTile here = campaign.tile();
         String place = t(here.color.getLabelKey());
@@ -1290,7 +1298,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         actions.put(name, new javax.swing.AbstractAction() {
             @Override
             public void actionPerformed(final java.awt.event.ActionEvent e) {
-                if (isShowing() && session != null) {
+                if (isShowing() && session != null && !settingUp && !menu.isOpen()
+                        && !(java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner() instanceof javax.swing.text.JTextComponent)) {
                     action.run();
                 }
             }
@@ -1832,6 +1841,11 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             new HexInviteDialog(session).show();
             return;
         }
+        startHosting(true);
+    }
+
+    /** Starts the server for friends; the invitation window opens once it runs, if asked for. */
+    private void startHosting(final boolean showInvitation) {
         HexInviteDialog.lookUpExternalAddress();
         // the router is asked to let friends in without a question to the host
         FServerManager.setUpnpWithoutAsking(true);
@@ -1844,7 +1858,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             if (HostingServer.isHosting() || ++waited[0] > 40) {
                 waitForServer.stop();
                 refresh();
-                if (HostingServer.isHosting()) {
+                if (showInvitation && HostingServer.isHosting() && session != null) {
                     new HexInviteDialog(session).show();
                 }
             }
@@ -1910,18 +1924,125 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         refresh();
     }
 
-    /** What a click on the campaign's name offers: renaming (the host only) and exporting. */
-    private javax.swing.JPopupMenu titleMenu() {
-        final javax.swing.JPopupMenu menu = new javax.swing.JPopupMenu();
-        if (!isGuest()) {
-            final javax.swing.JMenuItem rename = new javax.swing.JMenuItem(t("lblHexRename") + "...");
-            rename.addActionListener(e -> renameCampaign());
-            menu.add(rename);
+    /** The campaign menu, painted like the side panel and opened over the map; what a guest cannot do is left out. */
+    private void openMenu(final JComponent anchor) {
+        if (menu.isOpen()) {
+            menu.close();
+            return;
         }
-        final javax.swing.JMenuItem export = new javax.swing.JMenuItem(t("lblHexExport") + "...");
-        export.addActionListener(e -> exportCampaign());
-        menu.add(export);
-        return menu;
+        final boolean guest = isGuest() || HexNet.isGuest();
+        final HexCampaign campaign = getCampaign();
+        final boolean has = campaign != null;
+        menu = new HexMenuOverlay(this::palette);
+        menu.heading(t("lblHexCampaignMenu"));
+        if (guest) { // a guest plays the host's campaign: only leaving it, the rest is the host's
+            menu.item(t("lblHexLeave") + "...", null, true, this::leaveHost);
+        } else {
+            menu.item(t("lblHexNewCampaign"), null, true, this::newCampaign);
+            menu.item(t("lblHexLoadCampaign") + "...", null, true, this::loadCampaign);
+            // not while hosting: the guests would be left without a campaign
+            if (has && !HostingServer.isHosting()) {
+                menu.item(t("lblHexCloseCampaign"), null, true, this::closeCampaign);
+            }
+            menu.item(t("lblHexRename") + "...", null, has, this::renameCampaign);
+            // the last campaigns played, one click each, with the day they were played
+            final List<String> recent = HexCampaignIO.recent(has ? campaign.name : null, 5);
+            if (!recent.isEmpty()) {
+                menu.heading(t("lblHexRecent"));
+                final java.time.format.DateTimeFormatter day = java.time.format.DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.SHORT);
+                for (final String name : recent) {
+                    final String when = java.time.Instant.ofEpochMilli(HexCampaignIO.saveFile(name).lastModified())
+                            .atZone(java.time.ZoneId.systemDefault()).toLocalDate().format(day);
+                    menu.item(name, when, true, () -> {
+                        final HexCampaign loaded = HexCampaignIO.load(name);
+                        if (loaded != null) {
+                            openCampaign(loaded);
+                        }
+                    });
+                }
+            }
+        }
+        menu.heading(t("lblHexMenuSaves"));
+        menu.item(t("lblHexExport") + "...", null, has, this::exportCampaign);
+        if (!guest) {
+            menu.item(t("lblHexImport") + "...", null, true, this::importCampaign);
+            menu.item(t("lblHexDelete") + "...", null, true, this::deleteCampaign);
+        }
+        menu.item(t("lblHexOpenFolder"), null,
+                java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.OPEN),
+                this::openSaveFolder);
+        final boolean canJoin = !guest && !HostingServer.isHosting();
+        if (has || canJoin) {
+            menu.heading(t("lblHexSetupFriends"));
+            if (has) { // everybody: who is in the party and who is connected
+                menu.item(t("lblHexPartyWindow") + "...", null, true,
+                        () -> new HexPartyDialog(session, () -> lblConnection.isVisible() ? lblConnection.getText() : null).show());
+            }
+            if (canJoin) {
+                menu.item(t("lblHexJoinButton") + "...", null, true, () -> new HexJoinDialog().show());
+            }
+        }
+        menu.heading(t("lblHexMenuSettings"));
+        // the map's legend with its keys, as H or the "?" on the map open it
+        menu.item(t("lblHexMenuLegend"), "H", has, () -> {
+            if (getCampaign() != null && getCampaign().inLabyrinth()) {
+                labyrinthPanel.toggleLegend();
+            } else {
+                mapPanel.toggleLegend();
+            }
+        });
+        // Forge's own music switch, the same as in the settings
+        menu.toggle(t("lblHexMusic"), t("lblHexOn"), t("lblHexOff"), () -> FModel.getPreferences().getPrefBoolean(FPref.UI_ENABLE_MUSIC), () -> {
+            FModel.getPreferences().setPref(FPref.UI_ENABLE_MUSIC, String.valueOf(!FModel.getPreferences().getPrefBoolean(FPref.UI_ENABLE_MUSIC)));
+            FModel.getPreferences().save();
+            forge.sound.SoundSystem.instance.changeBackgroundTrack();
+        });
+        menu.show(anchor, sidePanel);
+    }
+
+    /** Back to the empty screen; the campaign is saved as it is and can be loaded again. */
+    private void closeCampaign() {
+        if (session == null || isGuest() || HostingServer.isHosting()) {
+            return;
+        }
+        if (settingUp) {
+            setupPage.close();
+            settingUp = false;
+        }
+        setSession(null);
+    }
+
+    /** Deletes a saved campaign other than the open one; it goes to the recycle bin where there is one. */
+    private void deleteCampaign() {
+        final HexCampaign open = getCampaign();
+        final List<String> choices = HexCampaignIO.recent(open == null ? null : open.name, Integer.MAX_VALUE);
+        if (choices.isEmpty()) {
+            FOptionPane.showMessageDialog(t(open == null ? "lblHexNoSaves" : "lblHexNoOtherSaves"), t("lblHexDelete"));
+            return;
+        }
+        final String choice = FOptionPane.showInputDialog(t("lblHexDeleteChoose"), t("lblHexDelete"), null, choices.get(0), choices);
+        if (choice == null) {
+            return;
+        }
+        final java.io.File file = HexCampaignIO.saveFile(choice);
+        final boolean trash = java.awt.Desktop.isDesktopSupported()
+                && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.MOVE_TO_TRASH);
+        if (!FOptionPane.showConfirmDialog(t(trash ? "lblHexDeleteConfirm" : "lblHexDeleteConfirmForGood", choice), t("lblHexDelete"))) {
+            return;
+        }
+        final boolean done = trash ? java.awt.Desktop.getDesktop().moveToTrash(file) : file.delete();
+        if (!done) {
+            FOptionPane.showErrorDialog(t("lblHexDeleteFailed", choice), t("lblHexDelete"));
+        }
+    }
+
+    /** Shows the folder of the saves in the file manager (for backups, or a save to send by hand). */
+    private void openSaveFolder() {
+        try {
+            java.awt.Desktop.getDesktop().open(HexCampaignIO.dir());
+        } catch (final java.io.IOException | RuntimeException e) {
+            FOptionPane.showErrorDialog(HexCampaignIO.dir().getPath(), t("lblHexOpenFolder"));
+        }
     }
 
     /** Writes the campaign to a file the person picks (a guest exports what the host shared). */
@@ -1992,58 +2113,56 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         refresh();
     }
 
+    /** Shows the page of a new campaign in place of the map. */
     private void newCampaign() {
-        final String defaultName = t("lblHexCampaign") + " " + (HexCampaignIO.list().size() + 1);
-        final String name = FOptionPane.showInputDialog(t("lblHexCampaignName"), t("lblHexNewCampaign"), null, defaultName);
-        if (name == null || name.trim().isEmpty()) {
+        if (isGuest() || HexNet.isGuest()) {
             return;
         }
-        final int companions = FOptionPane.showOptionDialog(t("lblHexHowManyCompanions"), t("lblHexNewCampaign"),
-                FOptionPane.QUESTION_ICON, Arrays.asList("0", "1", "2", "3"), 0);
-        if (companions < 0) {
-            return;
-        }
-        final List<String> goldOptions = new ArrayList<>();
-        for (final int m : HexCampaign.GOLD_MULTIPLIERS) {
-            goldOptions.add(m == 1 ? t("lblHexGoldNormal") : m + "x");
-        }
-        final int goldChoice = FOptionPane.showOptionDialog(t("lblHexGoldMultiplierQuestion"), t("lblHexNewCampaign"),
-                FOptionPane.QUESTION_ICON, goldOptions, 0);
-        if (goldChoice < 0) {
-            return;
-        }
+        setupPage.open(HexCampaignIO.freeName(t("lblHexCampaign") + " " + (HexCampaignIO.list().size() + 1)));
+        settingUp = true;
+        refresh();
+    }
+
+    /** Back to the map from the page of a new campaign. */
+    private void endSetup() {
+        setupPage.close();
+        settingUp = false;
+        refresh();
+    }
+
+    /** The page of a new campaign is filled in: the campaign starts, and the server for friends if they were asked. */
+    private void createCampaign(final HexNewCampaignPage.Settings settings) {
+        settingUp = false;
         String me = FModel.getPreferences().getPref(FPref.PLAYER_NAME);
         if (me == null || me.trim().isEmpty()) {
             me = t("lblHexHero");
         }
         final List<HexPlayer> players = new ArrayList<>();
         players.add(new HexPlayer(me, false));
-        for (int i = 1; i <= companions; i++) {
+        for (int i = 1; i <= settings.companions(); i++) {
             players.add(new HexPlayer(t("lblHexCompanion") + " " + i, true));
         }
-        final HexCampaign campaign = HexCampaign.create(name.trim(), new Random().nextLong(), HexMap.radiusFor(players.size()), players,
-                HexCampaign.GOLD_MULTIPLIERS[goldChoice]);
+        final HexCampaign campaign = HexCampaign.create(settings.name(), new Random().nextLong(), HexMap.radiusFor(players.size()), players,
+                settings.goldMultiplier());
         HexCampaignIO.save(campaign);
         setSession(new HexSession(campaign));
         if (HostingServer.isHosting()) {
             hostTimer.start();
+        } else if (settings.host()) {
+            startHosting(false); // the code was on the page already
         }
         broadcast();
+        refresh();
     }
 
     private void loadCampaign() {
-        // the saved campaigns, and last a way to bring one in from a file
-        final List<String> choices = new ArrayList<>(HexCampaignIO.list());
-        final String importEntry = "\u2192 " + t("lblHexImport") + "...";
-        if (choices.isEmpty() && !FOptionPane.showConfirmDialog(t("lblHexNoSaves") + "\n" + t("lblHexImportAsk"), t("lblHexLoadCampaign"))) {
+        final List<String> choices = HexCampaignIO.list();
+        if (choices.isEmpty()) {
+            FOptionPane.showMessageDialog(t("lblHexNoSaves"), t("lblHexLoadCampaign"));
             return;
         }
-        choices.add(importEntry);
-        final String choice = choices.size() == 1 ? importEntry
-                : FOptionPane.showInputDialog(t("lblHexLoadCampaign"), t("lblHexLoadCampaign"), null, choices.get(0), choices);
-        if (importEntry.equals(choice)) {
-            importCampaign();
-        } else if (choice != null) {
+        final String choice = FOptionPane.showInputDialog(t("lblHexLoadCampaign"), t("lblHexLoadCampaign"), null, choices.get(0), choices);
+        if (choice != null) {
             final HexCampaign campaign = HexCampaignIO.load(choice);
             if (campaign != null) {
                 openCampaign(campaign);
@@ -2053,6 +2172,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
 
     /** Plays this campaign from now on (as the host of any table). */
     private void openCampaign(final HexCampaign campaign) {
+        if (settingUp) {
+            setupPage.close();
+            settingUp = false;
+        }
         setSession(new HexSession(campaign));
         if (HostingServer.isHosting()) {
             hostTimer.start();

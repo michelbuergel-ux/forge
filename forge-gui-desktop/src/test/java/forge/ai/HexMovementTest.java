@@ -97,6 +97,8 @@ public class HexMovementTest extends AITest {
         final java.io.File first = new java.io.File(dir, c.name + ".json");
         final java.io.File second = new java.io.File(dir, c.name + " 2.json");
         try {
+            // the page of a new campaign refuses a name that is taken (a new save would replace the old one)
+            AssertJUnit.assertFalse(forge.gamemodes.hexcrawl.HexCampaignIO.exists(c.name));
             forge.gamemodes.hexcrawl.HexCampaignIO.exportTo(c, exported);
             final HexCampaign back = forge.gamemodes.hexcrawl.HexCampaignIO.importFrom(exported);
             AssertJUnit.assertNotNull(back);
@@ -104,6 +106,9 @@ public class HexMovementTest extends AITest {
             AssertJUnit.assertEquals(c.map.tiles.size(), back.map.tiles.size());
             AssertJUnit.assertEquals(c.name, forge.gamemodes.hexcrawl.HexCampaignIO.saveImported(back));
             AssertJUnit.assertTrue(first.isFile());
+            AssertJUnit.assertTrue(forge.gamemodes.hexcrawl.HexCampaignIO.exists(c.name));
+            AssertJUnit.assertTrue(forge.gamemodes.hexcrawl.HexCampaignIO.exists(" " + c.name + " "));
+            AssertJUnit.assertFalse(forge.gamemodes.hexcrawl.HexCampaignIO.exists("  "));
             // imported again: the name is taken, it gets another
             final HexCampaign again = forge.gamemodes.hexcrawl.HexCampaignIO.importFrom(exported);
             AssertJUnit.assertEquals(c.name + " 2", forge.gamemodes.hexcrawl.HexCampaignIO.saveImported(again));
@@ -116,6 +121,32 @@ public class HexMovementTest extends AITest {
             junk.delete();
             first.delete();
             second.delete();
+        }
+    }
+
+    @Test
+    public void testTheMenuListsTheLastCampaignsWithoutTheOpenOne() throws Exception {
+        final String stamp = Long.toHexString(System.nanoTime());
+        final HexCampaign older = newCampaign();
+        older.name = "RecentTest A " + stamp;
+        final HexCampaign open = newCampaign();
+        open.name = "RecentTest B " + stamp;
+        try {
+            forge.gamemodes.hexcrawl.HexCampaignIO.save(older);
+            Thread.sleep(20);
+            forge.gamemodes.hexcrawl.HexCampaignIO.save(open);
+            // the newest file first; the open campaign is left out
+            final java.io.File a = forge.gamemodes.hexcrawl.HexCampaignIO.saveFile(older.name);
+            AssertJUnit.assertTrue(a.isFile());
+            a.setLastModified(System.currentTimeMillis() + 60_000);
+            final java.util.List<String> recent = forge.gamemodes.hexcrawl.HexCampaignIO.recent(open.name, 5);
+            AssertJUnit.assertEquals(older.name, recent.get(0));
+            AssertJUnit.assertFalse(recent.contains(open.name));
+            AssertJUnit.assertTrue(recent.size() <= 5);
+            AssertJUnit.assertTrue(forge.gamemodes.hexcrawl.HexCampaignIO.recent(null, 50).contains(open.name));
+        } finally {
+            forge.gamemodes.hexcrawl.HexCampaignIO.saveFile(older.name).delete();
+            forge.gamemodes.hexcrawl.HexCampaignIO.saveFile(open.name).delete();
         }
     }
 

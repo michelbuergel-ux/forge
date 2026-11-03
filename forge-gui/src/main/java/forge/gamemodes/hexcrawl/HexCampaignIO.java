@@ -95,6 +95,28 @@ public final class HexCampaignIO {
         }
     }
 
+    /** The save file of a campaign by name (it need not exist). */
+    public static File saveFile(final String name) {
+        return file(name.trim());
+    }
+
+    /** The saved campaigns played last, newest first, without the one of this name (the open one). */
+    public static List<String> recent(final String without, final int max) {
+        final List<String> names = new ArrayList<>();
+        final File open = without == null ? null : saveFile(without).getAbsoluteFile();
+        for (final String name : list()) {
+            if (names.size() < max && !saveFile(name).getAbsoluteFile().equals(open)) {
+                names.add(name);
+            }
+        }
+        return names;
+    }
+
+    /** Whether a saved campaign has this name already (a new one would replace it). */
+    public static boolean exists(final String name) {
+        return name != null && !name.trim().isEmpty() && file(name.trim()).exists();
+    }
+
     /** A name no saved campaign has: the given one, else with " 2", " 3", ... */
     public static String freeName(final String name) {
         final String base = name == null || name.trim().isEmpty() ? "Campaign" : name.trim();

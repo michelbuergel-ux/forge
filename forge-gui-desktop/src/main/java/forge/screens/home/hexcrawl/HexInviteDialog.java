@@ -70,7 +70,17 @@ final class HexInviteDialog {
 
     /** The invitation code for this computer as it is now. */
     static String currentCode() {
-        return HexInvite.encode(HexInvite.collectAddresses(externalAddress, port()));
+        return HexInvite.encode(addresses());
+    }
+
+    /** The addresses this computer can be reached under right now (the internet one once it is looked up). */
+    static List<HexInvite.Address> addresses() {
+        return HexInvite.collectAddresses(externalAddress, port());
+    }
+
+    /** Whether the internet address is known yet. */
+    static boolean externalKnown() {
+        return externalAddress != null;
     }
 
     void show() {

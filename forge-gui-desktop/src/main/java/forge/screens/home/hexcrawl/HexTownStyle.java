@@ -321,7 +321,7 @@ final class HexTownStyle {
     }
 
     /** The small glyphs of the window, drawn in a box of 24 units like the icons of the design. */
-    enum Glyph { NONE, CLOSE, RESTOCK, BELL, HEAD, LEFT, RIGHT, NECK, BODY, BOOTS, AVATAR }
+    enum Glyph { NONE, CLOSE, RESTOCK, BELL, HEAD, LEFT, RIGHT, NECK, BODY, BOOTS, AVATAR, MENU }
 
     static void glyph(final Graphics2D g0, final Glyph glyph, final double x, final double y, final double size, final Color color, final float stroke) {
         if (glyph == Glyph.NONE) {
@@ -336,6 +336,9 @@ final class HexTownStyle {
         switch (glyph) {
             case CLOSE:
                 p.moveTo(6, 6); p.lineTo(18, 18); p.moveTo(18, 6); p.lineTo(6, 18);
+                break;
+            case MENU: // three lines: a menu opens
+                p.moveTo(5, 7); p.lineTo(19, 7); p.moveTo(5, 12); p.lineTo(19, 12); p.moveTo(5, 17); p.lineTo(19, 17);
                 break;
             case RESTOCK:
                 g.draw(new java.awt.geom.Arc2D.Double(4, 4, 16, 16, 15, 285, java.awt.geom.Arc2D.OPEN));
