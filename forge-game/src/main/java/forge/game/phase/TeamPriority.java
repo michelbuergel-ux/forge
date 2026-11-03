@@ -26,6 +26,8 @@ import forge.util.IHasForgeLog;
  * declaring at the same time. Kept apart from PhaseHandler, which calls in here only with shared team turns.
  */
 final class TeamPriority implements IHasForgeLog {
+    /** A head whose prompt failed (see chooseConcurrently) is asked this many times again before it passes. */
+    static final int PROMPT_RETRIES = 3;
     private final PhaseHandler ph;
     private final Game game;
     /** The team mates asked at the same time right now, whose OKs wait for each other; null if none. */
@@ -141,6 +143,8 @@ final class TeamPriority implements IHasForgeLog {
         }
         final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(together.size());
         final Throwable[] error = new Throwable[1];
+        // the heads whose declaration failed on its own thread (see below)
+        final List<Player> failed = Collections.synchronizedList(Lists.newArrayList());
         // a head's OK waits for its mates' (and may be taken back until then)
         final TeamReady team = new TeamReady(Lists.transform(together, declarerOf::apply));
         teamReady = team;
@@ -148,6 +152,9 @@ final class TeamPriority implements IHasForgeLog {
             forge.util.ThreadUtil.invokeInGameThread(() -> {
                 try {
                     declare.accept(p);
+                } catch (final RuntimeException e) {
+                    engineLog.warn(e, "Team declaration of {} failed, it declares again", p.getName());
+                    failed.add(p);
                 } catch (final Throwable t) {
                     synchronized (error) {
                         if (error[0] == null) {
@@ -168,6 +175,13 @@ final class TeamPriority implements IHasForgeLog {
         } finally {
             team.close();
             teamReady = null;
+        }
+        // a declaration on a thread of its own may trip over another thread reading the game at the same time:
+        // thrown on, it ended the game loop and froze the fight. The head declares again, on its own
+        for (final Player p : failed) {
+            if (!game.isGameOver()) {
+                declare.accept(p);
+            }
         }
         if (error[0] instanceof RuntimeException re) {
             throw re;
@@ -389,6 +403,8 @@ final class TeamPriority implements IHasForgeLog {
         // a head's pass waits for its mates' (and may be taken back until then)
         final TeamReady team = new TeamReady(heads);
         teamReady = team;
+        // the prompts that failed in a row, per head (see PROMPT_RETRIES)
+        final Map<Player, Integer> failures = new HashMap<>();
         try {
             for (final Player head : heads) {
                 if (prompts.isOpen(head)) {
@@ -407,12 +423,25 @@ final class TeamPriority implements IHasForgeLog {
                 }
                 if (answer.error() != null) {
                     final Throwable error = answer.error();
-                    if (error instanceof RuntimeException re) {
-                        throw re;
-                    } else if (error instanceof Error e) {
+                    if (error instanceof Error e) {
                         throw e;
                     }
-                    throw new RuntimeException(error);
+                    // a prompt on a thread of its own may trip over another thread reading the game at the same time
+                    // (a ConcurrentModificationException): thrown on here, it ended the game loop and froze the fight.
+                    // The head is asked again; after a few failures in a row it passes, and the game goes on.
+                    final int tries = failures.merge(answer.player(), 1, Integer::sum);
+                    engineLog.warn(error, "Team prompt of {} failed ({}), {}", answer.player().getName(), tries,
+                            tries <= PROMPT_RETRIES ? "asking again" : "it passes");
+                    if (game.isGameOver()) {
+                        return null;
+                    }
+                    if (tries <= PROMPT_RETRIES) {
+                        prompts.ask(answer.player());
+                    } else {
+                        passed.add(answer.player());
+                        team.answered(answer.player());
+                    }
+                    continue;
                 }
                 if (answer.chosen() == null) {
                     passed.add(answer.player());

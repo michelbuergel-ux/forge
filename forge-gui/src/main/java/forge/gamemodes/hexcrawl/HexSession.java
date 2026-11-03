@@ -64,6 +64,8 @@ public class HexSession {
     private final Map<String, String> pings = new LinkedHashMap<>();
     private int pingSerial;
     private boolean fightRunning;
+    /** Host: the last fight was broken off (or could not start); the next one starts once somebody presses Fight. */
+    private boolean fightHeld;
     /** When the open vote ends (this computer's clock, ms), 0 if no vote is open. */
     private long voteDeadline;
     private String hostBuild;
@@ -499,11 +501,16 @@ public class HexSession {
     private boolean fightDue(final List<String> voters) {
         final HexEncounter enc = campaign.pendingEncounter;
         if (enc == null || fightRunning) {
+            fightHeld = fightHeld && enc != null;
             return false;
         }
         if (enc.ambush && (voters.isEmpty() || !fightReady.containsAll(voters))) {
             return false;
         }
+        if (fightHeld && fightReady.isEmpty()) {
+            return false; // broken off: not again by itself, but when somebody presses Fight
+        }
+        fightHeld = false;
         fightRunning = true;
         return true;
     }
@@ -605,13 +612,36 @@ public class HexSession {
         changed();
     }
 
-    /** Host: the fight could not be started. */
+    /**
+     * Host: the fight could not be started, or was broken off without a result (see {@link HexFight#abort}):
+     * nothing changes in the campaign, the enemy stays, and the fight starts again once somebody presses Fight.
+     */
     public void fightAborted() {
         synchronized (this) {
             fightRunning = false;
+            fightHeld = campaign.pendingEncounter != null;
             fightReady.clear();
         }
         changed();
+    }
+
+    /**
+     * Host: the map says a fight runs, but none does any more (its end was never told, e.g. after an error).
+     * A fight still running on this computer is broken off for everybody; otherwise the campaign is only
+     * set back to before the fight. Not on the screen thread. Returns false if there was nothing to do.
+     */
+    public boolean resetFight() {
+        if (guest || !fightRunning) {
+            return false;
+        }
+        final HexFight fight = HexFight.current();
+        if (fight != null) {
+            fight.abort(); // ends it on every screen, and comes back to fightAborted
+        }
+        if (fightRunning) {
+            fightAborted();
+        }
+        return true;
     }
 
     /**

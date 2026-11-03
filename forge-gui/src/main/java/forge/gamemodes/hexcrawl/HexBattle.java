@@ -317,7 +317,8 @@ public final class HexBattle {
      * own head on their own computer, all other heads are played by the AI.
      * @param onFinished called (on the game thread) with true if the party won, once the game is over
      */
-    public static HostedMatch startHosted(final HexSession session, final forge.gamemodes.match.GameLobby lobby, final FightEnd onFinished) {
+    public static HostedMatch startHosted(final HexSession session, final forge.gamemodes.match.GameLobby lobby, final FightEnd onFinished,
+            final Runnable onAborted) {
         final HexCampaign campaign = session.getCampaign();
         final HexEncounter enc = campaign.pendingEncounter;
         if (enc == null) {
@@ -358,10 +359,14 @@ public final class HexBattle {
         addEnemies(campaign, enc, players, avatar);
 
         final HostedMatch[] holder = new HostedMatch[1];
-        final HexFight fight = new HexFight(campaign, enc);
+        final HexFight fight = new HexFight(campaign, enc, onAborted);
         // a guest who drops out is played by the AI until they are back
         forge.gamemodes.net.server.FServerManager.getInstance().setAiStandInWhileDisconnected(true);
         final Runnable hook = () -> {
+            if (fight.isAborted()) {
+                fight.endWithoutResult(); // the host broke it off: no result
+                return;
+            }
             forge.gamemodes.net.server.FServerManager.getInstance().setAiStandInWhileDisconnected(false);
             final HostedMatch match = holder[0];
             final Result result = resultOf(fight, match == null ? null : match.getGame());
@@ -375,8 +380,9 @@ public final class HexBattle {
     /**
      * Starts the pending fight of the campaign with the local player at the table.
      * @param onFinished called (on the game thread) with true if the party won, once the game is over
+     * @param onAborted called instead if the fight was broken off without a result (see {@link HexFight#abort})
      */
-    public static HostedMatch start(final HexCampaign campaign, final FightEnd onFinished) {
+    public static HostedMatch start(final HexCampaign campaign, final FightEnd onFinished, final Runnable onAborted) {
         final HexEncounter enc = campaign.pendingEncounter;
         if (enc == null) {
             throw new IllegalStateException("No fight pending");
@@ -389,8 +395,12 @@ public final class HexBattle {
             }
         }
         final HostedMatch match = GuiBase.getInterface().hostMatch();
-        final HexFight fight = new HexFight(campaign, enc);
+        final HexFight fight = new HexFight(campaign, enc, onAborted);
         match.setEndGameHook(() -> {
+            if (fight.isAborted()) {
+                fight.endWithoutResult();
+                return;
+            }
             final Result result = resultOf(fight, match.getGame());
             onFinished.finished(result, fight.end(result));
         });

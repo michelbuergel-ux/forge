@@ -36,6 +36,7 @@ import forge.gamemodes.hexcrawl.HexCampaignIO;
 import forge.gamemodes.hexcrawl.HexColor;
 import forge.gamemodes.hexcrawl.HexContent;
 import forge.gamemodes.hexcrawl.HexEncounter;
+import forge.gamemodes.hexcrawl.HexFight;
 import forge.gamemodes.hexcrawl.HexMap;
 import forge.gamemodes.hexcrawl.HexNet;
 import forge.gamemodes.hexcrawl.HexPerk;
@@ -285,7 +286,13 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             }
         });
         bindKeys();
-        btnFight.addActionListener(e -> { if (session != null) { session.readyToFight(); } });
+        btnFight.addActionListener(e -> {
+            if (session != null && session.isFightRunning()) {
+                resetFight(); // the host only: the button is off for the guests while a fight runs
+            } else if (session != null) {
+                session.readyToFight();
+            }
+        });
         btnNewGamePlus.addActionListener(e -> newGamePlus());
         cboLeader.addActionListener(e -> {
             final int i = cboLeader.getSelectedIndex();
@@ -632,9 +639,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 showBossIntroIfNew(); // the archmage speaks before the fight begins
                 fightOnScreen = true;
                 if (isHosting()) {
-                    HexBattle.startHosted(s, FServerManager.getInstance().getLobby(), s::fightFinished);
+                    HexBattle.startHosted(s, FServerManager.getInstance().getLobby(), s::fightFinished, s::fightAborted);
                 } else {
-                    final HostedMatch match = HexBattle.start(s.getCampaign(), s::fightFinished);
+                    final HostedMatch match = HexBattle.start(s.getCampaign(), s::fightFinished, s::fightAborted);
                     match.setOnMatchOver(() -> SwingUtilities.invokeLater(() -> {
                         refresh();
                         promptRewardIfWaiting();
@@ -841,11 +848,15 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         if (session.isFightRunning()) {
             btnFight.setText(t("lblHexFightRunning"));
-            btnFight.setEnabled(false);
+            // the host may set a fight back that hangs (its end never came), see resetFight
+            btnFight.setEnabled(!session.isGuest());
+            btnFight.setToolTipText(session.isGuest() ? null : t("lblHexResetFightHint"));
         } else if (ready.contains(me)) {
+            btnFight.setToolTipText(null);
             btnFight.setText(t("lblHexFightWaiting", String.valueOf(ready.size()), String.valueOf(humans)));
             btnFight.setEnabled(false);
         } else {
+            btnFight.setToolTipText(null);
             btnFight.setText(t("lblHexFight"));
             btnFight.setEnabled(true);
         }
@@ -1937,6 +1948,28 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     }
 
     /** The campaign menu, painted like the side panel and opened over the map; what a guest cannot do is left out. */
+    /**
+     * Host: the map says a fight runs, but it hangs or has ended without telling the campaign. After asking,
+     * the fight is broken off for everybody without a result: the enemy stays and can be fought again.
+     */
+    private void resetFight() {
+        final HexSession s = session;
+        if (s == null || s.isGuest() || !s.isFightRunning()) {
+            return;
+        }
+        if (!FOptionPane.showConfirmDialog(t("lblHexResetFightAsk"), t("lblHexResetFight"), t("lblHexResetFightYes"), t("lblHexBack"))) {
+            return;
+        }
+        HexFightHostMenu.tellEverybody(t("lblHexFightAbortedChat"));
+        forge.util.ThreadUtil.invokeInGameThread(() -> {
+            s.resetFight();
+            SwingUtilities.invokeLater(() -> {
+                fightOnScreen = HexFight.current() != null;
+                refresh();
+            });
+        });
+    }
+
     private void openMenu(final JComponent anchor) {
         if (menu.isOpen()) {
             menu.close();
@@ -1957,6 +1990,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 menu.item(t("lblHexCloseCampaign"), null, true, this::closeCampaign);
             }
             menu.item(t("lblHexRename") + "...", null, has, this::renameCampaign);
+            if (has && session != null && session.isFightRunning()) {
+                menu.item(t("lblHexResetFight") + "...", null, true, this::resetFight);
+            }
             // the last campaigns played, one click each, with the day they were played
             final List<String> recent = HexCampaignIO.recent(has ? campaign.name : null, 5);
             if (!recent.isEmpty()) {

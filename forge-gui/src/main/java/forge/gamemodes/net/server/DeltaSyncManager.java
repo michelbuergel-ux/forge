@@ -173,7 +173,14 @@ public class DeltaSyncManager implements IHasForgeLog {
         if (currentObjectIds != null && packetsSinceLastChecksum >= checksumInterval) {
             checksumPropertyOrdinals = selectChecksumProperties();
             List<String> detail = new ArrayList<>();
-            checksum = NetworkChecksumUtil.computeSampledChecksum(gameView, checksumPropertyOrdinals, detail);
+            try {
+                checksum = NetworkChecksumUtil.computeSampledChecksum(gameView, checksumPropertyOrdinals, detail);
+            } catch (final java.util.ConcurrentModificationException e) {
+                // the game changed under the walk (team mates prompted at the same time): no checksum this time,
+                // as after an unfinished walk; thrown on, it broke the prompt that sent the packet and froze the game
+                netLog.warn("[DeltaSync] Checksum skipped, the game changed meanwhile: {}", e.toString());
+                return new DeltaPacket(sequenceNumber, objectDeltas, newObjects, 0, null);
+            }
             packetsSinceLastChecksum = 0;
             recentDeltaProperties.clear();
             cleanChecksumStreak++;
@@ -185,13 +192,17 @@ public class DeltaSyncManager implements IHasForgeLog {
                 checksumInterval = CHECKSUM_INTERVAL;
             }
 
-            logSampledChecksumDetails(gameView, checksum, sequenceNumber, checksumPropertyOrdinals);
+            try {
+                logSampledChecksumDetails(gameView, checksum, sequenceNumber, checksumPropertyOrdinals);
 
-            // Store breakdown for logging if the client reports a mismatch
-            int turn = gameView.getTurn();
-            int phaseOrdinal = gameView.getPhase() != null ? gameView.getPhase().ordinal() : -1;
-            lastChecksumBreakdown = NetworkChecksumUtil.computeChecksumBreakdown(turn, phaseOrdinal, gameView);
-            lastChecksumDetail = detail;
+                // Store breakdown for logging if the client reports a mismatch
+                int turn = gameView.getTurn();
+                int phaseOrdinal = gameView.getPhase() != null ? gameView.getPhase().ordinal() : -1;
+                lastChecksumBreakdown = NetworkChecksumUtil.computeChecksumBreakdown(turn, phaseOrdinal, gameView);
+                lastChecksumDetail = detail;
+            } catch (final java.util.ConcurrentModificationException e) {
+                netLog.warn("[DeltaSync] Checksum details skipped, the game changed meanwhile: {}", e.toString());
+            }
         }
 
         return new DeltaPacket(sequenceNumber, objectDeltas, newObjects, checksum, checksumPropertyOrdinals);

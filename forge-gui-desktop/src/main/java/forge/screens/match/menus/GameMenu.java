@@ -56,9 +56,13 @@ public final class GameMenu {
         menu.add(okOwnItem);
         menu.add(okPartnerItem);
         menu.add(getMenuItem_ClearRememberedAbilityOrders());
+        // a campaign fight on this computer (the host's): its way out when the fight hangs
+        final java.util.List<JMenuItem> hexHostItems = forge.screens.home.hexcrawl.HexFightHostMenu.items();
+        hexHostItems.forEach(menu::add);
         menu.addMenuListener(new MenuListener() {
             @Override public void menuSelected(final MenuEvent e) {
                 autoPassItem.setState(prefs.getPrefBoolean(FPref.YIELD_AUTO_PASS_NO_ACTIONS));
+                forge.screens.home.hexcrawl.HexFightHostMenu.refresh(hexHostItems);
                 final boolean hexFight = matchUI.getGameView() != null && matchUI.getGameView().isStreamlinedPriority();
                 okOwnItem.setVisible(hexFight);
                 okPartnerItem.setVisible(hexFight);

@@ -307,6 +307,47 @@ public class HexMovementTest extends AITest {
         AssertJUnit.assertEquals(2, fights.get());
     }
 
+    @Test
+    public void testABrokenOffFightWaitsForFightAndTheHostMayResetAHangingOne() {
+        final HexCampaign c = newCampaign();
+        final AtomicInteger fights = new AtomicInteger();
+        final HexSession s = session(c, fights);
+        final HexTile a = emptyNeighbour(c);
+        final HexEncounter enc = enemy();
+        place(a, enc);
+        s.handle("Ann", vote(a));
+        s.handle("Bob", vote(a));
+        AssertJUnit.assertTrue(s.isFightRunning());
+        AssertJUnit.assertEquals(1, fights.get());
+
+        // broken off without a result: nothing changes, the enemy stays
+        final int gold = c.player("Ann").gold;
+        final int deck = c.player("Ann").deck.size();
+        s.fightAborted();
+        AssertJUnit.assertFalse(s.isFightRunning());
+        AssertJUnit.assertSame(enc, c.pendingEncounter);
+        AssertJUnit.assertEquals(gold, c.player("Ann").gold);
+        AssertJUnit.assertEquals(deck, c.player("Ann").deck.size());
+        AssertJUnit.assertNull("no fight recorded", c.lastFight);
+        // not again by itself (a ping or a vote settles the session), only when somebody presses Fight
+        s.handle("Bob", new HexActionEvent(HexActionEvent.PING, a.q, a.r, null, false, null));
+        AssertJUnit.assertFalse(s.isFightRunning());
+        AssertJUnit.assertEquals(1, fights.get());
+        s.handle("Bob", new HexActionEvent(HexActionEvent.FIGHT, 0, 0, null, true, null));
+        AssertJUnit.assertTrue("one press is enough", s.isFightRunning());
+        AssertJUnit.assertEquals(2, fights.get());
+
+        // the end of the fight never came (no fight runs on this computer): the host sets it back
+        AssertJUnit.assertNull(forge.gamemodes.hexcrawl.HexFight.current());
+        AssertJUnit.assertTrue(s.resetFight());
+        AssertJUnit.assertFalse(s.isFightRunning());
+        AssertJUnit.assertSame(enc, c.pendingEncounter);
+        AssertJUnit.assertFalse("nothing to set back", s.resetFight());
+        AssertJUnit.assertFalse("a guest cannot", HexSession.forGuest().resetFight());
+        s.handle("Ann", new HexActionEvent(HexActionEvent.FIGHT, 0, 0, null, true, null));
+        AssertJUnit.assertEquals(3, fights.get());
+    }
+
     // ------------------------------------------------------------------ marching
 
     @Test

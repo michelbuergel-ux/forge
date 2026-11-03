@@ -86,6 +86,16 @@ public class InputPassPriority extends InputSyncronizedBase {
         final AfkTimeout timeout = HostingServer.armAfkTimeout(getController(), this);
         try {
             super.showAndWait();
+        } catch (final RuntimeException e) {
+            // it failed while being shown (a shared team prompt may be asked again): no dead prompt left on screen
+            if (!isFinished()) {
+                try {
+                    stop();
+                } catch (final RuntimeException again) {
+                    e.addSuppressed(again);
+                }
+            }
+            throw e;
         } finally {
             timeout.cancel();
             // interrupted before it was even shown: don't leave it behind on the queue

@@ -181,6 +181,54 @@ public class SharedTeamPriorityTest extends AITest {
         AssertJUnit.assertFalse(game.getPhaseHandler().getPriorityPlayer().sameTeam(a1));
     }
 
+    /**
+     * A team mate's prompt runs on a thread of its own and may trip over another thread reading the game
+     * (a ConcurrentModificationException): it is asked again instead of ending the game loop.
+     */
+    @Test(timeOut = 60000)
+    public void testAFailedPromptIsAskedAgainAndTheGameGoesOn() {
+        final Game game = initAndCreateTeamGame();
+        final Player a1 = game.getPlayers().get(0);
+        final Player a2 = game.getPlayers().get(2);
+        final ConcurrentHead c1 = new ConcurrentHead(game, a1);
+        final ConcurrentHead c2 = new ConcurrentHead(game, a2);
+        a1.dangerouslySetController(c1);
+        a2.dangerouslySetController(c2);
+        c1.script = n -> {
+            if (n == 1) {
+                throw new java.util.ConcurrentModificationException();
+            }
+            return null;
+        };
+
+        game.getPhaseHandler().mainLoopStep();
+
+        AssertJUnit.assertEquals("asked again", 2, c1.prompts.get());
+        AssertJUnit.assertEquals(1, c2.prompts.get());
+        AssertJUnit.assertFalse("the team passed", game.getPhaseHandler().getPriorityPlayer().sameTeam(a1));
+        AssertJUnit.assertFalse(game.isGameOver());
+    }
+
+    @Test(timeOut = 60000)
+    public void testAPromptThatKeepsFailingPassesAfterAFewTries() {
+        final Game game = initAndCreateTeamGame();
+        final Player a1 = game.getPlayers().get(0);
+        final Player a2 = game.getPlayers().get(2);
+        final ConcurrentHead c1 = new ConcurrentHead(game, a1);
+        final ConcurrentHead c2 = new ConcurrentHead(game, a2);
+        a1.dangerouslySetController(c1);
+        a2.dangerouslySetController(c2);
+        c1.script = n -> {
+            throw new IllegalStateException("broken " + n);
+        };
+
+        game.getPhaseHandler().mainLoopStep();
+
+        AssertJUnit.assertEquals("the first prompt and three more", 4, c1.prompts.get());
+        AssertJUnit.assertFalse("the team passed", game.getPhaseHandler().getPriorityPlayer().sameTeam(a1));
+        AssertJUnit.assertNull(game.getPhaseHandler().getTeamReady());
+    }
+
     private static void await(final CountDownLatch latch) {
         try {
             AssertJUnit.assertTrue(latch.await(10, TimeUnit.SECONDS));
