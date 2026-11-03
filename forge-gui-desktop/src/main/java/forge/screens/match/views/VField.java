@@ -102,7 +102,6 @@ public class VField implements IVDoc<CField> {
     };
 
     // ---- the game waits for this player: a pulsing amber frame and an hourglass on the avatar ----
-    private static final Color WAIT_AMBER = new Color(255, 190, 40);
     /** One clock for all fields: it repaints the avatars of the players the game waits for (and those it stopped waiting for). */
     private static Timer waitClock;
 
@@ -122,35 +121,9 @@ public class VField implements IVDoc<CField> {
     }
 
     private void paintWaitedFor(final Graphics g0) {
-        if (player == null || !player.isWaitedFor()) { return; }
-        final java.awt.Graphics2D g = (java.awt.Graphics2D) g0.create();
-        g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
-        final Rectangle r = lblAvatar.getBounds();
-        // the frame breathes, so the eye finds it
-        final double pulse = 0.5 + 0.5 * Math.sin(System.currentTimeMillis() / 260.0);
-        for (int i = 0; i < 4; i++) {
-            final int alpha = (int) Math.round((150 + 105 * pulse) * (1 - i * 0.22));
-            g.setColor(new Color(WAIT_AMBER.getRed(), WAIT_AMBER.getGreen(), WAIT_AMBER.getBlue(), Math.max(0, alpha)));
-            g.setStroke(new java.awt.BasicStroke(2f));
-            g.drawRoundRect(r.x + i, r.y + i, r.width - 1 - 2 * i, r.height - 1 - 2 * i, 8, 8);
+        if (player != null && player.isWaitedFor()) {
+            WaitedForFrame.paint(g0, lblAvatar.getBounds());
         }
-        // an hourglass in the top right corner
-        final int s = Math.max(12, Math.min(r.width, r.height) / 4);
-        final int bx = r.x + r.width - s - 4;
-        final int by = r.y + 4;
-        g.setColor(new Color(0, 0, 0, 170));
-        g.fillOval(bx - 3, by - 3, s + 6, s + 6);
-        g.setColor(WAIT_AMBER);
-        final java.awt.geom.Path2D glass = new java.awt.geom.Path2D.Double();
-        glass.moveTo(bx + s * 0.22, by + s * 0.15);
-        glass.lineTo(bx + s * 0.78, by + s * 0.15);
-        glass.lineTo(bx + s * 0.5, by + s * 0.5);
-        glass.lineTo(bx + s * 0.78, by + s * 0.85);
-        glass.lineTo(bx + s * 0.22, by + s * 0.85);
-        glass.lineTo(bx + s * 0.5, by + s * 0.5);
-        glass.closePath();
-        g.fill(glass);
-        g.dispose();
     }
 
     // ---- AI "thinking" timer bar over the avatar (shrinks to 0 at the AI timeout) ----
@@ -329,14 +302,7 @@ public class VField implements IVDoc<CField> {
         pnl.setLayout(new MigLayout("insets 0, gap 0"));
         if (teamMembers.size() > 1) {
             // a team's field: its heads in a column (avatar and details each), and one battlefield for all of them
-            final int n = teamMembers.size();
-            final JPanel heads = new JPanel(new MigLayout("insets 0, gap 0, wrap 1", "[grow, fill]"));
-            heads.setOpaque(false);
-            for (final VField m : teamMembers) {
-                heads.add(m.avatarArea, "w 100%!, h " + (35f / n) + "%!");
-                heads.add(m.detailsPanel, "w 100%!, h " + (64f / n) + "%!, gapleft 1px");
-            }
-            pnl.add(heads, "w 10%!, h 100%!, span 1 2");
+            pnl.add(TeamFieldColumn.build(teamMembers), "w 10%!, h 100%!, span 1 2");
             pnl.add(phaseIndicator, "w 5%!, h 100%!, span 1 2");
             pnl.add(scroller, "w 85%!, h 100%!, span 1 2, wrap");
             return;

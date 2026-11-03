@@ -430,7 +430,7 @@ public final class CMatchUI
         view.setTeamFields(teamFields);
         view.setFieldViews(fields);
         if (teamPlayers != null) {
-            formTeamBattlefields(fields);
+            TeamBattlefieldLayout.form(fields, sortedPlayers, teamPlayers);
         }
 
         initHandViews();
@@ -439,50 +439,9 @@ public final class CMatchUI
         screen.setCloseButtonTooltip(getConcedeCaption() + " Game");
     }
 
-    /**
-     * Team games: each side of several heads (ours, and every opposing team) gets one battlefield for all its heads,
-     * on the field of its first head; the others' avatars and details join that field in a column.
-     */
-    private void formTeamBattlefields(final List<VField> fields) {
-        final List<List<VField>> sides = new ArrayList<>();
-        for (int i = 0; i < sortedPlayers.size() && i < fields.size(); i++) {
-            final PlayerView p = sortedPlayers.get(i);
-            List<VField> side = null;
-            for (final List<VField> s : sides) {
-                final PlayerView first = s.get(0).getPlayer();
-                final boolean together = teamPlayers.contains(p) ? teamPlayers.contains(first)
-                        : !teamPlayers.contains(first) && !first.isOpponentOf(p);
-                if (together) {
-                    side = s;
-                    break;
-                }
-            }
-            if (side == null) {
-                side = new ArrayList<>();
-                sides.add(side);
-            }
-            side.add(fields.get(i));
-        }
-        // each side as chosen in the Display menu: the own team and the enemy teams apart
-        final boolean own = FModel.getPreferences().getPrefBoolean(FPref.UI_TEAM_BATTLEFIELD_OWN);
-        final boolean enemy = FModel.getPreferences().getPrefBoolean(FPref.UI_TEAM_BATTLEFIELD_ENEMY);
-        for (final List<VField> side : sides) {
-            final boolean ours = teamPlayers.contains(side.get(0).getPlayer());
-            if (side.size() > 1 && (ours ? own : enemy)) {
-                side.get(0).leadTeam(side);
-            }
-        }
-    }
-
     /** The battlefields on screen, each once (team members share their team's). */
     public List<PlayArea> getTabletops() {
-        final List<PlayArea> result = new ArrayList<>();
-        for (final VField f : getFieldViews()) {
-            if (!result.contains(f.getTabletop())) {
-                result.add(f.getTabletop());
-            }
-        }
-        return result;
+        return TeamBattlefieldLayout.tabletops(getFieldViews());
     }
 
     /** Shared team turns: a team mate's hand gets its own tab, like the own hand. */
@@ -1031,78 +990,29 @@ public final class CMatchUI
         }
     }
 
-    // ------------------------------------------------------------------ Hex Campaign: banner, team log, pings
+    // ------------------------------------------------------------------ team play and Hex Campaign fights
 
-    /** The strip above a campaign fight: the enemy, its life and the team mates' last actions; null in other matches. */
-    private forge.screens.home.hexcrawl.HexFightBanner fightBanner;
+    /** The fight banner, the team log, pings and team signals (see HexMatchExtras): they act only in such games. */
+    private final HexMatchExtras hexExtras = new HexMatchExtras(this);
 
-    /** Puts the banner above the match (again: laying out a screen clears it). Only in campaign fights. */
     void placeFightBanner() {
-        if (fightBanner == null) {
-            final forge.gamemodes.hexcrawl.HexFightInfo info = forge.gamemodes.hexcrawl.HexNet.getFightInfo();
-            if (info == null) {
-                return;
-            }
-            fightBanner = new forge.screens.home.hexcrawl.HexFightBanner(info, card -> setCard(card));
-        }
-        final JPanel insets = FView.SINGLETON_INSTANCE.getPnlInsets();
-        if (fightBanner.getParent() != insets) {
-            insets.add(fightBanner, java.awt.BorderLayout.NORTH);
-            insets.revalidate();
-            forge.gui.framework.SResizingUtil.resizeWindow();
-        }
-        refreshFightBanner();
+        hexExtras.placeFightBanner();
     }
 
-    /** Takes the banner away when another screen comes up. */
     void removeFightBanner() {
-        if (fightBanner != null && fightBanner.getParent() != null) {
-            final java.awt.Container parent = fightBanner.getParent();
-            parent.remove(fightBanner);
-            parent.revalidate();
-            forge.gui.framework.SResizingUtil.resizeWindow();
-        }
+        hexExtras.removeFightBanner();
     }
 
-    /** The enemy team's life (the team shares it) and whether its boss has woken, into the banner. */
     private void refreshFightBanner() {
-        final GameView gv = getGameView();
-        if (fightBanner == null || gv == null) {
-            return;
-        }
-        final forge.gamemodes.hexcrawl.HexFightInfo info = forge.gamemodes.hexcrawl.HexNet.getFightInfo();
-        final String phaseCard = info == null ? null : info.phaseCard;
-        Integer life = null;
-        boolean awakened = false;
-        for (final PlayerView p : gv.getPlayers()) {
-            if (!isEnemyOfTeam(p)) {
-                continue;
-            }
-            life = life == null ? p.getLife() : Math.max(life, p.getLife());
-            if (phaseCard != null && p.getCommand() != null) {
-                for (final CardView c : p.getCommand()) {
-                    if (phaseCard.equals(c.getName()) && c.getCounters(forge.game.card.CounterEnumType.AWAKENING) > 0) {
-                        awakened = true;
-                    }
-                }
-            }
-        }
-        if (life != null) {
-            fightBanner.setEnemy(life, awakened);
-        }
+        hexExtras.refreshFightBanner();
     }
 
-    /** A player of the other side: not on this screen's team. */
-    private boolean isEnemyOfTeam(final PlayerView p) {
-        if (teamPlayers != null) {
-            return !teamPlayers.contains(p);
-        }
-        for (final PlayerView mine : getLocalPlayers()) {
-            if (mine.isOpponentOf(p)) {
-                return true;
-            }
-        }
-        return false;
+    private void updateTeamControls() {
+        hexExtras.updateTeamControls();
+    }
+
+    private void noteTeamLand(final CardView land) {
+        hexExtras.noteTeamLand(land);
     }
 
     /** A game of teams with several heads on this screen's side (the team signals and pings work). */
@@ -1110,70 +1020,25 @@ public final class CMatchUI
         return teamPlayers != null && teamPlayers.size() > 1;
     }
 
-    /** A team mate, not one of this screen's own players. */
-    private boolean isTeamMate(final PlayerView p) {
-        return p != null && teamPlayers != null && teamPlayers.contains(p) && !isLocalPlayer(p);
+    /** Team games: the local player and the team mates; null in every other game. */
+    java.util.Set<PlayerView> getTeamPlayers() {
+        return teamPlayers;
     }
 
     @Override
     public void noteTeamCast(final GameEventSpellAbilityCast event) {
-        final StackItemView si = event.si();
-        if (fightBanner == null || si == null || si.isTrigger() || !isTeamMate(si.getActivatingPlayer())) {
-            return;
-        }
-        final CardView card = si.getSourceCard();
-        String text = si.getActivatingPlayer().getName() + ": " + (card != null ? card.getName() : si.getText());
-        final String targets = event.targetDescription();
-        if (targets != null && !targets.isEmpty()) {
-            text += " → " + targets;
-        }
-        fightBanner.addTeamAction(text, card);
-    }
-
-    /** A team mate played a land: into the banner's log. */
-    private void noteTeamLand(final CardView land) {
-        if (fightBanner != null && land != null && isTeamMate(land.getController())) {
-            fightBanner.addTeamAction(Localizer.getInstance().getMessage("lblHexBannerLand", land.getController().getName(), land.getName()), land);
-        }
+        hexExtras.noteTeamCast(event);
     }
 
     @Override
     public void showPing(final PlayerView from, final CardView card) {
         super.showPing(from, card);
-        if (card != null && from != null && !isLocalPlayer(from)) {
-            // a team mate points at a card: a chime, and who pointed at what
-            forge.sound.SoundSystem.instance.play(forge.sound.SoundEffectType.TakeShard, false);
-            final String text = Localizer.getInstance().getMessage("lblPingFrom", from.getName(), card.getName());
-            FThreads.invokeInEdtNowOrLater(() -> getCPrompt().showSignal(text, 4000));
-        }
-        // the lit card pulses while it is lit
-        FThreads.invokeInEdtNowOrLater(() -> {
-            final long until = System.currentTimeMillis() + 4100;
-            final javax.swing.Timer pulse = new javax.swing.Timer(70, null);
-            pulse.addActionListener(e -> {
-                repaintCardOverlays();
-                if (System.currentTimeMillis() > until) {
-                    pulse.stop();
-                }
-            });
-            pulse.start();
-        });
-    }
-
-    /** Team signal buttons in team games; Flee in the first turns of a Hex Campaign fight. */
-    private void updateTeamControls() {
-        final GameView gv = getGameView();
-        final boolean team = teamPlayers != null && teamPlayers.size() > 1 && hasLocalPlayers();
-        final boolean mayFlee = gv != null && hasLocalPlayers() && forge.gamemodes.hexcrawl.HexNet.isCampaignFight()
-                && gv.getTurn() <= forge.gamemodes.hexcrawl.HexFight.FLEE_MAX_TURN && !gv.isGameOver();
-        getCPrompt().showTeamControls(team, mayFlee);
+        hexExtras.showPing(from, card);
     }
 
     @Override
     public void showTeamSignal(final PlayerView from, final forge.gamemodes.match.TeamSignal signal, final String detail) {
-        final String what = detail != null ? detail : Localizer.getInstance().getMessage(signal.getLabelKey());
-        final String text = signal == forge.gamemodes.match.TeamSignal.FLEE_VOTE || from == null ? what : from.getName() + ": " + what;
-        FThreads.invokeInEdtNowOrLater(() -> getCPrompt().showSignal(text, signal == forge.gamemodes.match.TeamSignal.FLEE_VOTE ? 10000 : 4000));
+        hexExtras.showTeamSignal(from, signal, detail);
     }
 
     @Override

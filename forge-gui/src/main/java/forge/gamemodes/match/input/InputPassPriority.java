@@ -46,7 +46,6 @@ import forge.util.ThreadUtil;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ScheduledFuture;
 
 /**
  * <p>
@@ -68,18 +67,10 @@ public class InputPassPriority extends InputSyncronizedBase {
 
     /** Team games with streamlined priority: a team mate's spell or ability is OK'd by itself after this many seconds. */
     public static final int PARTNER_AUTO_OK_SECONDS = 2;
-    /** A team mate acts (casts, pays) while this prompt stays open: what it does, and its card. */
-    private volatile String mateActing;
-    private volatile CardView mateCard;
-    /** A card picked while the mate acted: it is played right after (see mateDone). */
-    private Card queuedCard;
-    private List<Card> queuedOthers;
-    private ITriggerEvent queuedEvent;
-    /** The running countdown for a team mate's stack item, if any. */
-    private ScheduledFuture<?> partnerCountdown;
-    private int partnerSecondsLeft;
-    /** The player pressed Hold (or started to act): no countdown for this prompt any more. */
-    private volatile boolean partnerHeld;
+    /** Team play: a team mate's spell waiting for this player's OK (see PartnerPrompt). */
+    private final PartnerPrompt partner = new PartnerPrompt(this);
+    /** Team play: a team mate acting while this prompt stays open (see MateActing). */
+    private final MateActing mate = new MateActing(this);
 
     public InputPassPriority(final PlayerControllerHuman controller) {
         super(controller);
@@ -87,7 +78,7 @@ public class InputPassPriority extends InputSyncronizedBase {
 
     @Override
     protected void onStop() {
-        cancelPartnerCountdown();
+        partner.cancel();
     }
 
     @Override
@@ -107,7 +98,7 @@ public class InputPassPriority extends InputSyncronizedBase {
     /** Shared team priority: a team mate acted first, this prompt ends without a decision. */
     public void interrupt() {
         interrupted = true;
-        cancelPartnerCountdown();
+        partner.cancel();
         if (isFinished()) return;
         chosenSa = null;
         stop();
@@ -120,8 +111,8 @@ public class InputPassPriority extends InputSyncronizedBase {
     /** {@inheritDoc} */
     @Override
     public final void showMessage() {
-        if (mateActing != null) {
-            showMateActingPrompt();
+        if (mate.isActive()) {
+            mate.showPrompt();
             return;
         }
         if (isWaitingForMates()) {
@@ -180,62 +171,49 @@ public class InputPassPriority extends InputSyncronizedBase {
         return !isFinished() && !interrupted;
     }
 
-    // ------------------------------------------------------------------ a team mate acts while this prompt stays open
+    // ------------------------------------------------------------------ team play (the work is done in MateActing, PartnerPrompt)
 
     /** A team mate acts: the prompt says so and shows its card; no OK meanwhile, and a card picked waits for the mate. */
     public void showMateActing(final String what, final CardView card) {
-        mateActing = what;
-        mateCard = card;
-        cancelPartnerCountdown();
-        if (!isFinished()) {
-            showMateActingPrompt();
-        }
+        mate.show(what, card);
     }
 
     public boolean hasQueuedCard() {
-        return queuedCard != null;
+        return mate.hasQueuedCard();
     }
 
-    private void showMateActingPrompt() {
-        final Localizer loc = Localizer.getInstance();
-        final String hint = queuedCard == null ? loc.getMessage("lblTeamMateActingHint")
-                : loc.getMessage("lblTeamCardQueued", forge.util.CardTranslation.getTranslatedName(queuedCard.getName()));
-        final String box = "<table width=\"100%\" cellpadding=\"6\" bgcolor=\"#5a4a1f\"><tr><td><font color=\"#ffffff\"><b>"
-                + escape(mateActing) + "</b><br>" + escape(hint) + "</font></td></tr></table>";
-        showMessage(box + getTurnPhasePriorityMessage(getController().getGame()), mateCard);
-        if (mateCard != null) {
-            getController().getGui().setCard(mateCard); // the mate's card big in the picture panel
-        }
-        getController().getGui().updateButtons(getOwner(), loc.getMessage("lblOK"), loc.getMessage("lblCancel"), false, false, false);
-    }
-
-    /**
-     * The mate's action is done: the prompt shows the new state (an OK said before is void, the game changed), and a
-     * card picked meanwhile is played now.
-     */
+    /** The mate's action is done: the prompt shows the new state, and a card picked meanwhile is played now. */
     public void mateDone() {
-        mateActing = null;
-        mateCard = null;
-        if (isFinished()) {
-            return;
+        mate.done();
+    }
+
+    /** "Always OK my partner" was switched on while a team mate's item waits: OK it now. */
+    public void onAlwaysOkPartnerChanged() {
+        partner.onAlwaysOkChanged();
+    }
+
+    /** For the team parts: the prompt shows no choice of its own (a mate's item is shown). */
+    void clearChosen() {
+        chosenSa = null;
+    }
+
+    /** For MateActing: the card picked meanwhile is played now. */
+    void replayCard(final Card card, final List<Card> others, final ITriggerEvent event) {
+        if (!isFinished()) {
+            onCardSelected(card, others, event);
         }
-        partnerHeld = false;
+    }
+
+    /** For MateActing: no countdown for a partner's item while a mate acts. */
+    void partnerCancel() {
+        partner.cancel();
+    }
+
+    /** For MateActing: the partner's hold ends and the OK said before is void (the game changed). */
+    void newTeamRound() {
+        partner.release();
         forgetOk();
         watchTeam();
-        final Card card = queuedCard;
-        final List<Card> others = queuedOthers;
-        final ITriggerEvent event = queuedEvent;
-        queuedCard = null;
-        queuedOthers = null;
-        queuedEvent = null;
-        showMessage();
-        if (card != null) {
-            forge.gui.FThreads.invokeInEdtLater(() -> {
-                if (!isFinished()) {
-                    onCardSelected(card, others, event);
-                }
-            });
-        }
     }
 
     /** Ends this prompt without an action; the game thread then performs a pending undo. */
@@ -281,9 +259,9 @@ public class InputPassPriority extends InputSyncronizedBase {
         pendingSuggestionMessage = null;
 
         showSelection();
-        final SpellAbilityStackInstance partnerItem = partnerItem();
+        final SpellAbilityStackInstance partnerItem = partner.item();
         if (partnerItem != null) {
-            showPartnerPrompt(partnerItem);
+            partner.show(partnerItem);
             return;
         }
         showMessage(getTurnPhasePriorityMessage(getController().getGame()));
@@ -303,125 +281,6 @@ public class InputPassPriority extends InputSyncronizedBase {
         }
 
         getController().getGui().alertUser();
-    }
-
-    // ------------------------------------------------------------------ a team mate's spell or ability
-
-    /**
-     * The item on top of the stack if a team mate (not this player, not an opponent) put it there,
-     * in a game with streamlined priority (Hex Campaign fights); otherwise null.
-     */
-    private SpellAbilityStackInstance partnerItem() {
-        final Game game = getController().getGame();
-        final Player me = getController().getPlayer();
-        if (game == null || me == null || !game.getRules().hasStreamlinedPriority() || game.getStack().isEmpty()) {
-            return null;
-        }
-        final SpellAbilityStackInstance top = game.getStack().peek();
-        final Player by = top == null ? null : top.getActivatingPlayer();
-        return by == null || by.equals(me) || by.isOpponentOf(me) ? null : top;
-    }
-
-    /** Is the player's "Always OK my partner" on? */
-    private boolean alwaysOkPartner() {
-        return getController().getYieldController().getBoolPref(FPref.YIELD_AUTO_OK_PARTNER);
-    }
-
-    /**
-     * A team mate's spell or ability waits for this player's OK: it is shown highlighted with its
-     * card, and OK'd by itself after a few seconds (at once with "Always OK my partner"), unless the
-     * player holds or starts to act.
-     */
-    private void showPartnerPrompt(final SpellAbilityStackInstance item) {
-        final Localizer loc = Localizer.getInstance();
-        final Card source = item.getSourceCard();
-        final String what = source == null ? item.getStackDescription() : source.getName();
-        final String hint;
-        if (partnerHeld) {
-            hint = loc.getMessage("lblPartnerHeld");
-        } else if (alwaysOkPartner()) {
-            hint = loc.getMessage("lblPartnerAlwaysOk");
-        } else {
-            hint = loc.getMessage("lblPartnerAutoOk", String.valueOf(PARTNER_AUTO_OK_SECONDS));
-        }
-        // a coloured box on top of the prompt (the desktop prompt shows HTML)
-        final String box = "<table width=\"100%\" cellpadding=\"6\" bgcolor=\"#1f6f43\"><tr><td><font color=\"#ffffff\"><b>"
-                + escape(loc.getMessage("lblPartnerAction", item.getActivatingPlayer().getName(), what)) + "</b><br>"
-                + escape(hint) + "</font></td></tr></table>";
-        showMessage(box + getTurnPhasePriorityMessage(getController().getGame()), source == null ? null : source.getView());
-        chosenSa = null;
-        if (source != null) {
-            getController().getGui().setCard(source.getView()); // the card big in the picture panel
-        }
-        if (partnerHeld) {
-            getController().getGui().updateButtons(getOwner(), loc.getMessage("lblOK"), loc.getMessage("lblHold"), true, false, true);
-        } else if (alwaysOkPartner()) {
-            getController().getGui().updateButtons(getOwner(), loc.getMessage("lblOK"), loc.getMessage("lblHold"), true, true, true);
-            startPartnerCountdown(0);
-        } else {
-            startPartnerCountdown(PARTNER_AUTO_OK_SECONDS);
-        }
-        getController().getGui().alertUser();
-    }
-
-    private static String escape(final String s) {
-        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-    }
-
-    private synchronized void startPartnerCountdown(final int seconds) {
-        cancelPartnerCountdown();
-        partnerSecondsLeft = seconds;
-        if (seconds <= 0) {
-            partnerCountdown = ThreadUtil.delay(0, this::partnerTick);
-            return;
-        }
-        showCountdownButtons();
-        partnerCountdown = ThreadUtil.delay(1000, this::partnerTick);
-    }
-
-    private void showCountdownButtons() {
-        final Localizer loc = Localizer.getInstance();
-        getController().getGui().updateButtons(getOwner(), loc.getMessage("lblOK") + " (" + partnerSecondsLeft + ")",
-                loc.getMessage("lblHold"), true, true, true);
-    }
-
-    /** One second of the countdown has passed; at zero the team mate's item is OK'd. */
-    private void partnerTick() {
-        synchronized (this) {
-            if (partnerCountdown == null || isFinished() || partnerHeld) {
-                return;
-            }
-            partnerSecondsLeft--;
-            if (partnerSecondsLeft > 0) {
-                showCountdownButtons();
-                partnerCountdown = ThreadUtil.delay(1000, this::partnerTick);
-                return;
-            }
-            partnerCountdown = null;
-        }
-        if (partnerItem() != null) {
-            passPriority();
-        }
-    }
-
-    private synchronized void cancelPartnerCountdown() {
-        if (partnerCountdown != null) {
-            partnerCountdown.cancel(false);
-            partnerCountdown = null;
-        }
-    }
-
-    /** The player starts to act (picks a card or an ability): the countdown must not pass for them. */
-    private void holdForPartner() {
-        partnerHeld = true;
-        cancelPartnerCountdown();
-    }
-
-    /** "Always OK my partner" was switched on while a team mate's item waits: OK it now. */
-    public void onAlwaysOkPartnerChanged() {
-        if (!isFinished() && !partnerHeld && alwaysOkPartner() && partnerItem() != null) {
-            startPartnerCountdown(0);
-        }
     }
 
     private boolean isAlreadyYielding() {
@@ -465,7 +324,7 @@ public class InputPassPriority extends InputSyncronizedBase {
     /** {@inheritDoc} */
     @Override
     protected final void onOk() {
-        if (isWaitingForMates() || mateActing != null) {
+        if (isWaitingForMates() || mate.isActive()) {
             return; // OK said already, or a mate acts: wait
         }
         if (pendingSuggestion != null) {
@@ -532,11 +391,8 @@ public class InputPassPriority extends InputSyncronizedBase {
     /** {@inheritDoc} */
     @Override
     protected final void onCancel() {
-        if (mateActing != null) {
-            if (queuedCard != null) {
-                queuedCard = null; // the card picked is dropped again
-                showMateActingPrompt();
-            }
+        if (mate.isActive()) {
+            mate.dropQueued(); // the card picked is dropped again
             return;
         }
         if (isWaitingForMates()) {
@@ -545,9 +401,9 @@ public class InputPassPriority extends InputSyncronizedBase {
             }
             return;
         }
-        if (partnerItem() != null && !partnerHeld) {
+        if (partner.item() != null && !partner.isHeld()) {
             // "Hold": no countdown, the player wants to respond to the team mate's spell
-            holdForPartner();
+            partner.hold();
             showNormalPrompt();
             return;
         }
@@ -608,12 +464,9 @@ public class InputPassPriority extends InputSyncronizedBase {
         if (abilities.isEmpty()) {
             return false;
         }
-        if (mateActing != null) {
+        if (mate.isActive()) {
             // the mate is in the middle of its action: the card is played right after it
-            queuedCard = card;
-            queuedOthers = otherCardsToSelect;
-            queuedEvent = triggerEvent;
-            showMateActingPrompt();
+            mate.queue(card, otherCardsToSelect, triggerEvent);
             return true;
         }
         if (isWaitingForMates()) {
@@ -622,7 +475,7 @@ public class InputPassPriority extends InputSyncronizedBase {
             }
             showNormalPrompt(); // acting takes the pass back
         }
-        holdForPartner();
+        partner.hold();
 
         final SpellAbility ability = getController().getAbilityToPlay(card, abilities, triggerEvent);
         if (ability != null) {
@@ -664,13 +517,13 @@ public class InputPassPriority extends InputSyncronizedBase {
     @Override
     public boolean selectAbility(final SpellAbility ab) {
     	if (ab != null) {
-            if (mateActing != null) {
+            if (mate.isActive()) {
                 return false; // a mate acts: pick its card instead, it waits
             }
             if (isWaitingForMates() && !takeBackOk()) {
                 return false; // too late: the team passed
             }
-            holdForPartner();
+            partner.hold();
     	    chosenSa = new ArrayList<>();
             chosenSa.add(ab);
             stop();
