@@ -50,12 +50,18 @@ public final class GameMenu {
         final SkinnedCheckBoxMenuItem autoPassItem = getMenuItem_AutoPass();
         menu.add(autoPassItem);
         menu.add(getMenuItem_AlwaysAutoPay());
-        menu.add(getMenuItem_OkOwnSpells());
-        menu.add(getMenuItem_AlwaysOkPartner());
+        // Hex Campaign fights only: elsewhere they do nothing, so they are not shown
+        final SkinnedCheckBoxMenuItem okOwnItem = getMenuItem_OkOwnSpells();
+        final SkinnedCheckBoxMenuItem okPartnerItem = getMenuItem_AlwaysOkPartner();
+        menu.add(okOwnItem);
+        menu.add(okPartnerItem);
         menu.add(getMenuItem_ClearRememberedAbilityOrders());
         menu.addMenuListener(new MenuListener() {
             @Override public void menuSelected(final MenuEvent e) {
                 autoPassItem.setState(prefs.getPrefBoolean(FPref.YIELD_AUTO_PASS_NO_ACTIONS));
+                final boolean hexFight = matchUI.getGameView() != null && matchUI.getGameView().isStreamlinedPriority();
+                okOwnItem.setVisible(hexFight);
+                okPartnerItem.setVisible(hexFight);
             }
             @Override public void menuDeselected(final MenuEvent e) {}
             @Override public void menuCanceled(final MenuEvent e) {}

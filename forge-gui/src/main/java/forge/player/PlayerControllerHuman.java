@@ -1861,6 +1861,12 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         return defaultInput.getChosenSa();
     }
 
+    /** Team play (shared team turns) or a Hex Campaign fight: the games the team and Hex additions are meant for. */
+    private boolean isTeamOrHexGame() {
+        final Game game = getGame();
+        return game != null && (game.getRules().hasSharedTeamTurns() || game.getRules().hasStreamlinedPriority());
+    }
+
     /** A prompt of this player opens (true) or closes: the game waits for them while one is open. */
     public void noteInputOpen(final boolean open) {
         if (open) {
@@ -1880,8 +1886,8 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
 
     private void updateWaitedFor() {
         final Game game = getGame();
-        if (player == null || game == null) {
-            return;
+        if (player == null || game == null || !isTeamOrHexGame()) {
+            return; // other game modes stay as they were
         }
         final boolean waited = openInputs.get() > 0 && !okSaid;
         if (player.getView().isWaitedFor() == waited) {
@@ -2141,8 +2147,8 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         } else {
             final String title = sa == null || sa.getHostCard() == null ? "" : CardView.get(sa.getHostCard()).toString();
             final String source = sa == null || sa.getHostCard() == null ? null : sa.getHostCard().getName();
-            if (source == null) {
-                getGui().message(message, title);
+            if (source == null || !isTeamOrHexGame()) {
+                getGui().message(message, title); // other game modes: the plain window, as ever
                 return;
             }
             if (mutedNotices.contains(source)) {

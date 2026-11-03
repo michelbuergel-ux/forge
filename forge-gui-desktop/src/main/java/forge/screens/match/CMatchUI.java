@@ -1468,7 +1468,8 @@ public final class CMatchUI
         // Multiplayer: sort by turn order with local player first
         final String layout = FModel.getPreferences().getPref(FPref.UI_MULTIPLAYER_FIELD_LAYOUT);
         teamPlayers = null;
-        if (players.size() > 2 && myPlayers != null && myPlayers.size() >= 1) {
+        // team play (shared team turns) only: other team games keep Forge's own layout
+        if (gameView.isSharedTeamTurns() && players.size() > 2 && myPlayers != null && myPlayers.size() >= 1) {
             // a team of several heads: own field first, then an opponent, so that the two base
             // cells are "us" (bottom) and "them" (top); the other fields join their side as tabs
             // the game's own instance: in a network game myPlayers holds copies sent with

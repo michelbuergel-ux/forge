@@ -50,6 +50,7 @@ public class GameView extends TrackableObject {
         set(TrackableProperty.GameType, rules.getGameType());
         set(TrackableProperty.PoisonCountersToLose, rules.getPoisonCountersToLose());
         set(TrackableProperty.StreamlinedPriority, rules.hasStreamlinedPriority());
+        set(TrackableProperty.SharedTeamTurns, rules.hasSharedTeamTurns());
         set(TrackableProperty.NumGamesInMatch, rules.getGamesPerMatch());
 
         set(TrackableProperty.NumPlayedGamesInMatch, game.getMatch().getOutcomes().size());
@@ -80,6 +81,12 @@ public class GameView extends TrackableObject {
 
     public GameType getGameType() {
         return get(TrackableProperty.GameType);
+    }
+
+    /** See {@link GameRules#hasSharedTeamTurns()}: the team play of Multi-Headed Giant (and Hex Campaign fights). */
+    public boolean isSharedTeamTurns() {
+        final Boolean value = get(TrackableProperty.SharedTeamTurns);
+        return value != null && value;
     }
 
     /** See {@link GameRules#hasStreamlinedPriority()}. */

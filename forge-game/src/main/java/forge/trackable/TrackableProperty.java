@@ -256,6 +256,7 @@ public enum TrackableProperty {
     PoisonCountersToLose(TrackableTypes.IntegerType),
     ActivePlayers(TrackableTypes.PlayerViewCollectionType, FreezeMode.IgnoresFreeze),
     StreamlinedPriority(TrackableTypes.BooleanType),
+    SharedTeamTurns(TrackableTypes.BooleanType),
     Object(TrackableTypes.ObjectType, FreezeMode.IgnoresFreeze),
     Dependencies(TrackableTypes.StringType);
 

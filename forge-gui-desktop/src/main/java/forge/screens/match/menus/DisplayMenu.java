@@ -37,8 +37,20 @@ public final class DisplayMenu {
         menu.add(getSubmenu_StackGroupPermanents());
         menu.add(getMenuItem_TokensSeparateRow());
         menu.add(getMenuItem_SeparateCombatStacks());
-        menu.add(getMenuItem_TeamBattlefield(FPref.UI_TEAM_BATTLEFIELD_OWN, "cbTeamBattlefieldOwn"));
-        menu.add(getMenuItem_TeamBattlefield(FPref.UI_TEAM_BATTLEFIELD_ENEMY, "cbTeamBattlefieldEnemy"));
+        // team play (shared team turns) only: elsewhere they do nothing, so they are not shown
+        final SkinnedCheckBoxMenuItem teamOwn = getMenuItem_TeamBattlefield(FPref.UI_TEAM_BATTLEFIELD_OWN, "cbTeamBattlefieldOwn");
+        final SkinnedCheckBoxMenuItem teamEnemy = getMenuItem_TeamBattlefield(FPref.UI_TEAM_BATTLEFIELD_ENEMY, "cbTeamBattlefieldEnemy");
+        menu.add(teamOwn);
+        menu.add(teamEnemy);
+        menu.addMenuListener(new javax.swing.event.MenuListener() {
+            @Override public void menuSelected(final javax.swing.event.MenuEvent e) {
+                final boolean team = matchUI.getGameView() != null && matchUI.getGameView().isSharedTeamTurns();
+                teamOwn.setVisible(team);
+                teamEnemy.setVisible(team);
+            }
+            @Override public void menuDeselected(final javax.swing.event.MenuEvent e) { }
+            @Override public void menuCanceled(final javax.swing.event.MenuEvent e) { }
+        });
         menu.add(getMenuItem_ActionableHighlights());
         menu.add(getMenuItem_AutoTapPreview());
         menu.add(getMenuItem_LinkedExileCards());
