@@ -33,6 +33,14 @@ public class HexDungeon {
     public int bossY;
     /** The enchantment or artifact in play in every fight of the dungeon (it affects everybody). */
     public String ruleCard;
+    /**
+     * The dungeon of all five colours, which opens once a cycle (see {@link HexCampaign#rainbowAt()}): each of its rooms
+     * has a colour of its own ({@link #roomColor}), it has more enemies, a stronger lord, one treasure room more, a
+     * richer chest, and a second rule card. Its {@link #color} is colourless.
+     */
+    public boolean multicolor;
+    /** The five-colour dungeon's second rule card, of another colour than the first (null in any other dungeon). */
+    public String secondRuleCard;
 
     /** The party is inside, in this room (and came from that one). */
     public boolean inside;
@@ -46,6 +54,30 @@ public class HexDungeon {
     public List<String> buffs = new ArrayList<>();
     /** The boss is beaten and its chest open: the dungeon stays empty for the rest of the cycle. */
     public boolean cleared;
+
+    /** The rule cards in play in every fight of the dungeon: one, or two in the five-colour dungeon (none in old saves). */
+    public List<String> ruleCards() {
+        final List<String> result = new ArrayList<>();
+        if (ruleCard != null) {
+            result.add(ruleCard);
+        }
+        if (secondRuleCard != null) {
+            result.add(secondRuleCard);
+        }
+        return result;
+    }
+
+    /**
+     * The colour of a room: the dungeon's, or in the five-colour dungeon one of the five, the same for the room as
+     * long as the labyrinth stands. Its enemy, its treasure card and its look are of that colour.
+     */
+    public HexColor roomColor(final HexRoom r) {
+        if (!multicolor || r == null) {
+            return color;
+        }
+        final int hash = (r.x * 73856093) ^ (r.y * 19349663) ^ (bossX * 83492791) ^ (bossY * 2654435);
+        return HexColor.COLORS[Math.floorMod(hash, HexColor.COLORS.length)];
+    }
 
     public static int dx(final int door) {
         return door == EAST ? 1 : door == WEST ? -1 : 0;

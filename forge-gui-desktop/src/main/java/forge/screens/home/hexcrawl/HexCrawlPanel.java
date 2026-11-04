@@ -1000,9 +1000,11 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         final List<String> boosts = new ArrayList<>(campaign.fightBoosts());
         final forge.gamemodes.hexcrawl.HexDungeon inside = campaign.inLabyrinth() ? campaign.dungeonHere() : null;
         if (inside != null) {
-            final forge.item.IPaperCard rule = inside.ruleCard == null ? null : HexContent.get().findStartCard(inside.ruleCard);
-            if (rule != null) {
-                boosts.add(t("lblHexLabyRule", rule.getName()));
+            for (final String ruleCard : inside.ruleCards()) {
+                final forge.item.IPaperCard rule = HexContent.get().findStartCard(ruleCard);
+                if (rule != null) {
+                    boosts.add(t("lblHexLabyRule", rule.getName()));
+                }
             }
             boosts.add(t("lblHexLabyLife", String.valueOf(inside.lifeLeft)));
             for (final String buff : inside.buffs) {
@@ -1117,10 +1119,11 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         info.startLife = campaign.enemyLife(enc);
         info.phaseCard = HexContent.get().phaseTwoCard(enc);
         if (enc.dungeonStage > 0) {
-            final String ruleCard = campaign.dungeonRuleCard(enc);
-            final forge.item.IPaperCard rule = ruleCard == null ? null : HexContent.get().findStartCard(ruleCard);
-            if (rule != null) {
-                info.pills.add(loc.getMessage("lblHexLabyRule", rule.getName()));
+            for (final String ruleCard : campaign.dungeonRuleCards(enc)) {
+                final forge.item.IPaperCard rule = HexContent.get().findStartCard(ruleCard);
+                if (rule != null) {
+                    info.pills.add(loc.getMessage("lblHexLabyRule", rule.getName()));
+                }
             }
             info.pills.add(loc.getMessage("lblHexFightPillDungeonLife", String.valueOf(campaign.partyStartLife())));
             for (final String buff : forge.gamemodes.hexcrawl.HexLabyrinth.BUFFS) {
@@ -1355,21 +1358,30 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
     }
 
-    /** Before the party goes into a dungeon: its decks lock, and its rule card is in play in every fight. */
+    /** Before the party goes into a dungeon: its decks lock, and its rule cards are in play in every fight. */
     private boolean confirmDungeon(final HexTile target) {
         if (target.poi != HexPoi.DUNGEON || target.dungeon == null || target.dungeon.cleared) {
             return true;
         }
-        final forge.item.IPaperCard rule = target.dungeon.ruleCard == null ? null : HexContent.get().findStartCard(target.dungeon.ruleCard);
-        // the rule card itself, big: it is in play in every fight inside
-        JComponent picture = null;
-        if (rule instanceof forge.item.InventoryItem) {
-            final JPanel panel = new JPanel(new MigLayout("insets 0, gap 0, alignx center"));
-            panel.setOpaque(false);
-            panel.add(HexRewardCards.card((forge.item.InventoryItem) rule, null, false), "w " + HexRewardCards.W + "!, h " + HexRewardCards.H + "!");
-            picture = panel;
+        // the rule cards themselves, big: they are in play in every fight inside
+        final List<String> names = new ArrayList<>();
+        JPanel panel = null;
+        for (final String ruleCard : target.dungeon.ruleCards()) {
+            final forge.item.IPaperCard rule = HexContent.get().findStartCard(ruleCard);
+            if (rule == null) {
+                continue;
+            }
+            names.add(rule.getName());
+            if (panel == null) {
+                panel = new JPanel(new MigLayout("insets 0, gap 12, alignx center"));
+                panel.setOpaque(false);
+            }
+            panel.add(HexRewardCards.card(rule, null, false), "w " + HexRewardCards.W + "!, h " + HexRewardCards.H + "!");
         }
-        final int choice = FOptionPane.showOptionDialog(t("lblHexDungeonConfirm", rule == null ? "-" : rule.getName()), t("lblHexDungeon"),
+        final JComponent picture = panel;
+        final String rules = names.isEmpty() ? "-" : String.join(" + ", names);
+        final String question = target.dungeon.multicolor ? t("lblHexRainbowConfirm", rules) : t("lblHexDungeonConfirm", rules);
+        final int choice = FOptionPane.showOptionDialog(question, t(target.dungeon.multicolor ? "lblHexRainbowDungeon" : "lblHexDungeon"),
                 picture == null ? FOptionPane.QUESTION_ICON : null, picture,
                 Arrays.asList(Localizer.getInstance().getMessage("lblYes"), Localizer.getInstance().getMessage("lblNo")), 0);
         return choice == 0;

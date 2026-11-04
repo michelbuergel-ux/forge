@@ -662,7 +662,11 @@ final class HexDeckDialog {
 
     /** The card big, with its whole text beside it: a click on its row (not on the arrow) or on the preview. */
     private void showCardBig(final String name) {
-        final PaperCard card = content.getCard(name);
+        showCardBig(content.getCard(name));
+    }
+
+    /** The card (or token) large, with its text beside it, in a window of its own (nothing without a card). */
+    static void showCardBig(final forge.item.IPaperCard card) {
         if (card == null) {
             return;
         }
@@ -677,7 +681,8 @@ final class HexDeckDialog {
         final forge.gui.CardDetailPanel detail = new forge.gui.CardDetailPanel();
         detail.setCard(forge.game.card.CardView.getCardForUi(card));
         panel.add(detail);
-        forge.toolbox.FOptionPane.showOptionDialog(null, card.getName(), null, panel, java.util.Arrays.asList(t("lblHexClose")), 0);
+        forge.toolbox.FOptionPane.showOptionDialog(null, card.getName(), null, panel,
+                java.util.Arrays.asList(forge.util.Localizer.getInstance().getMessage("lblHexClose")), 0);
     }
 
     private void showPreview() {

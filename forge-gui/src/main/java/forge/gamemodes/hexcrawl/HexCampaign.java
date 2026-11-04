@@ -85,6 +85,11 @@ public class HexCampaign {
     public static final int DUNGEON_GUARDIAN_LIFE_PER_HEAD = 5;
     /** A treasure room's gold, for every head. */
     public static final int DUNGEON_TREASURE_GOLD = 100;
+    /** Won fights of a cycle after which the five-colour dungeon opens: at random, at least so many and at most so many. */
+    public static final int RAINBOW_MIN_WINS = 5;
+    public static final int RAINBOW_MAX_WINS = 15;
+    /** The five-colour dungeon's chest holds this many times the gold of another one. */
+    public static final int RAINBOW_CHEST_GOLD = 2;
     /** A shrine's life (for the rest of the visit, even above full life), and what weakens the enemies. */
     public static final int DUNGEON_SHRINE_LIFE = 5;
     public static final int DUNGEON_WEAKEN_LIFE = 5;
@@ -178,6 +183,10 @@ public class HexCampaign {
     public boolean siegesPlaced;
     /** The dungeons of this map are placed (false in saves from before there were dungeons). */
     public boolean dungeonsPlaced;
+    /** Won fights of this cycle after which the five-colour dungeon opens (0: not rolled yet, see {@link #rainbowAt()}). */
+    public int rainbowAt;
+    /** The five-colour dungeon of this cycle has opened. */
+    public boolean rainbowPlaced;
     /** The last town the party freed (thanked once on every screen), and a counter for it. */
     public String freedTown;
     public String freedFrom;
@@ -392,7 +401,7 @@ public class HexCampaign {
         for (final HexPlayer p : players) {
             final HexReward reward = new HexReward();
             reward.playerName = p.name;
-            openTreasure(p, reward, room.content, d.color, rnd, taken);
+            openTreasure(p, reward, room.content, d.roomColor(room), rnd, taken);
             pendingRewards.add(reward);
         }
         room.looted = true;
@@ -430,11 +439,12 @@ public class HexCampaign {
         return d == null ? 0 : d.buffCount(buff);
     }
 
-    /** The rule card of the dungeon a fight is in (in play on the enemy's side), or null. */
-    public String dungeonRuleCard(final HexEncounter enc) {
-        final HexDungeon d = enc == null ? null : dungeonOf(enc);
-        return d == null ? null : d.ruleCard;
+    /** The rule cards in play in this fight: those of the dungeon it is fought in (one, or the five-colour dungeon's two). */
+    public List<String> dungeonRuleCards(final HexEncounter enc) {
+        final HexDungeon d = enc == null || enc.dungeonStage == 0 ? null : dungeonOf(enc);
+        return d == null ? new ArrayList<>() : d.ruleCards();
     }
+
 
     /** Inside a dungeon the decks stay as they are: no cards change between deck and sideboard. */
     public boolean deckLocked() {
@@ -460,9 +470,10 @@ public class HexCampaign {
      * The chest of a cleared dungeon, for one head: a very valuable card of the colour (or an artifact) that no
      * other head got, gold, and a relic for a free slot (else its worth in gold).
      */
-    private void openChest(final HexPlayer p, final HexReward reward, final HexColor color, final Random rnd, final Set<String> taken) {
+    private void openChest(final HexPlayer p, final HexReward reward, final HexColor color, final Random rnd, final Set<String> taken,
+            final boolean rich) {
         treasureCard(p, reward, color, rnd, taken);
-        reward.chestGold = withGoldBonus(p, gold(DUNGEON_CHEST_GOLD));
+        reward.chestGold = withGoldBonus(p, gold(DUNGEON_CHEST_GOLD * (rich ? RAINBOW_CHEST_GOLD : 1)));
         earn(p, reward.chestGold);
         treasureRelic(p, reward, rnd);
         log(msg("lblHexJournalChest", p.name, reward.chestCard == null ? "-" : reward.chestCard,
@@ -624,6 +635,60 @@ public class HexCampaign {
         }
     }
 
+    /** Won fights of this cycle after which its five-colour dungeon opens: rolled once a cycle, from the seed. */
+    public int rainbowAt() {
+        if (rainbowAt == 0) {
+            rainbowAt = RAINBOW_MIN_WINS + new Random(seed * 131L + cycle * 7919L + 53L).nextInt(RAINBOW_MAX_WINS - RAINBOW_MIN_WINS + 1);
+        }
+        return rainbowAt;
+    }
+
+    /** The five-colour dungeon of this cycle, or null while it has not opened (or in a save from before it). */
+    public HexTile rainbowDungeon() {
+        for (final HexTile t : dungeons()) {
+            if (t.dungeon != null && t.dungeon.multicolor) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * After a won fight: once the cycle has its {@link #rainbowAt()} wins, the five-colour dungeon opens on a free field
+     * away from the party, the towns and the other dungeons (once a cycle; should there be no field, after the next win).
+     */
+    void maybeOpenRainbowDungeon() {
+        if (rainbowPlaced || cycleBattles(HexBattle.Result.WON) < rainbowAt()) {
+            return;
+        }
+        final Random rnd = new Random(seed * 131L + cycle * 7919L + battlesWon * 37L + 61L);
+        for (int pass = 0; pass < 2; pass++) {
+            final List<HexTile> fields = new ArrayList<>();
+            for (final HexTile t : map.tiles.values()) {
+                if (t.poi == HexPoi.NONE && t != tile() && HexMap.distance(t.q, t.r, partyQ, partyR) >= 2 && questAt(t.q, t.r) == null
+                        && enemyAt(t) == null && farFromPlaces(t, pass == 0)) {
+                    fields.add(t);
+                }
+            }
+            if (fields.isEmpty()) {
+                continue;
+            }
+            fields.sort((a, b) -> a.key().compareTo(b.key())); // a stable order, so seeds are reproducible
+            final HexTile t = fields.get(rnd.nextInt(fields.size()));
+            final HexDungeon dungeon = new HexDungeon();
+            dungeon.multicolor = true;
+            dungeon.color = HexColor.COLORLESS;
+            HexLabyrinth.build(dungeon, t.q, t.r, rnd, cycle);
+            t.poi = HexPoi.DUNGEON;
+            t.dungeon = dungeon;
+            t.enemy = null;
+            t.event = null;
+            rainbowPlaced = true;
+            log(msg("lblHexJournalRainbowDungeon"));
+            return;
+        }
+    }
+
     /** A random of its own for the sieges, so they do not change the other rolls of the campaign. */
     private Random siegeRandom() {
         return new Random(seed * 131L + cycle * 7919L + battlesWon * 31L + steps);
@@ -726,6 +791,8 @@ public class HexCampaign {
         }
 
         won = false;
+        rainbowAt = 0; // the new cycle rolls when its five-colour dungeon opens
+        rainbowPlaced = false;
         defeatedBosses.clear();
         pendingEncounter = null;
         pendingRewards.clear();
@@ -1284,6 +1351,7 @@ public class HexCampaign {
             } else {
                 maybeBesiegeAnotherTown(siegeRandom());
             }
+            maybeOpenRainbowDungeon();
             final HexDungeon dungeon = dungeonOf(enc);
             final HexRoom room = dungeon == null ? null : dungeon.room(enc.roomX, enc.roomY);
             if (room != null) {
@@ -1321,9 +1389,9 @@ public class HexCampaign {
                     reward.trophy = awardTrophy(p, enc.color);
                 }
                 if (room != null && enc.isGuardian()) {
-                    openChest(p, reward, dungeon.color, chestRandom, treasures);
+                    openChest(p, reward, dungeon.roomColor(room), chestRandom, treasures, dungeon.multicolor);
                 } else if (treasure) {
-                    openTreasure(p, reward, room.content, dungeon.color, chestRandom, treasures);
+                    openTreasure(p, reward, room.content, dungeon.roomColor(room), chestRandom, treasures);
                 }
                 pendingRewards.add(reward);
             }

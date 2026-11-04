@@ -32,6 +32,8 @@ public final class HexLabyrinth {
     static final int SHRINES = 2;
     /** Enemies scattered through the labyrinth, besides its boss. */
     public static final int ENEMIES = 6;
+    /** The five-colour dungeon's enemies more. */
+    public static final int MULTICOLOR_ENEMIES = 2;
     /** Enemies stand at least this many steps from the entrance. */
     static final int ENEMY_DEPTH = 2;
 
@@ -51,6 +53,17 @@ public final class HexLabyrinth {
     }
 
     private HexLabyrinth() { }
+
+    /** The cards of the list this Forge knows. */
+    private static List<String> known(final HexContent content, final List<String> cards) {
+        final List<String> result = new ArrayList<>();
+        for (final String card : cards) {
+            if (content.findStartCard(card) != null) {
+                result.add(card);
+            }
+        }
+        return result;
+    }
 
     /** The rule cards a dungeon of this colour may have: its colour's and the colourless ones. */
     public static List<String> ruleCards(final HexColor color) {
@@ -90,7 +103,8 @@ public final class HexLabyrinth {
             places.addAll(these);
         }
         final List<HexRoom.Kind> kinds = new ArrayList<>();
-        for (int i = 0; i < TREASURES; i++) {
+        final int treasureRooms = d.multicolor ? TREASURES + 1 : TREASURES;
+        for (int i = 0; i < treasureRooms; i++) {
             kinds.add(HexRoom.Kind.TREASURE);
         }
         for (int i = 0; i < SHRINES; i++) {
@@ -99,6 +113,9 @@ public final class HexLabyrinth {
         Collections.shuffle(kinds, rnd);
         final List<String> treasures = new ArrayList<>(TREASURE_KINDS);
         Collections.shuffle(treasures, rnd);
+        while (treasures.size() < treasureRooms) {
+            treasures.add(TREASURE_KINDS.get(rnd.nextInt(TREASURE_KINDS.size()))); // the five-colour dungeon's room more
+        }
         final List<String> buffs = new ArrayList<>(BUFFS);
         Collections.shuffle(buffs, rnd);
         for (int i = 0; i < kinds.size() && i < places.size(); i++) {
@@ -117,28 +134,39 @@ public final class HexLabyrinth {
             }
         }
         Collections.shuffle(stands, rnd);
-        for (int i = 0; i < ENEMIES && i < stands.size(); i++) {
+        final int enemies = d.multicolor ? ENEMIES + MULTICOLOR_ENEMIES : ENEMIES;
+        for (int i = 0; i < enemies && i < stands.size(); i++) {
             final HexRoom room = stands.get(i);
-            final HexEncounter enc = content.randomEncounter(d.color, 0.55 + 0.45 * dist[index(d, room)] / far, rnd);
+            final HexEncounter enc = content.randomEncounter(d.roomColor(room), 0.55 + 0.45 * dist[index(d, room)] / far, rnd);
             enc.dungeonStage = HexDungeon.GUARD;
             room.guard = enc;
         }
 
-        final HexEncounter keeper = content.dungeonGuardian(d.color, rnd, cycle);
+        // the five-colour dungeon's lord is as strong as the next cycle's
+        final HexEncounter keeper = content.dungeonGuardian(d.roomColor(boss), rnd, d.multicolor ? cycle + 1 : cycle);
         keeper.dungeonStage = HexDungeon.BOSS;
         boss.guard = keeper;
 
-        // the rule card, and where every enemy stands
-        final List<String> rules = new ArrayList<>();
-        for (final String card : ruleCards(d.color)) {
-            if (content.findStartCard(card) != null) {
-                rules.add(card);
+        // the rule card (the five-colour dungeon's two, of two colours), and where every enemy stands
+        if (d.multicolor) {
+            final List<HexColor> colors = new ArrayList<>(Arrays.asList(HexColor.COLORS));
+            Collections.shuffle(colors, rnd);
+            final List<String> picked = new ArrayList<>();
+            for (final HexColor color : colors) {
+                final List<String> own = known(content, RULE_CARDS.getOrDefault(color, Collections.emptyList()));
+                if (!own.isEmpty() && picked.size() < 2) {
+                    picked.add(own.get(rnd.nextInt(own.size())));
+                }
             }
+            d.ruleCard = picked.isEmpty() ? null : picked.get(0);
+            d.secondRuleCard = picked.size() < 2 ? null : picked.get(1);
+        } else {
+            final List<String> rules = known(content, ruleCards(d.color));
+            d.ruleCard = rules.isEmpty() ? null : rules.get(rnd.nextInt(rules.size()));
         }
-        d.ruleCard = rules.isEmpty() ? null : rules.get(rnd.nextInt(rules.size()));
         for (final HexRoom room : d.rooms) {
             if (room.guard != null) {
-                room.guard.color = d.color;
+                room.guard.color = d.roomColor(room);
                 room.guard.q = q;
                 room.guard.r = r;
                 room.guard.roomX = room.x;

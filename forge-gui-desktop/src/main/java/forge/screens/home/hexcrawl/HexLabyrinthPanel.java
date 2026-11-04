@@ -5,7 +5,6 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
-import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
@@ -93,7 +92,9 @@ public class HexLabyrinthPanel extends JPanel {
     private boolean hoverExit;
     private boolean legendOpen = FModel.getPreferences().getPrefBoolean(FPref.HEXCRAWL_LEGEND_OPEN);
     private Rectangle exitBox = new Rectangle();
-    private Rectangle ruleBox = new Rectangle();
+    /** Where the header shows the rule cards (one pill each), and their names. */
+    private final List<Rectangle> ruleBoxes = new ArrayList<>();
+    private final List<String> ruleNames = new ArrayList<>();
     private Rectangle legendButton = new Rectangle();
     private Rectangle legendBox = new Rectangle();
 
@@ -135,6 +136,11 @@ public class HexLabyrinthPanel extends JPanel {
                     }
                     return;
                 }
+                final String rule = ruleAt(e.getPoint());
+                if (rule != null) {
+                    HexDeckDialog.showCardBig(HexContent.get().findStartCard(rule));
+                    return;
+                }
                 final HexRoom r = roomAt(e.getX(), e.getY());
                 if (r != null && onRoomClicked != null) {
                     onRoomClicked.accept(r.x, r.y);
@@ -143,6 +149,8 @@ public class HexLabyrinthPanel extends JPanel {
 
             @Override
             public void mouseMoved(final MouseEvent e) {
+                setCursor(ruleAt(e.getPoint()) != null
+                        ? java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR) : java.awt.Cursor.getDefaultCursor());
                 final boolean overLegend = legendButton.contains(e.getPoint()) || legendOpen && legendBox.contains(e.getPoint());
                 final HexRoom r = overLegend ? null : roomAt(e.getX(), e.getY());
                 final boolean exit = !overLegend && exitBox.contains(e.getPoint());
@@ -233,6 +241,19 @@ public class HexLabyrinthPanel extends JPanel {
         return Localizer.getInstance().getMessage(key, args);
     }
 
+    /** The rule card whose pill in the header is at this point (a click shows it large), or null. */
+    private String ruleAt(final java.awt.Point p) {
+        if (dungeon() == null) {
+            return null;
+        }
+        for (int i = 0; i < ruleBoxes.size(); i++) {
+            if (ruleBoxes.get(i).contains(p)) {
+                return ruleNames.get(i);
+            }
+        }
+        return null;
+    }
+
     // ------------------------------------------------------------------ tooltips
 
     @Override
@@ -244,9 +265,11 @@ public class HexLabyrinthPanel extends JPanel {
         String text = null;
         if (legendButton.contains(e.getPoint())) {
             text = t("lblHexLegendButton");
-        } else if (ruleBox.contains(e.getPoint()) && d.ruleCard != null) {
-            final IPaperCard card = HexContent.get().findStartCard(d.ruleCard);
-            text = card == null ? d.ruleCard : card.getName() + "\n" + card.getRules().getOracleText().replace("\\n", "\n");
+        } else if (ruleAt(e.getPoint()) != null) {
+            final String rule = ruleAt(e.getPoint());
+            final IPaperCard card = HexContent.get().findStartCard(rule);
+            text = (card == null ? rule : card.getName() + "\n" + card.getRules().getOracleText().replace("\\n", "\n"))
+                    + "\n\n" + t("lblHexLabyRuleClick");
         } else if (exitBox.contains(e.getPoint())) {
             text = t("lblHexLabyExitTip");
         } else {
@@ -310,7 +333,15 @@ public class HexLabyrinthPanel extends JPanel {
         for (final HexRoom r : d.rooms) {
             if (r.seen) {
                 final Graphics2D rg = faded(g, d, r, now);
-                drawFloor(rg, ox + r.x * c, oy + r.y * c, c, r.visited ? floor : blend(floor, Color.BLACK, 0.55), r.x * 131 + r.y * 71 + 7);
+                final int seed = r.x * 131 + r.y * 71 + 7;
+                drawFloor(rg, ox + r.x * c, oy + r.y * c, c, r.visited ? floor : blend(floor, Color.BLACK, 0.55), seed);
+                // what lies about in a labyrinth of its colour; dim, like the floor, where the party has not been
+                final BufferedImage decor = HexPixelIcons.floorDecor(d.roomColor(r), seed, r.kind == HexRoom.Kind.EMPTY && !r.guarded());
+                if (decor != null) {
+                    final float alpha = rg.getComposite() instanceof AlphaComposite ac ? ac.getAlpha() : 1f;
+                    rg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha * (r.visited ? 1f : 0.55f)));
+                    HexPixelIcons.draw(rg, decor, ox + r.x * c, oy + r.y * c, c / (double) HexPixelIcons.ROOM, 0, 0);
+                }
                 rg.dispose();
             }
         }
@@ -318,6 +349,10 @@ public class HexLabyrinthPanel extends JPanel {
         for (final HexRoom r : d.rooms) {
             if (r.kind == HexRoom.Kind.ROCK && besideSeen(d, r)) {
                 drawRock(g, ox + r.x * c, oy + r.y * c, c, r.x * 31 + r.y * 17);
+                final BufferedImage decor = HexPixelIcons.rockDecor(d.roomColor(r), r.x * 31 + r.y * 17);
+                if (decor != null) {
+                    HexPixelIcons.draw(g, decor, ox + r.x * c, oy + r.y * c, c / (double) HexPixelIcons.ROOM, 0, 0);
+                }
             }
         }
         // toward the dark the floors fade into it, and away from the party the torchlight dims
@@ -335,36 +370,18 @@ public class HexLabyrinthPanel extends JPanel {
                 new Color[] { new Color(255, 200, 120, 26), new Color(0, 0, 0, 0), new Color(0, 0, 0, 120) }));
         torch.fillRect(ox, oy, c * d.size, c * d.size);
         torch.dispose();
-        // the walls of the rooms the party knows, with a gap for every door: a shadow, the stone, a lit top edge
-        final float w = Math.max(3f, c / 12f);
-        final int gap = c / 3;
+        // the walls of the rooms the party knows, with a gap for every door, on the floor's pixels: a shadow, the stone, a lit top edge
+        final double u = c / (double) HexPixelIcons.ROOM;
         final Color shadow = new Color(0, 0, 0, 95);
-        final Color lit = withAlpha(blend(floor, Color.WHITE, 0.3), 120);
-        final int drop = Math.max(2, Math.round(w * 0.6f));
+        final Color lit = withAlpha(blend(floor, Color.WHITE, 0.3), 140);
         for (int pass = 0; pass < 3; pass++) {
             for (final HexRoom r : d.rooms) {
                 if (!r.seen) {
                     continue;
                 }
                 final Graphics2D rg = faded(g, d, r, now);
-                final int x = ox + r.x * c;
-                final int y = oy + r.y * c;
-                if (pass == 0) {
-                    rg.translate(drop, drop);
-                    rg.setColor(shadow);
-                    rg.setStroke(new BasicStroke(w + 2, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                } else if (pass == 1) {
-                    rg.setColor(WALL);
-                    rg.setStroke(new BasicStroke(w, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                } else {
-                    rg.translate(-w / 4, -w / 4);
-                    rg.setColor(lit);
-                    rg.setStroke(new BasicStroke(Math.max(1f, w / 4), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                }
-                wall(rg, (r.doors & HexDungeon.NORTH) != 0, x, y, x + c, y, gap);
-                wall(rg, (r.doors & HexDungeon.SOUTH) != 0, x, y + c, x + c, y + c, gap);
-                wall(rg, (r.doors & HexDungeon.WEST) != 0, x, y, x, y + c, gap);
-                wall(rg, (r.doors & HexDungeon.EAST) != 0, x + c, y, x + c, y + c, gap);
+                rg.setColor(pass == 0 ? shadow : pass == 1 ? WALL : lit);
+                walls(rg, r, ox + r.x * c, oy + r.y * c, u, pass);
                 rg.dispose();
             }
         }
@@ -405,7 +422,7 @@ public class HexLabyrinthPanel extends JPanel {
         g.drawString(out, exitBox.x + (exitBox.width - fm.stringWidth(out)) / 2, exitBox.y + (exitBox.height + fm.getAscent()) / 2 - 2);
 
         // the party, and the votes
-        final int pr = Math.max(8, c / 9);
+        final int pr = Math.max(8, c / 7);
         HexMapPanel.drawParty(g, (int) Math.round(ox + px * c) + pr + 6, (int) Math.round(oy + py * c) + c - pr - 6, pr);
         if (votes != null && !votes.isEmpty()) {
             final Map<String, List<String>> byKey = new LinkedHashMap<>();
@@ -508,54 +525,42 @@ public class HexLabyrinthPanel extends JPanel {
         return rg;
     }
 
-    /** A floor of flagstones in rows, each stone a little lighter or darker (placed by the seed, so they stay). */
+    /** A floor of flagstones in rows, in pixels like the enemies' (placed by the seed, so they stay). */
     private static void drawFloor(final Graphics2D g, final int x, final int y, final int c, final Color base, final int seed) {
-        g.setColor(blend(base, Color.BLACK, 0.35)); // the joints
-        g.fillRect(x, y, c, c);
-        final java.util.Random rnd = new java.util.Random(seed);
-        final int arc = Math.max(3, c / 18);
-        for (int row = 0; row < 3; row++) {
-            final int y0 = y + c * row / 3;
-            final int y1 = y + c * (row + 1) / 3;
-            int sx = x - rnd.nextInt(Math.max(1, c / 3));
-            while (sx < x + c) {
-                final int sw = c / 3 + rnd.nextInt(Math.max(1, c / 4));
-                final int x0 = Math.max(sx, x);
-                final int x1 = Math.min(sx + sw, x + c);
-                if (x1 - x0 > 3) {
-                    final double shade = rnd.nextDouble() * 0.16 - 0.08;
-                    g.setColor(shade < 0 ? blend(base, Color.BLACK, -shade) : blend(base, Color.WHITE, shade));
-                    g.fillRoundRect(x0 + 1, y0 + 1, x1 - x0 - 2, y1 - y0 - 2, arc, arc);
-                }
-                sx += sw;
-            }
-        }
+        HexPixelIcons.draw(g, HexPixelIcons.floor(base, seed), x, y, c / (double) HexPixelIcons.ROOM, 0, 0);
     }
 
-    /** The sides of a room toward squares the party does not know (or the labyrinth's end) fade into the dark. */
+    /** The sides of a room toward squares the party does not know (or the labyrinth's end) fade into the dark, in three steps. */
     private static void shadeEdges(final Graphics2D g, final HexDungeon d, final HexRoom r, final int x, final int y, final int c) {
-        final int depth = Math.max(6, c * 3 / 10);
-        final Color dark = new Color(0, 0, 0, 150);
-        final Color none = new Color(0, 0, 0, 0);
+        final double u = c / (double) HexPixelIcons.ROOM;
+        final int[] alpha = { 150, 90, 40 };
         for (final int door : HexDungeon.DOORS) {
             final HexRoom n = d.square(r.x + HexDungeon.dx(door), r.y + HexDungeon.dy(door));
             if (n != null && (n.kind == HexRoom.Kind.ROCK || n.seen)) {
                 continue;
             }
-            if (door == HexDungeon.NORTH) {
-                g.setPaint(new GradientPaint(0, y, dark, 0, y + depth, none));
-                g.fillRect(x, y, c, depth);
-            } else if (door == HexDungeon.SOUTH) {
-                g.setPaint(new GradientPaint(0, y + c, dark, 0, y + c - depth, none));
-                g.fillRect(x, y + c - depth, c, depth);
-            } else if (door == HexDungeon.WEST) {
-                g.setPaint(new GradientPaint(x, 0, dark, x + depth, 0, none));
-                g.fillRect(x, y, depth, c);
-            } else {
-                g.setPaint(new GradientPaint(x + c, 0, dark, x + c - depth, 0, none));
-                g.fillRect(x + c - depth, y, depth, c);
+            for (int band = 0; band < alpha.length; band++) {
+                g.setColor(new Color(0, 0, 0, alpha[band]));
+                final int a = band * 3;
+                final int b = a + 3;
+                if (door == HexDungeon.NORTH) {
+                    fillUnits(g, x, y, u, 0, a, HexPixelIcons.ROOM, b);
+                } else if (door == HexDungeon.SOUTH) {
+                    fillUnits(g, x, y, u, 0, HexPixelIcons.ROOM - b, HexPixelIcons.ROOM, HexPixelIcons.ROOM - a);
+                } else if (door == HexDungeon.WEST) {
+                    fillUnits(g, x, y, u, a, 0, b, HexPixelIcons.ROOM);
+                } else {
+                    fillUnits(g, x, y, u, HexPixelIcons.ROOM - b, 0, HexPixelIcons.ROOM - a, HexPixelIcons.ROOM);
+                }
             }
         }
+    }
+
+    /** Fills a rectangle given in the room's pixels (u screen pixels each), from (x0, y0) to (x1, y1). */
+    private static void fillUnits(final Graphics2D g, final int x, final int y, final double u, final int x0, final int y0, final int x1, final int y1) {
+        final int left = x + (int) Math.round(x0 * u);
+        final int top = y + (int) Math.round(y0 * u);
+        g.fillRect(left, top, x + (int) Math.round(x1 * u) - left, y + (int) Math.round(y1 * u) - top);
     }
 
     /** A chest opened or a shrine used: a burst of light, a widening ring and sparks flying out, all fading. */
@@ -598,37 +603,32 @@ public class HexLabyrinthPanel extends JPanel {
         return false;
     }
 
-    /** Solid rock: a dark square with a few stones in it (placed by the seed, so they stay where they are). */
+    /** Solid rock: a dark square with a few stones in it, in pixels (placed by the seed, so they stay where they are). */
     private static void drawRock(final Graphics2D g, final int x, final int y, final int c, final int seed) {
-        g.setColor(ROCK);
-        g.fillRect(x, y, c, c);
-        final java.util.Random rnd = new java.util.Random(seed);
-        for (int i = 0; i < 5; i++) {
-            final int w = c / 6 + rnd.nextInt(Math.max(1, c / 5));
-            final int h = w * 2 / 3;
-            final int sx = x + 4 + rnd.nextInt(Math.max(1, c - w - 8));
-            final int sy = y + 4 + rnd.nextInt(Math.max(1, c - h - 8));
-            g.setColor(ROCK_LIGHT);
-            g.fillRoundRect(sx, sy, w, h, h, h);
-            g.setColor(ROCK.darker());
-            g.drawRoundRect(sx, sy, w, h, h, h);
-        }
+        HexPixelIcons.draw(g, HexPixelIcons.rock(ROCK, ROCK_LIGHT, seed), x, y, c / (double) HexPixelIcons.ROOM, 0, 0);
     }
 
-    /** A wall from one corner to the other, with a gap in the middle where there is a door. */
-    private static void wall(final Graphics2D g, final boolean door, final int x1, final int y1, final int x2, final int y2, final int gap) {
-        if (!door) {
-            g.drawLine(x1, y1, x2, y2);
-            return;
-        }
-        final int mx = (x1 + x2) / 2;
-        final int my = (y1 + y2) / 2;
-        if (y1 == y2) {
-            g.drawLine(x1, y1, mx - gap / 2, y1);
-            g.drawLine(mx + gap / 2, y1, x2, y2);
-        } else {
-            g.drawLine(x1, y1, x1, my - gap / 2);
-            g.drawLine(x1, my + gap / 2, x2, y2);
+    /**
+     * A room's four walls, two of its pixels thick on its edges, each with a gap in the middle where there is a door.
+     * Pass 0 paints their shadow (a pixel down and right), 1 the stone, 2 its lit top or left edge.
+     */
+    private static void walls(final Graphics2D g, final HexRoom r, final int x, final int y, final double u, final int pass) {
+        final int n = HexPixelIcons.ROOM;
+        final int shift = pass == 0 ? 1 : 0;
+        for (final int side : HexDungeon.DOORS) {
+            final boolean door = (r.doors & side) != 0;
+            final int[][] runs = door ? new int[][] { { -1, n / 2 - 5 }, { n / 2 + 5, n + 1 } } : new int[][] { { -1, n + 1 } };
+            final boolean across = side == HexDungeon.NORTH || side == HexDungeon.SOUTH;
+            final int at = side == HexDungeon.NORTH || side == HexDungeon.WEST ? 0 : n;
+            final int from = at - 1;
+            final int to = pass == 2 ? at : at + 1;
+            for (final int[] run : runs) {
+                if (across) {
+                    fillUnits(g, x, y, u, run[0] + shift, from + shift, run[1] + shift, to + shift);
+                } else {
+                    fillUnits(g, x, y, u, from + shift, run[0] + shift, to + shift, run[1] + shift);
+                }
+            }
         }
     }
 
@@ -637,7 +637,7 @@ public class HexLabyrinthPanel extends JPanel {
         final int cx = x + c / 2;
         final int cy = y + c / 2;
         final boolean withGuard = r.guarded();
-        final int thingX = withGuard ? x + c * 3 / 4 : cx; // the guard stands before what it guards
+        final int thingX = withGuard ? x + c * 11 / 16 : cx; // the guard stands before what it guards
         switch (r.kind) {
             case ENTRANCE:
                 drawStairs(g, cx, y + c - c / 5, c);
@@ -649,7 +649,7 @@ public class HexLabyrinthPanel extends JPanel {
                 drawShrine(g, thingX, cy + c / 10, c, r.looted ? null : r.content);
                 break;
             case BOSS:
-                HexMapPanel.drawBoss(g, thingX, cy + c / 4, Math.max(6, c / 9), HexMapPanel.bossColor(!withGuard, d.color));
+                HexMapPanel.drawBoss(g, thingX, cy + c / 4, Math.max(6, c / 7), HexMapPanel.bossColor(!withGuard, d.color));
                 break;
             default:
                 break;
@@ -663,79 +663,30 @@ public class HexLabyrinthPanel extends JPanel {
         }
     }
 
+    /** The entrance's stairs (16 pixels across, half a room), their foot at (cx, bottom). */
     private static void drawStairs(final Graphics2D g, final int cx, final int bottom, final int c) {
-        final int w = c / 3;
-        final int step = Math.max(3, c / 22);
-        for (int i = 0; i < 4; i++) {
-            final int sw = w - i * w / 5;
-            g.setColor(i % 2 == 0 ? new Color(0xBFB29A) : new Color(0xA39579));
-            g.fillRect(cx - sw / 2, bottom - (i + 1) * step, sw, step);
-        }
-        g.setColor(WALL);
-        g.setStroke(new BasicStroke(1f));
-        g.drawRect(cx - w / 2, bottom - 4 * step, w, 4 * step);
+        HexPixelIcons.draw(g, HexPixelIcons.stairs(), cx, bottom, c / (double) HexPixelIcons.ROOM, 8, 15);
     }
 
-    /** A chest; open and empty once looted (kind null), else with a mark of what is in it. */
+    /** A chest (pixel art, half a room across): closed, with what it holds above it; open and empty once looted (kind null). */
     static void drawChest(final Graphics2D g, final int cx, final int cy, final int c, final String kind) {
-        final int w = Math.max(14, c / 3);
-        final int h = w * 2 / 3;
-        final int x = cx - w / 2;
-        final int y = cy - h / 2;
-        g.setColor(kind == null ? new Color(0x5E5547) : new Color(0x8A5A2B));
-        g.fillRoundRect(x, y, w, h, 6, 6);
-        g.setColor(kind == null ? new Color(0x3A342C) : new Color(0x5A3A1A));
-        g.fillRect(x, y + h / 3 - 1, w, 3); // the lid
-        g.setColor(kind == null ? new Color(0x8A8A8A) : GOLD);
-        g.fillRect(cx - 3, y + h / 3 - 3, 6, 7); // the lock
-        g.setColor(WALL);
-        g.setStroke(new BasicStroke(1.4f));
-        g.drawRoundRect(x, y, w, h, 6, 6);
-        if (kind == null) {
-            return;
-        }
-        // what is in it, on a little gold coin above
-        final int r = Math.max(6, c / 14);
-        final int mx = cx + w / 2;
-        final int my = y - r / 2;
-        g.setColor(GOLD);
-        g.fillOval(mx - r, my - r, 2 * r, 2 * r);
-        g.setColor(new Color(0x5A3E00));
-        g.drawOval(mx - r, my - r, 2 * r, 2 * r);
-        if ("CARD".equals(kind)) {
-            g.drawRect(mx - r / 3, my - r / 2, r * 2 / 3, r);
-        } else if ("RELIC".equals(kind)) {
-            g.drawOval(mx - r / 2, my - r / 2, r, r);
-        } else {
-            g.fillOval(mx - r / 3, my - r / 3, r * 2 / 3, r * 2 / 3);
-        }
+        HexPixelIcons.draw(g, HexPixelIcons.chest(kind), cx, cy, c / (double) HexPixelIcons.ROOM, 8, 11);
     }
 
-    /** A shrine: a stone pillar with a glowing orb (its colour tells its buff); grey once used (buff null). */
     /** A shrine's light: the colour of its buff (grey once used). */
     static Color shrineColor(final String buff) {
         return buff == null ? new Color(0x6F6A5F) : "LIFE".equals(buff) ? new Color(0xE0405A)
                 : "HAND".equals(buff) ? new Color(0x4A8FE0) : "LAND".equals(buff) ? new Color(0x4FB35A) : new Color(0x9B4FD0);
     }
 
+    /** A shrine: a fountain whose water glows in the colour of its buff; dry and grey once used (buff null). */
     static void drawShrine(final Graphics2D g, final int cx, final int cy, final int c, final String buff) {
-        final int w = Math.max(10, c / 7);
-        final int h = Math.max(14, c / 4);
-        g.setColor(new Color(0x9C9384));
-        g.fillRect(cx - w / 2, cy - h / 4, w, h);
-        g.setColor(WALL);
-        g.setStroke(new BasicStroke(1.2f));
-        g.drawRect(cx - w / 2, cy - h / 4, w, h);
-        final Color glow = shrineColor(buff);
-        final int r = Math.max(6, c / 11);
-        if (buff != null) {
-            for (int i = 3; i >= 1; i--) {
-                g.setColor(new Color(glow.getRed(), glow.getGreen(), glow.getBlue(), 40));
-                g.fillOval(cx - r - i * 3, cy - h / 4 - r - i * 3 - r, 2 * (r + i * 3), 2 * (r + i * 3));
-            }
+        final double u = c / (double) HexPixelIcons.ROOM;
+        if (buff == null) {
+            HexPixelIcons.draw(g, HexPixelIcons.fountain(null), cx, cy, u, 8, 9);
+        } else {
+            HexPixelIcons.draw(g, HexPixelIcons.fountain(shrineColor(buff)), cx, cy, u, 10, 11); // its glow: two pixels about it
         }
-        g.setColor(glow);
-        g.fillOval(cx - r, cy - h / 4 - 2 * r, 2 * r, 2 * r);
     }
 
     /** The dungeon's name, its rule card, the shrines' buffs and the party's life. */
@@ -744,18 +695,23 @@ public class HexLabyrinthPanel extends JPanel {
         int x = 16;
         g.setFont(base.deriveFont(Font.BOLD, 17f));
         FontMetrics fm = g.getFontMetrics();
-        final String title = t("lblHexLabyTitle", t(d.color.getLabelKey()));
+        final String title = d.multicolor ? t("lblHexRainbowTitle") : t("lblHexLabyTitle", t(d.color.getLabelKey()));
         g.setColor(GOLD_LIGHT);
         g.drawString(title, x, 30);
         x += fm.stringWidth(title) + 18;
         g.setFont(base.deriveFont(Font.PLAIN, 12.5f));
         fm = g.getFontMetrics();
         final List<String> pills = new ArrayList<>();
-        final IPaperCard rule = d.ruleCard == null ? null : HexContent.get().findStartCard(d.ruleCard);
-        ruleBox = new Rectangle();
-        if (rule != null) {
-            pills.add(t("lblHexLabyRule", rule.getName()));
+        ruleBoxes.clear();
+        ruleNames.clear();
+        for (final String ruleCard : d.ruleCards()) {
+            final IPaperCard rule = HexContent.get().findStartCard(ruleCard);
+            if (rule != null) {
+                pills.add(t("lblHexLabyRule", rule.getName()));
+                ruleNames.add(ruleCard);
+            }
         }
+        final int rules = ruleNames.size();
         pills.add(t("lblHexLabyLife", String.valueOf(d.lifeLeft)));
         pills.add(t("lblHexLabyTreasures", String.valueOf(d.treasuresLeft()), String.valueOf(d.treasureRooms())));
         for (final String buff : d.buffs) {
@@ -767,14 +723,14 @@ public class HexLabyrinthPanel extends JPanel {
             if (x + w > getWidth() - 12) {
                 break;
             }
-            g.setColor(i == 0 && rule != null ? new Color(0x3A2A4A) : new Color(0x3A3020));
+            g.setColor(i < rules ? new Color(0x3A2A4A) : new Color(0x3A3020));
             g.fillRoundRect(x, 14, w, 22, 22, 22);
-            g.setColor(i == 0 && rule != null ? new Color(0xB48CE0) : new Color(0x7A6440));
+            g.setColor(i < rules ? new Color(0xB48CE0) : new Color(0x7A6440));
             g.drawRoundRect(x, 14, w, 22, 22, 22);
             g.setColor(new Color(0xECE6D6));
             g.drawString(text, x + 9, 30);
-            if (i == 0 && rule != null) {
-                ruleBox = new Rectangle(x, 14, w, 22);
+            if (i < rules) {
+                ruleBoxes.add(new Rectangle(x, 14, w, 22));
             }
             x += w + 8;
         }

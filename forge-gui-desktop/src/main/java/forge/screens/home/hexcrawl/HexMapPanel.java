@@ -46,6 +46,10 @@ public class HexMapPanel extends JPanel {
     /** How long a ping shows on the map (ms). */
     private static final int PING_MS = 6000;
     private final javax.swing.Timer pingTicker = new javax.swing.Timer(30, e -> repaint());
+    /** The campaign and cycle the map looked at last, whether its five-colour dungeon had opened then, and when it opened since. */
+    private String rainbowWatch;
+    private boolean rainbowKnown;
+    private long rainbowSince;
     private HexTile hover;
     private java.util.Map<String, String> votes;
 
@@ -304,6 +308,22 @@ public class HexMapPanel extends JPanel {
                         HexCrawlPanel.headColor(seat(ping.getKey())), initial, now, t);
             }
         }
+        // the five-colour dungeon has just opened: a golden ping on its field (one that opened before the map looked is no news)
+        final HexTile rainbow = campaign.rainbowDungeon();
+        final String watch = campaign.name + "#" + campaign.seed + "#" + campaign.cycle;
+        if (!watch.equals(rainbowWatch)) {
+            rainbowWatch = watch;
+            rainbowKnown = rainbow != null;
+            rainbowSince = 0;
+        } else if (rainbow != null && !rainbowKnown) {
+            rainbowKnown = true;
+            rainbowSince = now;
+        }
+        if (rainbow != null && rainbowSince > 0 && now - rainbowSince < PING_MS) {
+            live = true;
+            drawPing(g, (int) Math.round(centerX(rainbow, size)), (int) Math.round(centerY(rainbow, size)), size,
+                    new Color(0xFFD23F), "!", now, (now - rainbowSince) / (double) PING_MS);
+        }
         if (live && !pingTicker.isRunning()) {
             pingTicker.start();
         } else if (!live && pingTicker.isRunning()) {
@@ -426,15 +446,21 @@ public class HexMapPanel extends JPanel {
             }
         } else if (t.poi == HexPoi.DUNGEON && t.dungeon != null) {
             final forge.gamemodes.hexcrawl.HexDungeon d = t.dungeon;
-            sb.append(" – ").append(loc.getMessage("lblHexDungeon"));
+            sb.append(" – ").append(loc.getMessage(d.multicolor ? "lblHexRainbowDungeon" : "lblHexDungeon"));
             if (d.cleared) {
                 sb.append(" (").append(loc.getMessage("lblHexDungeonCleared")).append(')');
             } else {
-                final forge.item.IPaperCard ruleCard = d.ruleCard == null ? null : forge.gamemodes.hexcrawl.HexContent.get().findStartCard(d.ruleCard);
+                if (d.multicolor) {
+                    sb.append('\n').append(loc.getMessage("lblHexRainbowHint"));
+                }
                 sb.append('\n').append(loc.getMessage("lblHexDungeonHint", String.valueOf(forge.gamemodes.hexcrawl.HexContent.TREASURE_PRICE)));
                 sb.append('\n').append(loc.getMessage("lblHexDungeonTreasuresLeft", String.valueOf(d.treasuresLeft()),
                         String.valueOf(d.treasureRooms())));
-                if (ruleCard != null) {
+                for (final String ruleName : d.ruleCards()) {
+                    final forge.item.IPaperCard ruleCard = forge.gamemodes.hexcrawl.HexContent.get().findStartCard(ruleName);
+                    if (ruleCard == null) {
+                        continue;
+                    }
                     // the rule card with its text: whether to go in is decided here
                     final String text = ruleCard.getRules() == null ? null : ruleCard.getRules().getOracleText();
                     sb.append('\n').append(text == null || text.isEmpty() ? loc.getMessage("lblHexDungeonRule", ruleCard.getName())
@@ -530,7 +556,7 @@ public class HexMapPanel extends JPanel {
                 }
             } else if (t.poi == HexPoi.DUNGEON) {
                 final forge.gamemodes.hexcrawl.HexDungeon d = t.dungeon;
-                drawDungeon(g, cx, cy, s, d == null || d.cleared);
+                drawDungeon(g, cx, cy, s, d == null || d.cleared, d != null && d.multicolor);
             } else {
                 drawBoss(g, cx, cy, s, bossColor(t.cleared, t.color));
             }
@@ -734,7 +760,16 @@ public class HexMapPanel extends JPanel {
 
     /** A dungeon: a hill of stone with a dark cave mouth; grey, its mouth full of boulders, once its lord is beaten and it has collapsed. */
     static void drawDungeon(final Graphics2D g, final int cx, final int cy, final int s, final boolean cleared) {
-        HexPixelIcons.draw(g, HexPixelIcons.dungeon(cleared), cx, cy, s * PIXEL, 8, 9);
+        drawDungeon(g, cx, cy, s, cleared, false);
+    }
+
+    /** A dungeon; the five-colour one with its mouth framed in the five colours (until it collapses, like any other). */
+    static void drawDungeon(final Graphics2D g, final int cx, final int cy, final int s, final boolean cleared, final boolean multicolor) {
+        if (multicolor && !cleared) {
+            HexPixelIcons.draw(g, HexPixelIcons.rainbowDungeon(), cx, cy, s * PIXEL, 9, 10); // a pixel of glow about it
+        } else {
+            HexPixelIcons.draw(g, HexPixelIcons.dungeon(cleared), cx, cy, s * PIXEL, 8, 9);
+        }
     }
 
     /** A boss's star: red for an archmage, purple for the centre, grey once it is beaten. */
@@ -839,6 +874,8 @@ public class HexMapPanel extends JPanel {
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawEventCoin(g, cx, cy, size * 0.9), "lblHexLegendEvent" });
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawDungeon(g, cx, cy, (int) Math.round(size * 0.4), false),
                 "lblHexLegendDungeon" });
+        entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawDungeon(g, cx, cy, (int) Math.round(size * 0.4), false, true),
+                "lblHexLegendRainbow" });
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawParty(g, cx, cy + (int) Math.round(size * 0.1), (int) Math.round(size * 0.34)), "lblHexLegendParty" });
         entries.add(new Object[] { (Symbol) (g, cx, cy, size) -> drawPing(g, cx, cy + (int) Math.round(size * 0.2), size * 0.8,
                 HexCrawlPanel.headColor(1), "A", 0, 0), "lblHexMapPingHint" });

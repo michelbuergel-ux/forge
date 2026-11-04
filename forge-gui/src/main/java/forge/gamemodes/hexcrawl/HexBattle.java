@@ -102,11 +102,16 @@ public final class HexBattle {
         }
         applyEnemyRelics(campaign, enemy);
         applyCycle(campaign, enc, enemy, 1);
-        // a dungeon's enchantment or artifact: on the enemy's side, it affects everybody
-        final String ruleCard = campaign.dungeonRuleCard(enc);
-        final forge.item.IPaperCard rule = ruleCard == null ? null : content.findStartCard(ruleCard);
-        if (rule != null) {
-            enemy.addExtraCardsOnBattlefield(java.util.Collections.singletonList(rule));
+        // a dungeon's enchantments or artifacts (the five-colour dungeon has two): on the enemy's side, they affect everybody
+        final List<forge.item.IPaperCard> rules = new java.util.ArrayList<>();
+        for (final String ruleCard : campaign.dungeonRuleCards(enc)) {
+            final forge.item.IPaperCard rule = content.findStartCard(ruleCard);
+            if (rule != null) {
+                rules.add(rule);
+            }
+        }
+        if (!rules.isEmpty()) {
+            enemy.addExtraCardsOnBattlefield(rules);
         }
         players.add(enemy);
         if (enc.archenemy) {
