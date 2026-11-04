@@ -223,6 +223,12 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         resetPriority();
     }
 
+    /** True if the next turn is this player's, or under shared team turns their team's (CR 805.4). */
+    public final boolean isPlayerNextTurn(final Player player) {
+        final Player next = getNextTurn();
+        return next != null && (next.equals(player) || isSharedTeamTurns() && player != null && next.sameTeam(player));
+    }
+
     public final Player getPreviousPlayerTurn() {
         return playerPreviousTurn;
     }
@@ -281,6 +287,21 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
             return true;
         }
         return isSharedTeamTurns() && a != null && b != null && a.sameTeam(b);
+    }
+
+    /** The player has left the game; with shared team turns, so has every head of their team. */
+    private boolean priorityUnitHasLeft(final Player p) {
+        if (!p.hasLost()) {
+            return false;
+        }
+        if (isSharedTeamTurns()) {
+            for (final Player other : game.getPlayers()) {
+                if (other != p && !other.hasLost() && other.sameTeam(p)) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     /** For TeamPriority: the head that acts (or is asked) within the team holding priority. */
@@ -1396,19 +1417,16 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                     // state-based effects check could lead to game over
                     return;
                 }
+                if (pPlayerPriority.hasLost()) {
+                    // CR 800.4a If the player who left the game had priority at the time they left,
+                    // priority passes to the next player in turn order who's still in the game.
+                    break;
+                }
                 // CR 117.3 A player receives priority once state-based actions are done, and again after each thing they do
                 game.fireEvent(new GameEventPlayerPriority(PlayerView.get(playerTurn), phase, PlayerView.get(getPriorityPlayer())));
                 game.stashGameState();
 
                 chosenSa = pPlayerPriority.getController().chooseSpellAbilityToPlay();
-
-                // this needs to come after chosenSa so it sees you conceding on own turn
-                if (playerTurn.hasLost() && pPlayerPriority.equals(playerTurn) && pFirstPriority.equals(playerTurn)) {
-                    // If the active player has lost, and they have priority, set the next player to have priority
-                    System.out.println("Active player is no longer in the game...");
-                    pPlayerPriority = game.getNextPlayerAfter(getPriorityPlayer());
-                    pFirstPriority = pPlayerPriority;
-                }
 
                 if (chosenSa == null) {
                     break; // that means 'I pass'
@@ -1452,7 +1470,14 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         if (DEBUG_PHASES) {
             System.out.println(TextUtil.concatWithSpace(playerTurn.toString(),TextUtil.addSuffix(phase.toString(),":"), pPlayerPriority.toString(),"is active, previous was", nextPlayer.toString()));
         }
-        if (isSamePriorityUnit(pFirstPriority, nextPlayer)) {
+        boolean nobodyPassed = false;
+        if (priorityUnitHasLeft(pFirstPriority)) {
+            // a player (with shared team turns: a whole team) who left never receives priority again, so the next takes their place as first
+            pFirstPriority = getNextPriorityPlayerAfter(pFirstPriority);
+            // if the holder left too and nobody between them remains, no player still in the game has passed
+            nobodyPassed = priorityUnitHasLeft(pPlayerPriority) && isSamePriorityUnit(pFirstPriority, nextPlayer);
+        }
+        if (isSamePriorityUnit(pFirstPriority, nextPlayer) && !nobodyPassed) {
             if (game.getStack().isEmpty()) {
                 if (playerTurn.hasLost()) {
                     setPriority(game.getNextPlayerAfter(playerTurn));

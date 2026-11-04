@@ -794,6 +794,9 @@ public class AiController {
 
         for (final SpellAbility sa : ComputerUtilAbility.getOriginalAndAltCostAbilities(possibleCounters, player)) {
             sa.setActivatingPlayer(player);
+            if (StifleCombo.keepsForDreadnought(player, sa)) {
+                continue; // the Stifle is for the Dreadnought's own trigger, not for whatever the opponent does first
+            }
             // check everything necessary
 
             AiPlayDecision opinion = canPlayAndPayFor(sa);
@@ -983,6 +986,9 @@ public class AiController {
         }
         if (deckPlan(player).combos.payoffMustWait(player, sa)) {
             return AiPlayDecision.AnotherTime; // Replenish on a graveyard without its enchantments is a wasted card
+        }
+        if (DredgeLine.mustWait(player, deckPlan(player).combos, sa)) {
+            return AiPlayDecision.AnotherTime; // Breakthrough without the Diamond and a dredger only empties the hand
         }
         if (!checkAiSpecificRestrictions(sa)) {
             return AiPlayDecision.CantPlayAi;
@@ -1902,6 +1908,14 @@ public class AiController {
         }
         final boolean topOwnedByAI = top != null && top.getActivatingPlayer().equals(player);
 
+        if (topOwnedByAI) {
+            // Stiflenought: the AI's own "sacrifice it unless" trigger is answered with Stifle, which nothing else would do
+            final SpellAbility stifle = StifleCombo.stifleOwnTrigger(player, top);
+            if (stifle != null) {
+                return stifle;
+            }
+        }
+
         // Must respond: cases where the AI should respond to its own triggers or other abilities (need to add negative stuff to be countered here)
         boolean mustRespond = false;
         if (top != null) {
@@ -1914,6 +1928,14 @@ public class AiController {
             final SpellAbility response = stormSolver.next(player, deckPlan(player).combos);
             if (response != null) {
                 return response;
+            }
+        }
+
+        if (topOwnedByAI && flatMonteCarloActive()) {
+            // Breakthrough on the stack: Lion's Eye Diamond puts the dredgers into the graveyard before the four draws
+            final SpellAbility diamond = DredgeLine.response(player, deckPlan(player).combos);
+            if (diamond != null) {
+                return diamond;
             }
         }
 
@@ -1963,10 +1985,21 @@ public class AiController {
         skipped = saList.stream().filter(SpellAbility::isSkip).collect(Collectors.toList());
         if (!skipped.isEmpty())
             saList.removeAll(skipped);
+        // Stiflenought: the Dreadnought is cast as soon as its Stifle can be paid for as well, without rollouts
+        final SpellAbility sureStifle = StifleCombo.sureCast(player, saList);
+        if (sureStifle != null) {
+            return sureStifle;
+        }
         if (flatMonteCarloActive() && game.getStack().isEmpty()) {
             final SpellAbility sure = deckPlan(player).combos.sureMadnessPlay(player, saList);
             if (sure != null) {
                 return sure; // safe and sure: no rollouts needed
+            }
+        }
+        if (flatMonteCarloActive() && game.getStack().isEmpty()) {
+            final SpellAbility cut = deckPlan(player).combos.sureCutPlay(player, saList);
+            if (cut != null) {
+                return cut; // the library cut with a finisher in place: no rollouts needed
             }
         }
 
@@ -2047,7 +2080,7 @@ public class AiController {
             return onlySpells && top != null && top.getActivatingPlayer() != null && top.getActivatingPlayer().isOpponentOf(player)
                     ? FlatMonteCarloPicker.Mode.RESPOND : null;
         }
-        if (ph.getPlayerTurn() == player) {
+        if (ph.isPlayerTurn(player)) {
             return null;
         }
         if (ph.is(PhaseType.END_OF_TURN) && game.getPlayers().size() == 2) {
@@ -2166,7 +2199,7 @@ public class AiController {
         final PhaseHandler ph = game.getPhaseHandler();
         // Only sorcery-timing decisions on the AI's own turn: that is where the lines to compare are, and the
         // rollout ends at the second main phase. Everything reactive stays with the heuristics (and is cheap).
-        return ph.getPlayerTurn() == player && game.getStack().isEmpty()
+        return ph.isPlayerTurn(player) && game.getStack().isEmpty()
                 && (ph.is(PhaseType.MAIN1) || ph.is(PhaseType.MAIN2));
     }
 
@@ -2471,6 +2504,16 @@ public class AiController {
                 && !deckPlan(player).combos.isKeyCard(h) && !TutorPlan.hasPlanTarget(player, sa);
     }
 
+    /**
+     * A mana rock or mana creature marked AI:RemoveDeck:All (Springleaf Drum): the heuristics never cast it, and
+     * without broad discovery nothing else would either, so it is always offered to the rollouts, which decide.
+     */
+    private boolean isRemoveDeckManaPermanent(final SpellAbility sa) {
+        final Card h = sa.getHostCard();
+        return h != null && sa.isSpell() && h.isPermanent() && !h.isLand() && ComputerUtilCard.isCardRemAIDeck(h)
+                && !h.getManaAbilities().isEmpty();
+    }
+
     private boolean isLegalDiscovery(final SpellAbility sa, final AiPlayDecision opinion) {
         if (sa == null) {
             return false;
@@ -2494,6 +2537,7 @@ public class AiController {
         final Card host = sa.getHostCard();
         final ComboPlan combos = deckPlan(player).combos;
         if (!FlatMonteCarloPicker.isDiscoverable(sa, getBoolProperty(AiProps.FLAT_MC_BROAD_DISCOVERY) || isFlatMonteCarloMax())
+                && !isRemoveDeckManaPermanent(sa)
                 && !combos.isFuelPlay(sa)
                 && !(host != null && ComputerUtilCard.isCardRemAIDeck(host) && combos.isKeyCard(host))
                 && !TutorPlan.hasUse(player, sa)) {
@@ -3239,14 +3283,6 @@ public class AiController {
             final Card forCombo = deckPlan(player).combos.choose(player, destination, origin, fetchList);
             if (forCombo != null) {
                 return forCombo;
-            }
-            if (destination == ZoneType.Battlefield && origin.contains(ZoneType.Hand)
-                    && !sa.hasParam("AILogic") && !fetchList.isEmpty()) {
-                // whatever the deck, a cheating spell is not for a land when anything else can be put onto the battlefield
-                final CardCollection nonLands = CardLists.filter(fetchList, c -> !c.isLand());
-                if (!nonLands.isEmpty() && nonLands.size() < fetchList.size()) {
-                    return ComputerUtilCard.getBestAI(nonLands);
-                }
             }
         }
 
