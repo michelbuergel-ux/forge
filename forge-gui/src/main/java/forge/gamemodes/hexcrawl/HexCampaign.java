@@ -187,6 +187,10 @@ public class HexCampaign {
     public int rainbowAt;
     /** The five-colour dungeon of this cycle has opened. */
     public boolean rainbowPlaced;
+    /** Arzakon waits on the centre field: Emrakul fell in a cycle whose five-colour dungeon was cleared. */
+    public boolean arzakonAwake;
+    /** Arzakon was beaten in this cycle: the campaign's true ending. */
+    public boolean arzakonBeaten;
     /** The last town the party freed (thanked once on every screen), and a counter for it. */
     public String freedTown;
     public String freedFrom;
@@ -643,6 +647,22 @@ public class HexCampaign {
         return rainbowAt;
     }
 
+    /** Arzakon waits on this field: the centre's, after Emrakul fell in a cycle whose five-colour dungeon was cleared. */
+    public boolean arzakonWaits(final HexTile t) {
+        return arzakonAwake && t != null && t.poi == HexPoi.BOSS && t.color == HexColor.COLORLESS;
+    }
+
+    /** The five-colour dungeon of this cycle has opened and its lord is beaten: the way to Arzakon. */
+    public boolean rainbowCleared() {
+        final HexTile t = rainbowDungeon();
+        return t != null && t.dungeon.cleared;
+    }
+
+    /** The last enemy of this cycle's victory: Arzakon, if the party beat him, else Emrakul. */
+    public String finalBossName() {
+        return arzakonBeaten ? HexContent.ARZAKON : HexContent.get().getBossName(HexColor.COLORLESS);
+    }
+
     /** The five-colour dungeon of this cycle, or null while it has not opened (or in a save from before it). */
     public HexTile rainbowDungeon() {
         for (final HexTile t : dungeons()) {
@@ -793,6 +813,8 @@ public class HexCampaign {
         won = false;
         rainbowAt = 0; // the new cycle rolls when its five-colour dungeon opens
         rainbowPlaced = false;
+        arzakonAwake = false;
+        arzakonBeaten = false;
         defeatedBosses.clear();
         pendingEncounter = null;
         pendingRewards.clear();
@@ -955,6 +977,9 @@ public class HexCampaign {
             return t.siege;
         }
         if (t.poi == HexPoi.BOSS) {
+            if (arzakonWaits(t)) {
+                return HexContent.get().arzakonEncounter();
+            }
             return t.cleared ? null : HexContent.get().bossEncounter(t.color);
         }
         if (t.poi == HexPoi.DUNGEON) {
@@ -1223,7 +1248,9 @@ public class HexCampaign {
             return MoveResult.NOTHING;
         }
         deckChecked.clear();
-        if (target.poi == HexPoi.BOSS && !target.cleared) {
+        if (arzakonWaits(target)) {
+            pendingEncounter = content.arzakonEncounter(); // the secret lord, behind Emrakul
+        } else if (target.poi == HexPoi.BOSS && !target.cleared) {
             pendingEncounter = content.bossEncounter(target.color);
         } else if (quest != null) {
             pendingEncounter = content.questEncounter(quest); // the enemy the party was sent for
@@ -1386,7 +1413,7 @@ public class HexCampaign {
                     }
                 }
                 if (enc.boss) {
-                    reward.trophy = awardTrophy(p, enc.color);
+                    reward.trophy = awardTrophy(p, enc.secretBoss ? HexContent.ARZAKON_TROPHY : enc.color.name());
                 }
                 if (room != null && enc.isGuardian()) {
                     openChest(p, reward, dungeon.roomColor(room), chestRandom, treasures, dungeon.multicolor);
@@ -1414,12 +1441,30 @@ public class HexCampaign {
                 if (t != null) {
                     t.cleared = true;
                 }
-                defeatedBosses.add(enc.color);
-                if (enc.color == HexColor.COLORLESS) {
+                if (enc.secretBoss) {
+                    // the true ending
+                    arzakonAwake = false;
+                    arzakonBeaten = true;
                     won = true;
+                    log(msg("lblHexJournalArzakonBeaten"));
                     log(msg("lblHexJournalVictory"));
-                } else if (allArchmagesDefeated()) {
-                    log(msg("lblHexJournalCenterOpen"));
+                } else {
+                    defeatedBosses.add(enc.color);
+                    if (enc.color == HexColor.COLORLESS && rainbowCleared() && !arzakonBeaten && HexContent.get().arzakonEncounter() != null) {
+                        // Emrakul was only the gatekeeper: the ground splits, throws the party back, and Arzakon steps through
+                        arzakonAwake = true;
+                        if (t != null) {
+                            t.name = HexContent.ARZAKON;
+                        }
+                        partyQ = prevQ;
+                        partyR = prevR;
+                        log(msg("lblHexJournalArzakonWakes"));
+                    } else if (enc.color == HexColor.COLORLESS) {
+                        won = true;
+                        log(msg("lblHexJournalVictory"));
+                    } else if (allArchmagesDefeated()) {
+                        log(msg("lblHexJournalCenterOpen"));
+                    }
                 }
             }
         } else {
@@ -1427,6 +1472,13 @@ public class HexCampaign {
             log(msg("lblHexJournalLost", enc.enemyName));
             if (enc.boss) {
                 log(msg("lblHexJournalBossInsult", enc.enemyName, HexContent.get().bossInsult(enc, random())));
+            }
+            if (enc.secretBoss) {
+                // one try a cycle: he withdraws, and Emrakul's fall still wins the cycle
+                arzakonAwake = false;
+                won = true;
+                log(msg("lblHexJournalArzakonWithdraws"));
+                log(msg("lblHexJournalVictory"));
             }
             // the summary of this fight (just recorded) shows what every head lost
             final HexFightSummary summary = lastFight != null && "LOST".equals(lastFight.result)
@@ -2240,16 +2292,16 @@ public class HexCampaign {
      * A head that wears the trophy wears the stronger one at once; a head with nothing on that slot puts it on, and
      * an AI head always wears its newest trophy (but keeps a relic it bought). Returns the trophy's name, or null.
      */
-    private String awardTrophy(final HexPlayer p, final HexColor color) {
+    private String awardTrophy(final HexPlayer p, final String key) {
         final HexContent content = HexContent.get();
-        final int tier = Math.min(HexContent.MAX_RELIC_TIER, p.trophies.getOrDefault(color.name(), 0) + 1);
-        final HexRelic relic = content.trophy(color, tier);
+        final int tier = Math.min(HexContent.MAX_RELIC_TIER, p.trophies.getOrDefault(key, 0) + 1);
+        final HexRelic relic = content.trophy(key, tier);
         if (relic == null) {
             return null;
         }
-        p.trophies.put(color.name(), tier);
+        p.trophies.put(key, tier);
         final HexRelic worn = relicInSlot(p, relic.slot);
-        if (worn == null || color.name().equals(worn.trophy) || p.ai && worn.trophy != null) {
+        if (worn == null || key.equals(worn.trophy) || p.ai && worn.trophy != null) {
             if (worn != null) {
                 p.relics.remove(worn.name);
             }
@@ -2261,12 +2313,17 @@ public class HexCampaign {
 
     /** The trophy a head owns of this colour's boss (at its tier), or null. */
     public HexRelic ownedTrophy(final HexPlayer p, final HexColor color) {
-        final Integer tier = p.trophies.get(color.name());
-        return tier == null ? null : HexContent.get().trophy(color, tier);
+        return ownedTrophy(p, color.name());
+    }
+
+    /** The trophy a head owns by its key (a boss's colour, or Arzakon's), at its tier, or null. */
+    public HexRelic ownedTrophy(final HexPlayer p, final String key) {
+        final Integer tier = key == null ? null : p.trophies.get(key);
+        return tier == null ? null : HexContent.get().trophy(key, tier);
     }
 
     /**
-     * A head wears one of its trophies (colour name), or none (null). It goes on the trophies' slot: a trophy worn
+     * A head wears one of its trophies (its key: a boss's colour, or Arzakon's), or none (null). It goes on the trophies' slot: a trophy worn
      * there is put away, a relic bought for it is sold to make room.
      */
     public boolean wearTrophy(final String playerName, final String color) {
@@ -2276,11 +2333,7 @@ public class HexCampaign {
         }
         HexRelic relic = null;
         if (color != null) {
-            try {
-                relic = ownedTrophy(p, HexColor.valueOf(color));
-            } catch (final IllegalArgumentException e) {
-                return false;
-            }
+            relic = ownedTrophy(p, color);
             if (relic == null || p.relics.contains(relic.name)) {
                 return false;
             }

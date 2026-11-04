@@ -1478,17 +1478,22 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         newGamePlusPromptedCycle = campaign.cycle;
         showStats(true); // the chronicle of the cycle first
         if (isGuest() || HexNet.isGuest()) {
-            FOptionPane.showMessageDialog(t("lblHexVictoryGuest", HexContent.get().getBossName(HexColor.COLORLESS)), campaign.name);
+            FOptionPane.showMessageDialog(ending(campaign) + t("lblHexVictoryGuest", campaign.finalBossName()), campaign.name);
             return;
         }
         final int choice = FOptionPane.showOptionDialog(
-                t("lblHexVictoryNewGamePlus", HexContent.get().getBossName(HexColor.COLORLESS), String.valueOf(campaign.cycle),
+                ending(campaign) + t("lblHexVictoryNewGamePlus", campaign.finalBossName(), String.valueOf(campaign.cycle),
                         String.valueOf(HexCampaign.LIFE_PER_CYCLE), String.valueOf(HexCampaign.ADVANTAGES_PER_CYCLE)),
                 campaign.name, FOptionPane.INFORMATION_ICON,
                 Arrays.asList(t("lblHexNewGamePlus", String.valueOf(campaign.cycle)), t("lblHexLater")), 0);
         if (choice == 0) {
             session.newGamePlus();
         }
+    }
+
+    /** The true ending's line before the victory's text (after Arzakon), else nothing. */
+    private String ending(final HexCampaign campaign) {
+        return campaign.arzakonBeaten ? t("lblHexArzakonEnding") + "\n\n" : "";
     }
 
     /**

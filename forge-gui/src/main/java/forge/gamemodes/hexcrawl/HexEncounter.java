@@ -7,6 +7,8 @@ public class HexEncounter {
     public String deckPath;
     public int life;
     public boolean boss;
+    /** Arzakon, the secret lord behind the archmages (a boss too; see {@link HexCampaign#arzakonWaits}). */
+    public boolean secretBoss;
     public HexColor color;
     /** Gold each head may take as its reward. */
     public int gold;

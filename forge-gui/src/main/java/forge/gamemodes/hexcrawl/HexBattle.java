@@ -102,6 +102,9 @@ public final class HexBattle {
         }
         applyEnemyRelics(campaign, enemy);
         applyCycle(campaign, enc, enemy, 1);
+        if (enc.secretBoss) {
+            enemy.setEnableETBCountersEffect(true); // Arzakon's planeswalker enters with its loyalty (else it dies at once)
+        }
         // a dungeon's enchantments or artifacts (the five-colour dungeon has two): on the enemy's side, they affect everybody
         final List<forge.item.IPaperCard> rules = new java.util.ArrayList<>();
         for (final String ruleCard : campaign.dungeonRuleCards(enc)) {

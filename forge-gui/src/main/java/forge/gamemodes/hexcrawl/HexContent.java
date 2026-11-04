@@ -85,6 +85,25 @@ public final class HexContent {
     }
     /** Emrakul in New Game Plus: the presence of the harder Adventure difficulties. */
     private static final String EMRAKUL_HARD_PRESENCE = "Emrakul's Presence";
+
+    /**
+     * Arzakon, Shandalar's Doom: the secret lord the five wizards of the old Shandalar served. He comes from the
+     * Adventure mode's "Shandalar Old Border" plane (his deck there; his sprite is a common one) and waits behind
+     * Emrakul in a cycle whose five-colour dungeon was cleared.
+     */
+    public static final String ARZAKON = "Arzakon";
+    private static final String ARZAKON_PLANE = "Shandalar Old Border";
+    private static final String ARZAKON_ENTRY = "Arzakon, Shandalar's Doom";
+    /** His life: more than Emrakul's (the Adventure mode's 200 are meant for one player and three games). */
+    public static final int ARZAKON_LIFE = 150;
+    public static final int ARZAKON_GOLD = 1000;
+    /** In play on his side from the start: the planeswalker himself; in the command zone his presence and his awakening. */
+    public static final String ARZAKON_CARD = "Arzakon";
+    private static final String ARZAKON_PRESENCE = "Arzakon's Presence";
+    private static final String ARZAKON_PHASE_TWO = "Arzakon Unleashed";
+    /** The key of his trophy (the others are keyed by their boss's colour). */
+    public static final String ARZAKON_TROPHY = "ARZAKON";
+    private Enemy arzakon;
     /** Number of the Adventure mode's general boss intro lines (AdvBossIntro1..n) and insults. */
     private static final int BOSS_INTRO_LINES = 35;
     private static final int BOSS_INSULT_LINES = 44;
@@ -160,6 +179,7 @@ public final class HexContent {
         } catch (final Exception ex) {
             throw new IllegalStateException("Could not read the adventure enemies", ex);
         }
+        loadArzakon();
 
         for (final HexColor color : HexColor.values()) {
             final List<Enemy> list = new ArrayList<>();
@@ -304,7 +324,7 @@ public final class HexContent {
 
     /** The card that wakes a boss at half its life (its phase two), or null for any other enemy. */
     public String phaseTwoCard(final HexEncounter enc) {
-        return enc == null || !enc.boss ? null : BOSS_PHASE_TWO.get(enc.color);
+        return enc == null || !enc.boss ? null : enc.secretBoss ? ARZAKON_PHASE_TWO : BOSS_PHASE_TWO.get(enc.color);
     }
 
     /** The relics of the Hex Campaign: its own file, so that nothing here depends on (or changes) the Adventure mode's items. */
@@ -453,8 +473,13 @@ public final class HexContent {
 
     /** The trophy a boss of this colour leaves, at a tier from 1 to 3; null if there is none. */
     public HexRelic trophy(final HexColor color, final int tier) {
+        return trophy(color.name(), tier);
+    }
+
+    /** A trophy by its key (its boss's colour, or {@link #ARZAKON_TROPHY}) and tier, or null. */
+    public HexRelic trophy(final String key, final int tier) {
         for (final HexRelic relic : allRelics()) {
-            if (color.name().equals(relic.trophy) && relic.tier == tier) {
+            if (key != null && key.equals(relic.trophy) && relic.tier == tier) {
                 return relic;
             }
         }
@@ -528,6 +553,54 @@ public final class HexContent {
         return enc;
     }
 
+    /** Reads Arzakon from the Old Border plane; without that plane (or his deck) he stays away. */
+    private void loadArzakon() {
+        final File file = new File(ForgeConstants.ADVENTURE_DIR + ARZAKON_PLANE + File.separator + "world" + File.separator + "enemies.json");
+        try (Reader reader = new FileReader(file, java.nio.charset.StandardCharsets.UTF_8)) {
+            for (final JsonElement el : JsonParser.parseReader(reader).getAsJsonArray()) {
+                final JsonObject o = el.getAsJsonObject();
+                if (!o.has("name") || !ARZAKON_ENTRY.equals(o.get("name").getAsString()) || !o.has("deck") || !o.get("deck").isJsonArray()) {
+                    continue;
+                }
+                for (final JsonElement d : o.getAsJsonArray("deck")) {
+                    // below the plane's folder; the campaign reads decks from the common one
+                    final String path = ".." + File.separator + ARZAKON_PLANE + File.separator + d.getAsString();
+                    if (path.endsWith(".dck") && new File(dir() + path).isFile()) {
+                        final Enemy e = new Enemy();
+                        e.name = ARZAKON;
+                        e.deck = path;
+                        e.life = ARZAKON_LIFE;
+                        e.colors = "WUBRG";
+                        e.sprite = o.has("sprite") && o.get("sprite").isJsonPrimitive() ? o.get("sprite").getAsString() : null;
+                        arzakon = e;
+                        enemies.putIfAbsent(ARZAKON, e); // for his sprite
+                        return;
+                    }
+                }
+            }
+        } catch (final Exception ex) {
+            arzakon = null; // the campaign works without him
+        }
+    }
+
+    /** Arzakon, as an enemy to fight (a boss, with his planeswalker in play), or null if he could not be read. */
+    public HexEncounter arzakonEncounter() {
+        if (arzakon == null) {
+            return null;
+        }
+        final HexEncounter enc = toEncounter(arzakon, HexColor.COLORLESS);
+        enc.boss = true;
+        enc.secretBoss = true;
+        enc.gold = ARZAKON_GOLD;
+        if (findStartCard(ARZAKON_CARD) != null) {
+            enc.startCards.add(ARZAKON_CARD);
+        }
+        final forge.util.Localizer loc = forge.util.Localizer.getInstance();
+        enc.intro = loc.getMessage("lblHexArzakonIntro");
+        enc.insult = loc.getMessage("lblHexArzakonInsult");
+        return enc;
+    }
+
     /** A boss's words before the fight: its own line, or one of the Adventure mode's general ones. */
     public String bossIntro(final HexEncounter enc, final Random rnd) {
         if (enc.intro != null && !enc.intro.isEmpty()) {
@@ -553,11 +626,11 @@ public final class HexContent {
         if (!enc.boss || enc.color == null) {
             return result;
         }
-        String presence = BOSS_PRESENCE.get(enc.color);
-        if (enc.color == HexColor.COLORLESS && cycle > 1) {
+        String presence = enc.secretBoss ? ARZAKON_PRESENCE : BOSS_PRESENCE.get(enc.color);
+        if (!enc.secretBoss && enc.color == HexColor.COLORLESS && cycle > 1) {
             presence = EMRAKUL_HARD_PRESENCE;
         }
-        for (final String name : new String[] { presence, BOSS_PHASE_TWO.get(enc.color) }) {
+        for (final String name : new String[] { presence, phaseTwoCard(enc) }) {
             final PaperCard card = name == null ? null : FModel.getMagicDb().getCommonCards().getCard(name);
             if (card != null) {
                 result.add(card);

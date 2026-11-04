@@ -829,13 +829,8 @@ final class HexDeckDialog {
         final boolean editable = mayEdit(p);
         final HexRelic worn = campaign().relicInSlot(p, HexCampaign.TROPHY_SLOT);
         for (final Map.Entry<String, Integer> e : p.trophies.entrySet()) {
-            final HexColor color;
-            try {
-                color = HexColor.valueOf(e.getKey());
-            } catch (final IllegalArgumentException ex) {
-                continue;
-            }
-            final HexRelic trophy = content.trophy(color, e.getValue());
+            final String key = e.getKey(); // a boss's colour, or Arzakon's
+            final HexRelic trophy = content.trophy(key, e.getValue());
             if (trophy == null) {
                 continue;
             }
@@ -844,7 +839,7 @@ final class HexDeckDialog {
                     on ? GoldButton.Kind.GOLD : GoldButton.Kind.OUTLINE, 12.5f);
             wear.setToolTipText(HexCrawlPanel.relicEffects(trophy, campaign().cycle).trim().replace("\n", " · "));
             wear.setEnabled(editable);
-            wear.addActionListener(ev -> wearTrophy(p, on ? null : color.name(), worn, on ? null : trophy));
+            wear.addActionListener(ev -> wearTrophy(p, on ? null : key, worn, on ? null : trophy));
             box.add(wear, "h 32!");
         }
         return box;

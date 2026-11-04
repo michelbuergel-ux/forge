@@ -324,6 +324,29 @@ final class HexPixelIcons {
         });
     }
 
+    /** Arzakon's star: a boss's star of a violet near black, with a ring of the five colours and a golden glow about it. */
+    static synchronized BufferedImage arzakonStar() {
+        final BufferedImage star = star(new Color(0x2A1238)); // before: the cache may not be filled from inside its own filling
+        return CACHE.computeIfAbsent("arzakon", k -> {
+            final BufferedImage ring = new BufferedImage(star.getWidth(), star.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            final int[] colors = { 0xFFF4EDC4, 0xFF4F86C6, 0xFF6A4A86, 0xFFD8402E, 0xFF4FB35A };
+            int n = 0;
+            for (int y = 0; y < star.getHeight(); y++) {
+                for (int x = 0; x < star.getWidth(); x++) {
+                    final int argb = star.getRGB(x, y);
+                    if ((argb >>> 24) == 0) {
+                        continue;
+                    }
+                    final boolean edge = (star.getRGB(Math.max(0, x - 1), y) >>> 24) == 0 || (star.getRGB(Math.min(star.getWidth() - 1, x + 1), y) >>> 24) == 0
+                            || (star.getRGB(x, Math.max(0, y - 1)) >>> 24) == 0 || (star.getRGB(x, Math.min(star.getHeight() - 1, y + 1)) >>> 24) == 0;
+                    // its border in the five colours, by turns
+                    ring.setRGB(x, y, edge ? colors[n++ % colors.length] : argb);
+                }
+            }
+            return outlined(outlined(ring, 0x90FFD23F), 0x40FFD23F);
+        });
+    }
+
     // ------------------------------------------------------------------ the labyrinth
 
     /** The squares of a room of the labyrinth, across: its floor and rock are pictures this size, and its walls lie on them. */

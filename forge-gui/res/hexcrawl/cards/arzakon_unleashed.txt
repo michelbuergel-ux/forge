@@ -1,0 +1,12 @@
+Name:Arzakon Unleashed
+ManaCost:no cost
+Colors:white,blue,black,red,green
+Types:Enchantment
+T:Mode$ Always | TriggerZones$ Command | CheckSVar$ X | SVarCompare$ LEY | IsPresent$ Card.Self+counters_EQ0_AWAKENING | PresentZone$ Command | Execute$ TrigAwake | TriggerDescription$ When your life total is half your starting life or less for the first time, create a Black Lotus token and two 3/3 colorless Golem artifact creature tokens. From then on, creatures you control get +1/+1.
+SVar:TrigAwake:DB$ PutCounter | Defined$ Self | CounterType$ AWAKENING | CounterNum$ 1 | SubAbility$ DBLotus
+SVar:DBLotus:DB$ CopyPermanent | DefinedName$ Black Lotus | SubAbility$ DBGolems
+SVar:DBGolems:DB$ Token | TokenScript$ c_3_3_a_golem | TokenAmount$ 2
+S:Mode$ Continuous | EffectZone$ Command | Affected$ Creature.YouCtrl | AddPower$ 1 | AddToughness$ 1 | IsPresent$ Card.Self+counters_GE1_AWAKENING | PresentZone$ Command | Description$ As long as CARDNAME has an awakening counter on it, creatures you control get +1/+1.
+SVar:X:Count$YourLifeTotal
+SVar:Y:Count$YourStartingLife/HalfDown
+Oracle:When your life total is half your starting life or less for the first time, create a Black Lotus token and two 3/3 colorless Golem artifact creature tokens. From then on, creatures you control get +1/+1.

@@ -132,7 +132,7 @@ final class HexStatsDialog {
     private JPanel buildBanner() {
         final Banner banner = new Banner(palette, new MigLayout("insets 0 26 10 22, gap 18, aligny center", "[]push[]", "[" + Banner.CLOTH + "!]"));
         final JPanel names = transparent(new MigLayout("insets 0, gap 2, wrap 1"));
-        final String title = victory ? t("lblHexChronicleTitleVictory", HexContent.get().getBossName(HexColor.COLORLESS)) : t("lblHexChronicleTitle");
+        final String title = victory ? t("lblHexChronicleTitleVictory", campaign.finalBossName()) : t("lblHexChronicleTitle");
         names.add(new ShadowLabel(title, decorative(27f), TEXT_BRIGHT));
         names.add(label(t("lblHexChronicleSubtitle", String.valueOf(campaign.cycle),
                 String.valueOf(campaign.cycleBattles(forge.gamemodes.hexcrawl.HexBattle.Result.WON)),
@@ -239,14 +239,9 @@ final class HexStatsDialog {
     private String trophyNames(final HexPlayer p) {
         final List<String> names = new java.util.ArrayList<>();
         for (final java.util.Map.Entry<String, Integer> e : p.trophies.entrySet()) {
-            try {
-                final forge.gamemodes.hexcrawl.HexRelic trophy = forge.gamemodes.hexcrawl.HexContent.get()
-                        .trophy(forge.gamemodes.hexcrawl.HexColor.valueOf(e.getKey()), e.getValue());
-                if (trophy != null) {
-                    names.add(trophy.name);
-                }
-            } catch (final IllegalArgumentException ignored) {
-                // not a colour
+            final forge.gamemodes.hexcrawl.HexRelic trophy = forge.gamemodes.hexcrawl.HexContent.get().trophy(e.getKey(), e.getValue());
+            if (trophy != null) {
+                names.add(trophy.name);
             }
         }
         return names.isEmpty() ? null : String.join(", ", names);

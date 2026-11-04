@@ -441,7 +441,9 @@ public class HexMapPanel extends JPanel {
             sb.append(" – ").append(loc.getMessage("lblHexTown")).append(' ').append(t.name);
         } else if (t.poi == HexPoi.BOSS) {
             sb.append(" – ").append(t.name);
-            if (t.cleared) {
+            if (campaign.arzakonWaits(t)) {
+                sb.append('\n').append(loc.getMessage("lblHexArzakonHint"));
+            } else if (t.cleared) {
                 sb.append(" (").append(loc.getMessage("lblHexDefeated")).append(')');
             }
         } else if (t.poi == HexPoi.DUNGEON && t.dungeon != null) {
@@ -558,7 +560,11 @@ public class HexMapPanel extends JPanel {
                 final forge.gamemodes.hexcrawl.HexDungeon d = t.dungeon;
                 drawDungeon(g, cx, cy, s, d == null || d.cleared, d != null && d.multicolor);
             } else {
-                drawBoss(g, cx, cy, s, bossColor(t.cleared, t.color));
+                if (campaign.arzakonWaits(t)) {
+                    drawArzakon(g, cx, cy, s);
+                } else {
+                    drawBoss(g, cx, cy, s, bossColor(t.cleared, t.color));
+                }
             }
             if (t.name != null && size >= 16) {
                 g.setFont(small);
@@ -775,6 +781,11 @@ public class HexMapPanel extends JPanel {
     /** A boss's star: red for an archmage, purple for the centre, grey once it is beaten. */
     static Color bossColor(final boolean beaten, final HexColor color) {
         return beaten ? new Color(0x8A8A8A) : color == HexColor.COLORLESS ? new Color(0x7B2FBE) : new Color(0xB3121E);
+    }
+
+    /** Arzakon waiting on the centre field: a star of the dark between the planes, in the five colours' glow. */
+    static void drawArzakon(final Graphics2D g, final int cx, final int cy, final int s) {
+        HexPixelIcons.draw(g, HexPixelIcons.arzakonStar(), cx, cy, s * PIXEL, 11, 11.3); // the star's middle, two pixels of glow about it
     }
 
     static void drawBoss(final Graphics2D g, final int cx, final int cy, final int s, final Color color) {

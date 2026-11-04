@@ -3778,5 +3778,42 @@
       "c_1_1_eldrazi_scion_sac",
       "c_1_1_eldrazi_scion_sac"
     ]
+  },
+  {
+    "name": "Arzakon's Sigil",
+    "slot": "Head",
+    "price": 1000,
+    "trophy": "ARZAKON",
+    "life": 5,
+    "battlefield": [
+      "Black Lotus"
+    ]
+  },
+  {
+    "name": "Arzakon's Sigil II",
+    "slot": "Head",
+    "price": 2250,
+    "tier": 2,
+    "base": "Arzakon's Sigil",
+    "trophy": "ARZAKON",
+    "life": 7,
+    "battlefield": [
+      "Black Lotus",
+      "Black Lotus"
+    ]
+  },
+  {
+    "name": "Arzakon's Sigil III",
+    "slot": "Head",
+    "price": 5062,
+    "tier": 3,
+    "base": "Arzakon's Sigil",
+    "trophy": "ARZAKON",
+    "life": 9,
+    "battlefield": [
+      "Black Lotus",
+      "Black Lotus",
+      "Black Lotus"
+    ]
   }
 ]
