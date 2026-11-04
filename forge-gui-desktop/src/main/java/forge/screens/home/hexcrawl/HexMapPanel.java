@@ -723,86 +723,18 @@ public class HexMapPanel extends JPanel {
 
     // ------------------------------------------------------------------ the symbols (on the map and in the legend)
 
-    /** A little house; a besieged one has a red glowing edge and flames on the roof. */
+    /** A pixel of the map's pixel pictures, as a part of a symbol's half size: 16 pixels are about 2.5 of it. */
+    private static final double PIXEL = 0.155;
+
+    /** A little house (pixel art, like the enemies); a besieged one scorched, glowing red, with flames on its roof. */
     private static void drawTown(final Graphics2D g, final int cx, final int cy, final int s, final double size, final boolean besieged) {
-        final Polygon house = new Polygon(
-                new int[] { cx - s, cx - s, cx, cx + s, cx + s },
-                new int[] { cy + s, cy - s / 4, cy - s, cy - s / 4, cy + s }, 5);
-        if (besieged) {
-            g.setColor(new Color(200, 30, 45, 150));
-            g.setStroke(new BasicStroke(Math.max(3f, (float) size / 6)));
-            g.drawPolygon(house);
-        }
-        g.setColor(besieged ? new Color(0xD9C9B4) : new Color(0xF6F1E4));
-        g.fillPolygon(house);
-        g.setColor(new Color(0x3A2E20));
-        g.setStroke(new BasicStroke(1.6f));
-        g.drawPolygon(house);
-        g.fillRect(cx - s / 4, cy + s / 4, s / 2, s * 3 / 4);
-        if (besieged) {
-            for (int i = -1; i <= 1; i++) {
-                final int fx = cx + i * s * 2 / 3;
-                final int fy = cy - s / 4 - (i == 0 ? s * 3 / 4 : 0);
-                final int fh = (int) Math.round(s * (i == 0 ? 0.9 : 0.7));
-                final Polygon flame = new Polygon(
-                        new int[] { fx - fh / 3, fx - fh / 6, fx, fx + fh / 6, fx + fh / 3 },
-                        new int[] { fy, fy - fh * 2 / 3, fy - fh, fy - fh * 2 / 3, fy }, 5);
-                g.setColor(new Color(0xF2741B));
-                g.fillPolygon(flame);
-                g.setColor(new Color(0xFFD23F));
-                g.fillOval(fx - fh / 8, fy - fh / 2, fh / 4, fh / 2);
-            }
-        }
+        // the house's middle (8, 8.5); a besieged picture has a border of one pixel and the flames above
+        HexPixelIcons.draw(g, HexPixelIcons.town(besieged), cx, cy, s * PIXEL, besieged ? 9 : 8, besieged ? 12.5 : 8.5);
     }
 
-    /**
-     * A dungeon: a dark cave mouth framed by stones; grey, and its mouth caved in, once its lord is beaten and
-     * it has collapsed.
-     */
+    /** A dungeon: a hill of stone with a dark cave mouth; grey, its mouth full of boulders, once its lord is beaten and it has collapsed. */
     static void drawDungeon(final Graphics2D g, final int cx, final int cy, final int s, final boolean cleared) {
-        final Color stone = cleared ? new Color(0x8A8A8A) : new Color(0x9C8F7A);
-        final Color dark = cleared ? new Color(0x4A4A4A) : new Color(0x14100C);
-        // the rock: a rounded hill
-        final java.awt.geom.Path2D rock = new java.awt.geom.Path2D.Double();
-        rock.moveTo(cx - s * 1.2, cy + s);
-        rock.curveTo(cx - s * 1.2, cy - s * 0.6, cx - s * 0.6, cy - s * 1.15, cx, cy - s * 1.15);
-        rock.curveTo(cx + s * 0.6, cy - s * 1.15, cx + s * 1.2, cy - s * 0.6, cx + s * 1.2, cy + s);
-        rock.closePath();
-        g.setColor(stone);
-        g.fill(rock);
-        g.setColor(new Color(0x2A2218));
-        g.setStroke(new BasicStroke(1.6f));
-        g.draw(rock);
-        // the mouth
-        final java.awt.geom.Path2D mouth = new java.awt.geom.Path2D.Double();
-        mouth.moveTo(cx - s * 0.62, cy + s);
-        mouth.lineTo(cx - s * 0.62, cy - s * 0.05);
-        mouth.curveTo(cx - s * 0.62, cy - s * 0.75, cx + s * 0.62, cy - s * 0.75, cx + s * 0.62, cy - s * 0.05);
-        mouth.lineTo(cx + s * 0.62, cy + s);
-        mouth.closePath();
-        g.setColor(dark);
-        g.fill(mouth);
-        // the stones of the frame
-        g.setColor(new Color(0x2A2218));
-        for (int i = 0; i < 5; i++) {
-            final double a = Math.PI * (1 + i / 4.0);
-            final int bx = (int) Math.round(cx + Math.cos(a) * s * 0.78);
-            final int by = (int) Math.round(cy - s * 0.05 + Math.sin(a) * s * 0.78);
-            g.drawLine(bx, by, (int) Math.round(cx + Math.cos(a) * s * 0.62), (int) Math.round(cy - s * 0.05 + Math.sin(a) * s * 0.62));
-        }
-        if (cleared) {
-            // collapsed: boulders fill the mouth
-            final int r = Math.max(2, (int) Math.round(s * 0.24));
-            final double[][] stones = { { -0.36, 0.72 }, { 0.0, 0.76 }, { 0.36, 0.72 }, { -0.2, 0.36 }, { 0.2, 0.38 }, { 0.0, 0.02 } };
-            for (final double[] st : stones) {
-                final int bx = (int) Math.round(cx + st[0] * s) - r;
-                final int by = (int) Math.round(cy + st[1] * s) - r;
-                g.setColor(new Color(0x9A9A9A));
-                g.fillOval(bx, by, 2 * r, 2 * r);
-                g.setColor(new Color(0x2A2218));
-                g.drawOval(bx, by, 2 * r, 2 * r);
-            }
-        }
+        HexPixelIcons.draw(g, HexPixelIcons.dungeon(cleared), cx, cy, s * PIXEL, 8, 9);
     }
 
     /** A boss's star: red for an archmage, purple for the centre, grey once it is beaten. */
@@ -811,17 +743,7 @@ public class HexMapPanel extends JPanel {
     }
 
     static void drawBoss(final Graphics2D g, final int cx, final int cy, final int s, final Color color) {
-        final Polygon star = new Polygon();
-        for (int i = 0; i < 10; i++) {
-            final double rad = (i % 2 == 0 ? 1.25 : 0.55) * s;
-            final double a = Math.PI / 5 * i - Math.PI / 2;
-            star.addPoint((int) Math.round(cx + rad * Math.cos(a)), (int) Math.round(cy + rad * Math.sin(a)));
-        }
-        g.setColor(color);
-        g.fillPolygon(star);
-        g.setColor(Color.BLACK);
-        g.setStroke(new BasicStroke(1.6f));
-        g.drawPolygon(star);
+        HexPixelIcons.draw(g, HexPixelIcons.star(color), cx, cy, s * PIXEL, 9, 9.3);
     }
 
     private static void drawHunterRing(final Graphics2D g, final int cx, final int cy, final double size) {
@@ -841,7 +763,7 @@ public class HexMapPanel extends JPanel {
         g.drawPolygon(diamond);
     }
 
-    /** An enemy's picture, or crossed blades without one. */
+    /** An enemy's picture, or crossed swords without one. */
     static void drawFigure(final Graphics2D g, final BufferedImage sprite, final int cx, final int cy, final double size) {
         if (sprite != null) {
             final double scale = Math.min(size * 1.15 / sprite.getHeight(), size * 1.25 / sprite.getWidth());
@@ -854,25 +776,13 @@ public class HexMapPanel extends JPanel {
                 g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, before);
             }
         } else {
-            final int s = (int) Math.round(size * 0.38);
-            g.setColor(new Color(0x2A0A0A));
-            g.setStroke(new BasicStroke(Math.max(2.5f, (float) size / 9)));
-            g.drawLine(cx - s, cy - s, cx + s, cy + s);
-            g.drawLine(cx - s, cy + s, cx + s, cy - s);
+            HexPixelIcons.drawCentered(g, HexPixelIcons.blades(), cx, cy, size * 0.76 / 16);
         }
     }
 
     /** An event: a golden coin with a question mark. */
     private void drawEventCoin(final Graphics2D g, final int cx, final int cy, final double size) {
-        final int r = (int) Math.round(size * 0.42);
-        g.setColor(new Color(0xE8C04A));
-        g.fillOval(cx - r, cy - r, 2 * r, 2 * r);
-        g.setColor(new Color(0x5A3E00));
-        g.setStroke(new BasicStroke(Math.max(1.5f, (float) size / 14)));
-        g.drawOval(cx - r, cy - r, 2 * r, 2 * r);
-        g.setFont(getFont().deriveFont(Font.BOLD, (float) Math.max(9, size * 0.6)));
-        final FontMetrics fm = g.getFontMetrics();
-        g.drawString("?", cx - fm.stringWidth("?") / 2, cy + fm.getAscent() / 2 - 1);
+        HexPixelIcons.drawCentered(g, HexPixelIcons.coin(), cx, cy, size * 0.84 / 14); // the coin is 14 pixels across
     }
 
     /** A head's vote: its colour and initial. */
@@ -887,79 +797,13 @@ public class HexMapPanel extends JPanel {
     }
 
     /**
-     * The party: a hero on a golden medallion (a cloaked figure with a raised sword) under a red pennant, drawn,
-     * where the enemies and townsfolk are pixel sprites, so it can't be taken for one of them.
+     * The party: a hooded hero with a raised sword on a golden medallion, under a red pennant (pixel art, like the
+     * enemies; the medallion sets it apart from them). The medallion, 14 pixels across, is 2 * pr wide, centred on (px, py).
      */
-    static void drawParty(final Graphics2D g0, final int px, final int py, final int pr) {
-        final Graphics2D g = (Graphics2D) g0.create();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+    static void drawParty(final Graphics2D g, final int px, final int py, final int pr) {
         final double r = Math.max(6, pr);
-        final float line = (float) Math.max(1.2, r / 9);
-
-        // the pennant behind the medallion, on its staff
-        final double sx = px - r * 0.78;
-        final double top = py - r * 1.75;
-        g.setColor(new Color(0x4A3418));
-        g.setStroke(new BasicStroke(line * 1.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        g.draw(new java.awt.geom.Line2D.Double(sx, py - r * 0.2, sx, top));
-        final java.awt.geom.Path2D flag = new java.awt.geom.Path2D.Double();
-        flag.moveTo(sx, top);
-        flag.lineTo(sx + r * 0.95, top + r * 0.22);
-        flag.lineTo(sx + r * 0.62, top + r * 0.4);
-        flag.lineTo(sx + r * 0.95, top + r * 0.6);
-        flag.lineTo(sx, top + r * 0.62);
-        flag.closePath();
-        g.setColor(new Color(0xD8302A));
-        g.fill(flag);
-        g.setColor(new Color(0x5A0E0A));
-        g.setStroke(new BasicStroke(line * 0.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        g.draw(flag);
-
-        // a shadow, a glow, and the medallion
-        g.setColor(new Color(0, 0, 0, 90));
-        g.fill(new java.awt.geom.Ellipse2D.Double(px - r * 0.95, py + r * 0.55, r * 1.9, r * 0.75));
-        g.setColor(new Color(255, 236, 150, 70));
-        g.fill(new java.awt.geom.Ellipse2D.Double(px - r * 1.25, py - r * 1.25, r * 2.5, r * 2.5));
-        final java.awt.geom.Ellipse2D disc = new java.awt.geom.Ellipse2D.Double(px - r, py - r, r * 2, r * 2);
-        g.setPaint(new java.awt.RadialGradientPaint(new java.awt.geom.Point2D.Double(px - r * 0.3, py - r * 0.35), (float) (r * 1.4),
-                new float[] { 0f, 0.6f, 1f }, new Color[] { new Color(0xFFF1B0), new Color(0xF2C440), new Color(0xB07A12) }));
-        g.fill(disc);
-
-        // the hero, inside the medallion: cloak, head, and a sword held up
-        final java.awt.Shape clip = g.getClip();
-        g.clip(disc);
-        final Color hero = new Color(0x1E2A4A);
-        final java.awt.geom.Path2D cloak = new java.awt.geom.Path2D.Double();
-        cloak.moveTo(px - r * 0.3, py - r * 0.12);
-        cloak.curveTo(px - r * 0.42, py + r * 0.2, px - r * 0.5, py + r * 0.6, px - r * 0.56, py + r * 1.05);
-        cloak.lineTo(px + r * 0.56, py + r * 1.05);
-        cloak.curveTo(px + r * 0.5, py + r * 0.6, px + r * 0.42, py + r * 0.2, px + r * 0.3, py - r * 0.12);
-        cloak.closePath();
-        g.setColor(hero);
-        g.fill(cloak);
-        // a hood, and the face in it
-        g.fill(new java.awt.geom.Ellipse2D.Double(px - r * 0.25, py - r * 0.66, r * 0.5, r * 0.5));
-        g.setColor(new Color(0xF2C9A0));
-        g.fill(new java.awt.geom.Ellipse2D.Double(px - r * 0.14, py - r * 0.5, r * 0.28, r * 0.3));
-        g.setColor(hero);
-        // the raised arm and the sword
-        g.setStroke(new BasicStroke((float) (r * 0.16), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        g.draw(new java.awt.geom.Line2D.Double(px + r * 0.24, py - r * 0.02, px + r * 0.46, py - r * 0.3));
-        g.setColor(new Color(0xEDEFF5));
-        g.setStroke(new BasicStroke((float) Math.max(1.5, r * 0.1), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        g.draw(new java.awt.geom.Line2D.Double(px + r * 0.48, py - r * 0.34, px + r * 0.62, py - r * 0.95));
-        g.setColor(new Color(0x7A5410));
-        g.draw(new java.awt.geom.Line2D.Double(px + r * 0.34, py - r * 0.36, px + r * 0.6, py - r * 0.26));
-        g.setClip(clip);
-
-        // the rim: dark outside, bright inside
-        g.setColor(new Color(0x3A2400));
-        g.setStroke(new BasicStroke(line * 1.6f));
-        g.draw(disc);
-        g.setColor(new Color(255, 250, 220, 200));
-        g.setStroke(new BasicStroke(line * 0.7f));
-        g.draw(new java.awt.geom.Ellipse2D.Double(px - r + line * 1.4, py - r + line * 1.4, (r - line * 1.4) * 2, (r - line * 1.4) * 2));
-        g.dispose();
+        final double[] centre = HexPixelIcons.partyCentre();
+        HexPixelIcons.draw(g, HexPixelIcons.party(), px, py, r * 2 / 14, centre[0], centre[1]);
     }
 
     // ------------------------------------------------------------------ the legend

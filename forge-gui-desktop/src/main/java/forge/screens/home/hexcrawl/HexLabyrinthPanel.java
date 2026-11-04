@@ -643,7 +643,7 @@ public class HexLabyrinthPanel extends JPanel {
                 drawStairs(g, cx, y + c - c / 5, c);
                 break;
             case TREASURE:
-                drawChest(g, thingX, cy + c / 8, c, campaign.treasureWaits(r) ? r.content : null); // empty once this cycle's treasure is spent
+                drawChest(g, thingX, cy + c / 8, c, campaign.treasureWaits(r) ? r.content : null); // empty once taken
                 break;
             case SHRINE:
                 drawShrine(g, thingX, cy + c / 10, c, r.looted ? null : r.content);
