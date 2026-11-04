@@ -439,6 +439,27 @@ public final class CMatchUI
         screen.setCloseButtonTooltip(getConcedeCaption() + " Game");
     }
 
+    /**
+     * Team games: the Display menu's choice of team battlefields (own team, enemy teams), applied to the running
+     * match at once: the fields are formed anew, docked, and their battlefields redrawn.
+     */
+    public void relayoutTeamBattlefields() {
+        if (teamPlayers == null || sortedPlayers == null) {
+            return;
+        }
+        final List<VField> fields = view.getFieldViews();
+        for (final VField f : fields) {
+            f.resetTeam();
+        }
+        TeamBattlefieldLayout.form(fields, sortedPlayers, teamPlayers);
+        view.redockTeamFields();
+        for (final VField f : fields) {
+            f.getTabletop().update(); // each battlefield shows its head, or its team, again
+            f.updateDetails();
+            f.updateTabLabel();
+        }
+    }
+
     /** The battlefields on screen, each once (team members share their team's). */
     public List<PlayArea> getTabletops() {
         return TeamBattlefieldLayout.tabletops(getFieldViews());

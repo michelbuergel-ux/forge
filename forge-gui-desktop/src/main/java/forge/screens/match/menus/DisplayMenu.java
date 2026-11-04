@@ -138,6 +138,7 @@ public final class DisplayMenu {
             final boolean enabled = !prefs.getPrefBoolean(pref);
             prefs.setPref(pref, enabled);
             prefs.save();
+            matchUI.relayoutTeamBattlefields(); // at once, not only from the next game
         });
         return menuItem;
     }

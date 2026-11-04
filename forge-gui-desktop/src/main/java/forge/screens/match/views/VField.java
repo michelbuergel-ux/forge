@@ -87,6 +87,8 @@ public class VField implements IVDoc<CField> {
     // Top-level containers
     private final FScrollPane scroller = new FScrollPane(false);
     private PlayArea tabletop;
+    /** This head's own battlefield (tabletop may be its team's instead, see leadTeam). */
+    private PlayArea ownTabletop;
     /** Team battlefields: the field that shows this head's team (null if it shows itself), and the heads it shows. */
     private VField teamLead;
     private final List<VField> teamMembers = new ArrayList<>();
@@ -219,6 +221,7 @@ public class VField implements IVDoc<CField> {
         // TODO player is hard-coded into tabletop...should be dynamic
         // (haven't looked into it too deeply). Doublestrike 12-04-12
         tabletop = new PlayArea(matchUI, scroller, mirror, player, ZoneType.Battlefield);
+        ownTabletop = tabletop;
 
         control = new CField(matchUI, player, this);
 
@@ -284,6 +287,15 @@ public class VField implements IVDoc<CField> {
         for (final VField m : members) {
             m.updateDetails();
         }
+    }
+
+    /** Back to a field of its own, showing this head only (before the team battlefields are formed anew). */
+    public void resetTeam() {
+        teamLead = null;
+        teamMembers.clear();
+        headIndex = 0;
+        tabletop = ownTabletop;
+        ownTabletop.setTeam(java.util.Collections.emptyList());
     }
 
     /** Is this head shown on a team mate's field (and not on a field of its own)? */

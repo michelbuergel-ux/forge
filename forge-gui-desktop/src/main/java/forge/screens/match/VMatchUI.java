@@ -324,24 +324,76 @@ public class VMatchUI implements IVTopLevelUI {
         }
     }
 
-    /** Puts the further fields of one side next to its first field. Returns true if the row was split. */
+    /**
+     * Puts the further fields of one side next to its first field, all of them side by side in equal columns
+     * (as tabs of one cell, only one of them was visible at a time). Returns true if the row was split.
+     */
     private boolean placeTeamRow(final DragCell cell, final List<VField> others) {
-        if (others.size() != 1) {
-            for (final VField vField : others) {
-                cell.addDoc(vField);
-            }
+        if (others.isEmpty()) {
             return false;
         }
-        // two heads: both fields side by side
         final RectangleOfDouble rb = cell.getRoughBounds();
-        final double half = rb.getW() / 2.0;
-        cell.setRoughBounds(new RectangleOfDouble(rb.getX(), rb.getY(), half, rb.getH()));
-        final DragCell newCell = new DragCell();
-        newCell.setRoughBounds(new RectangleOfDouble(rb.getX() + half, rb.getY(), rb.getW() - half, rb.getH()));
-        FView.SINGLETON_INSTANCE.addDragCell(newCell);
-        newCell.addDoc(others.get(0));
-        dynamicCells.add(newCell);
+        final double w = rb.getW() / (others.size() + 1);
+        cell.setRoughBounds(new RectangleOfDouble(rb.getX(), rb.getY(), w, rb.getH()));
+        for (int i = 0; i < others.size(); i++) {
+            final double x = rb.getX() + w * (i + 1);
+            final double width = i == others.size() - 1 ? rb.getX() + rb.getW() - x : w; // the last takes what is left
+            final DragCell newCell = new DragCell();
+            newCell.setRoughBounds(new RectangleOfDouble(x, rb.getY(), width, rb.getH()));
+            FView.SINGLETON_INSTANCE.addDragCell(newCell);
+            newCell.addDoc(others.get(i));
+            dynamicCells.add(newCell);
+        }
         return true;
+    }
+
+    /**
+     * Team games: the team battlefields were formed anew (the Display menu's choice, during the match): every
+     * field of a side gets its cell again, and the cells show their fields anew (a team's field looks different).
+     * Docs other than fields in the cells split off before (a team mate's hand) move to the field they belong to.
+     */
+    public void redockTeamFields() {
+        if (teamFields == null || lstFields.size() <= 2) {
+            return;
+        }
+        final List<forge.gui.framework.IVDoc<? extends forge.gui.framework.ICDoc>> strays = new ArrayList<>();
+        for (final DragCell cell : dynamicCells) {
+            for (final forge.gui.framework.IVDoc<? extends forge.gui.framework.ICDoc> doc : new ArrayList<>(cell.getDocs())) {
+                if (!(doc instanceof VField)) {
+                    cell.removeDoc(doc);
+                    doc.setParentCell(null);
+                    strays.add(doc);
+                }
+            }
+        }
+        cleanupDynamicCells();
+        assignTeamFieldsToCells();
+        for (final forge.gui.framework.IVDoc<? extends forge.gui.framework.ICDoc> doc : strays) {
+            DragCell target = lstFields.get(0).getParentCell();
+            for (int i = 0; i < EDocID.Hands.length && i < lstFields.size(); i++) {
+                if (EDocID.Hands[i] == doc.getDocumentID()) {
+                    final DragCell own = lstFields.get(i).docked().getParentCell();
+                    target = own == null ? target : own;
+                }
+            }
+            if (target != null) {
+                target.addDoc(doc);
+            }
+        }
+        final java.util.Set<DragCell> cells = new java.util.LinkedHashSet<>();
+        for (final VField f : lstFields) {
+            if (f.getParentCell() != null) {
+                cells.add(f.getParentCell());
+            }
+        }
+        for (final DragCell cell : cells) {
+            final forge.gui.framework.IVDoc<? extends forge.gui.framework.ICDoc> selected = cell.getSelected();
+            cell.setSelected(null); // shown anew: setSelected does nothing for the doc already selected
+            if (selected != null) {
+                cell.setSelected(selected);
+            }
+        }
+        SResizingUtil.resizeWindow();
     }
 
     private void assignExtraFieldsToCells() {
