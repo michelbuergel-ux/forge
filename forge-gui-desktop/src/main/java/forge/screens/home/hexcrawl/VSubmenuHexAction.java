@@ -13,8 +13,8 @@ import forge.screens.home.IVSubmenu;
 import forge.util.Localizer;
 
 /**
- * The Hexkampagne group of the home menu, besides Start: a new campaign, loading one, and joining a friend's.
- * Each opens the campaign screen ("Start", which stays the entry selected, so that Forge does not repeat the
+ * The Hexkampagne group of the home menu, besides Spielen: a new campaign, loading one, and joining a friend's.
+ * Each opens the campaign screen ("Spielen", which stays the entry selected, so that Forge does not repeat the
  * action at its next start) and then does what the campaign menu does.
  */
 public enum VSubmenuHexAction implements IVSubmenu<CSubmenuHexCrawl> {
@@ -79,7 +79,7 @@ public enum VSubmenuHexAction implements IVSubmenu<CSubmenuHexCrawl> {
         return parentCell;
     }
 
-    /** Clicked: the campaign screen comes up (as Start), then the action runs on it. */
+    /** Clicked: the campaign screen comes up (as Spielen), then the action runs on it. */
     @Override
     public void populate() {
         SwingUtilities.invokeLater(() -> {

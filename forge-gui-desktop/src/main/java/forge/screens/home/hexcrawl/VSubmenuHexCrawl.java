@@ -32,7 +32,7 @@ public enum VSubmenuHexCrawl implements IVSubmenu<CSubmenuHexCrawl> {
         return EMenuGroup.HEX;
     }
 
-    /** "Start" in the Hexkampagne group (see VSubmenuHexAction for the other entries). */
+    /** "Spielen" in the Hexkampagne group (see VSubmenuHexAction for the other entries). */
     @Override
     public String getMenuTitle() {
         return localizer.getMessage("lblHexMenuStart");
