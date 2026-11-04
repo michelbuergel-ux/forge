@@ -432,8 +432,8 @@ public class HexMapPanel extends JPanel {
             } else {
                 final forge.item.IPaperCard ruleCard = d.ruleCard == null ? null : forge.gamemodes.hexcrawl.HexContent.get().findStartCard(d.ruleCard);
                 sb.append('\n').append(loc.getMessage("lblHexDungeonHint", String.valueOf(forge.gamemodes.hexcrawl.HexContent.TREASURE_PRICE)));
-                sb.append('\n').append(loc.getMessage("lblHexDungeonTreasuresLeft", String.valueOf(campaign.treasuresLeft()),
-                        String.valueOf(campaign.treasureCap())));
+                sb.append('\n').append(loc.getMessage("lblHexDungeonTreasuresLeft", String.valueOf(d.treasuresLeft()),
+                        String.valueOf(d.treasureRooms())));
                 if (ruleCard != null) {
                     // the rule card with its text: whether to go in is decided here
                     final String text = ruleCard.getRules() == null ? null : ruleCard.getRules().getOracleText();

@@ -140,6 +140,34 @@ public class HexDungeon {
         return n;
     }
 
+    /** The treasure rooms of this labyrinth ({@link HexLabyrinth#TREASURES}; as many for a dungeon without one yet). */
+    public int treasureRooms() {
+        if (rooms.isEmpty()) {
+            return HexLabyrinth.TREASURES;
+        }
+        int n = 0;
+        for (final HexRoom r : rooms) {
+            if (r.kind == HexRoom.Kind.TREASURE) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** The treasure rooms of this labyrinth not taken yet in this cycle. */
+    public int treasuresLeft() {
+        if (rooms.isEmpty()) {
+            return HexLabyrinth.TREASURES;
+        }
+        int n = 0;
+        for (final HexRoom r : rooms) {
+            if (r.kind == HexRoom.Kind.TREASURE && r.full()) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     /**
      * The dungeon starts anew: the beaten enemies come back (only those whose treasure or shrine is not taken,
      * and never the boss of a cleared dungeon), the rooms are dark again, the buffs and the life are gone.

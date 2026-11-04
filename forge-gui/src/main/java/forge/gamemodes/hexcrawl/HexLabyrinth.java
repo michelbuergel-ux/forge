@@ -24,7 +24,11 @@ public final class HexLabyrinth {
     static final int BOSS_PLACES = 4;
     /** Walls broken through after the maze is carved: crossings and loops. */
     static final int LOOPS = 6;
-    static final int TREASURES = 3;
+    /**
+     * Treasure rooms of a labyrinth: what its dungeon gives in a cycle. A taken one stays empty, however often
+     * the party comes back, until the next cycle's map brings new labyrinths.
+     */
+    public static final int TREASURES = 3;
     static final int SHRINES = 2;
     /** Enemies scattered through the labyrinth, besides its boss. */
     public static final int ENEMIES = 6;

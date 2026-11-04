@@ -262,8 +262,7 @@ public class HexLabyrinthPanel extends JPanel {
     private String describe(final HexDungeon d, final HexRoom r) {
         final StringBuilder sb = new StringBuilder(t("lblHexRoom" + r.kind.name()));
         if (r.kind == HexRoom.Kind.TREASURE) {
-            sb.append(" – ").append(r.looted ? t("lblHexRoomLooted") : campaign.treasureWaits(r) ? t("lblHexTreasure" + r.content)
-                    : t("lblHexTreasureSpent", String.valueOf(campaign.treasureCap())));
+            sb.append(" – ").append(r.looted ? t("lblHexRoomLooted") : t("lblHexTreasure" + r.content));
         } else if (r.kind == HexRoom.Kind.SHRINE) {
             sb.append(" – ").append(r.looted ? t("lblHexRoomUsed") : t("lblHexBuff" + r.content,
                     String.valueOf(HexCampaign.DUNGEON_SHRINE_LIFE), String.valueOf(HexCampaign.DUNGEON_WEAKEN_LIFE)));
@@ -758,7 +757,7 @@ public class HexLabyrinthPanel extends JPanel {
             pills.add(t("lblHexLabyRule", rule.getName()));
         }
         pills.add(t("lblHexLabyLife", String.valueOf(d.lifeLeft)));
-        pills.add(t("lblHexLabyTreasures", String.valueOf(campaign.treasuresLeft()), String.valueOf(campaign.treasureCap())));
+        pills.add(t("lblHexLabyTreasures", String.valueOf(d.treasuresLeft()), String.valueOf(d.treasureRooms())));
         for (final String buff : d.buffs) {
             pills.add(t("lblHexBuff" + buff, String.valueOf(HexCampaign.DUNGEON_SHRINE_LIFE), String.valueOf(HexCampaign.DUNGEON_WEAKEN_LIFE)));
         }

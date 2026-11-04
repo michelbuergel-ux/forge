@@ -453,10 +453,8 @@ public class HexDungeonTest extends AITest {
     }
 
     @Test
-    public void theDungeonsGiveOnlySoManyTreasuresInACycle() {
+    public void eachDungeonGivesItsThreeTreasuresInACycle() {
         final HexCampaign c = newCampaign(29L, 7);
-        AssertJUnit.assertEquals("two for each of the two heads", 4, c.treasureCap());
-        c.treasuresTaken = c.treasureCap() - 1;
         final HexDungeon d = enter(c);
         final java.util.List<HexRoom> chests = new java.util.ArrayList<>();
         for (final HexRoom r : d.rooms) {
@@ -464,44 +462,56 @@ public class HexDungeonTest extends AITest {
                 chests.add(r);
             }
         }
-        // the last treasure of the cycle
+        AssertJUnit.assertEquals("three treasure rooms", HexLabyrinth.TREASURES, chests.size());
+        AssertJUnit.assertEquals(3, d.treasureRooms());
+        AssertJUnit.assertEquals(3, d.treasuresLeft());
+        // an open one
         chests.get(0).guard = null;
-        AssertJUnit.assertEquals(1, c.treasuresLeft());
         stepInto(c, d, chests.get(0));
         AssertJUnit.assertTrue(chests.get(0).looted);
-        AssertJUnit.assertEquals(0, c.treasuresLeft());
+        AssertJUnit.assertEquals(2, d.treasuresLeft());
         c.chooseReward("Ann", -1);
         c.chooseReward("Bob", -1);
-        // then the chests are empty: open ones give nothing, guarded ones only what their enemy has
-        chests.get(1).guard = null;
-        AssertJUnit.assertFalse(c.treasureWaits(chests.get(1)));
-        AssertJUnit.assertEquals(HexCampaign.MoveResult.NOTHING, stepInto(c, d, chests.get(1)));
-        AssertJUnit.assertTrue("nothing to take", c.pendingRewards.isEmpty());
-        AssertJUnit.assertFalse(chests.get(1).looted);
-        AssertJUnit.assertEquals(HexCampaign.MoveResult.ENCOUNTER, stepInto(c, d, guarded(c, d, chests.get(2))));
-        win(c, 20);
-        for (final HexPlayer p : c.players) {
-            final HexReward reward = c.pendingReward(p.name);
-            AssertJUnit.assertNull(reward.chestCard);
-            AssertJUnit.assertNull(reward.chestRelic);
-            AssertJUnit.assertEquals(0, reward.chestGold);
-        }
-        c.pendingRewards.clear();
-        AssertJUnit.assertEquals("never below none", 0, c.treasuresLeft());
-        AssertJUnit.assertEquals(c.treasureCap(), c.treasuresTaken);
         // leaving and coming back brings nothing back
         d.x = d.entranceX;
         d.y = d.entranceY;
         AssertJUnit.assertTrue(c.leaveLabyrinth());
         AssertJUnit.assertEquals(HexCampaign.MoveResult.DUNGEON, c.enterLabyrinth());
-        AssertJUnit.assertEquals(0, c.treasuresLeft());
+        AssertJUnit.assertEquals(2, d.treasuresLeft());
+        AssertJUnit.assertFalse(c.treasureWaits(chests.get(0)));
+        AssertJUnit.assertEquals(HexCampaign.MoveResult.NOTHING, stepInto(c, d, chests.get(0)));
+        AssertJUnit.assertTrue("nothing to take twice", c.pendingRewards.isEmpty());
+        // the other two, one open and one guarded: no shared limit empties them
+        chests.get(1).guard = null;
+        stepInto(c, d, chests.get(1));
+        AssertJUnit.assertFalse("its treasure, for every head", c.pendingRewards.isEmpty());
+        c.chooseReward("Ann", -1);
+        c.chooseReward("Bob", -1);
+        AssertJUnit.assertEquals(HexCampaign.MoveResult.ENCOUNTER, stepInto(c, d, guarded(c, d, chests.get(2))));
+        win(c, 20);
+        for (final HexPlayer p : c.players) {
+            final HexReward reward = c.pendingReward(p.name);
+            AssertJUnit.assertTrue("the guarded treasure too",
+                    reward.chestCard != null || reward.chestRelic != null || reward.chestGold > 0);
+        }
+        c.pendingRewards.clear();
+        AssertJUnit.assertEquals(0, d.treasuresLeft());
+        // the other dungeons keep all of theirs
+        for (final HexTile t : c.dungeons()) {
+            if (t.dungeon != d) {
+                AssertJUnit.assertEquals(3, t.dungeon.treasuresLeft());
+            }
+        }
         // a new cycle: new labyrinths, and their treasure
         d.x = d.entranceX;
         d.y = d.entranceY;
         c.leaveLabyrinth();
         c.won = true;
         AssertJUnit.assertTrue(c.startNewGamePlus());
-        AssertJUnit.assertEquals(c.treasureCap(), c.treasuresLeft());
+        AssertJUnit.assertFalse(c.dungeons().isEmpty());
+        for (final HexTile t : c.dungeons()) {
+            AssertJUnit.assertEquals(3, t.dungeon.treasuresLeft());
+        }
     }
 
     @Test
