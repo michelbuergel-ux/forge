@@ -118,7 +118,6 @@ public enum VHomeUI implements IVTopLevelUI {
         allSubmenus.add(VSubmenuConstructed.SINGLETON_INSTANCE);
         allSubmenus.add(VSubmenuDraft.SINGLETON_INSTANCE);
         allSubmenus.add(VSubmenuSealed.SINGLETON_INSTANCE);
-        allSubmenus.add(forge.screens.home.hexcrawl.VSubmenuHexCrawl.SINGLETON_INSTANCE);
         //allSubmenus.add(VSubmenuWinston.SINGLETON_INSTANCE);
 
         allSubmenus.add(VSubmenuOnlineLobby.SINGLETON_INSTANCE);
@@ -131,6 +130,11 @@ public enum VHomeUI implements IVTopLevelUI {
         allSubmenus.add(VSubmenuChallenges.SINGLETON_INSTANCE);
         allSubmenus.add(VSubmenuQuestDraft.SINGLETON_INSTANCE);
         allSubmenus.add(VSubmenuQuestPrefs.SINGLETON_INSTANCE);
+
+        allSubmenus.add(forge.screens.home.hexcrawl.VSubmenuHexCrawl.SINGLETON_INSTANCE);
+        allSubmenus.add(forge.screens.home.hexcrawl.VSubmenuHexAction.NEW);
+        allSubmenus.add(forge.screens.home.hexcrawl.VSubmenuHexAction.LOAD);
+        allSubmenus.add(forge.screens.home.hexcrawl.VSubmenuHexAction.JOIN);
 
         allSubmenus.add(VSubmenuGauntletQuick.SINGLETON_INSTANCE);
         allSubmenus.add(VSubmenuGauntletBuild.SINGLETON_INSTANCE);

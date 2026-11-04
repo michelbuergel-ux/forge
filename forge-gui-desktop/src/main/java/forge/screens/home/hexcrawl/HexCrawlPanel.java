@@ -2162,6 +2162,43 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     }
 
     /** Shows the page of a new campaign in place of the map. */
+    // ------------------------------------------------------------------ the home menu's Hexkampagne entries
+
+    /** Not while playing in a friend's campaign: that has to be left first. Says so, and returns true then. */
+    private boolean refusedAsGuest() {
+        if (isGuest() || HexNet.isGuest()) {
+            FOptionPane.showMessageDialog(t("lblHexSidebarGuest"), t("lblHexCampaign"));
+            return true;
+        }
+        return false;
+    }
+
+    /** "Neue Kampagne": the page of a new campaign, as in the campaign menu. */
+    public void startNewCampaign() {
+        if (!refusedAsGuest()) {
+            newCampaign();
+        }
+    }
+
+    /** "Lade Kampagne": the choice of a saved campaign, as in the campaign menu. */
+    public void chooseCampaignToLoad() {
+        if (!refusedAsGuest()) {
+            loadCampaign();
+        }
+    }
+
+    /** "Verbinden": the window to join a friend's campaign, as in the campaign menu. */
+    public void joinFriend() {
+        if (refusedAsGuest()) {
+            return;
+        }
+        if (HostingServer.isHosting()) {
+            FOptionPane.showMessageDialog(t("lblHexSidebarHosting"), t("lblHexCampaign"));
+            return;
+        }
+        new HexJoinDialog().show();
+    }
+
     private void newCampaign() {
         if (isGuest() || HexNet.isGuest()) {
             return;

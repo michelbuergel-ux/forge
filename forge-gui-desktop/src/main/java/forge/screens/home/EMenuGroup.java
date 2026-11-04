@@ -11,6 +11,7 @@ public enum EMenuGroup {
     SANCTIONED ("lblPlayMode"),
     ONLINE ("lblOnlineMultiplayer"),
     QUEST ("lblQuests"),
+    HEX ("lblHexCampaign"),
     PUZZLE ("lblPuzzles"),
     GAUNTLET ("lblGauntlets"),
     SETTINGS ("lblGameSettings");
