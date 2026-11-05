@@ -144,6 +144,7 @@ public final class HexFight {
         if (g == null || g.isGameOver()) {
             return true;
         }
+        HexFightDump.write("force", g, enemyName); // what hangs, for finding out why later
         if (!gameLoopRunning()) {
             return false;
         }
@@ -168,6 +169,9 @@ public final class HexFight {
         aborted = true;
         final Game g = game;
         final boolean ending = g != null && !g.isGameOver();
+        if (ending) {
+            HexFightDump.write("abort", g, enemyName); // what hung, for finding out why later
+        }
         if (ending) {
             // as an accepted draw ends a game: otherwise everybody still in it counts as a winner
             for (final Player p : g.getPlayers()) {

@@ -38,6 +38,10 @@ public class AITest {
         if (initialized) {
             return;
         }
+        // a fight broken off in a test writes its record of a stuck fight here, not into the user's folder
+        if (System.getProperty("forge.hex.dumpDir") == null) {
+            System.setProperty("forge.hex.dumpDir", new java.io.File(System.getProperty("java.io.tmpdir"), "forge-test-hex-dumps").getPath());
+        }
         GuiBase.setInterface(new GuiDesktop());
         FModel.initialize(null, preferences -> {
             preferences.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, false);
