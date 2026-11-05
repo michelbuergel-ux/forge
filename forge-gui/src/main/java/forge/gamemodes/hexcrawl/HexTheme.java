@@ -116,6 +116,11 @@ public final class HexTheme {
             }
             return false;
         }));
+        // Equipment, and the cards that want it (equipped creatures, Equipment you control, finding or moving it);
+        // the artifact shop's Equipment is mostly colourless, the creature shop's helpers are of the town's colour
+        all.add(mechanic("equipment", r -> r.getType().hasSubtype("Equipment")
+                || hints(r, DeckHints.Type.TYPE, "Equipment")
+                || mentionsEquipment(r)));
         ALL = Collections.unmodifiableList(all);
     }
 
@@ -125,6 +130,16 @@ public final class HexTheme {
 
     private static HexTheme mechanic(final String id, final Predicate<CardRules> fits) {
         return new HexTheme(id, "lblHexTheme_" + id, null, fits);
+    }
+
+    /** Rules text about Equipment or equipped creatures. */
+    private static boolean mentionsEquipment(final CardRules r) {
+        final String oracle = r.getOracleText();
+        if (oracle == null) {
+            return false;
+        }
+        final String text = oracle.toLowerCase(java.util.Locale.ROOT);
+        return text.contains("equipment") || text.contains("equipped creature");
     }
 
     /** Rules text about planeswalkers you control or their loyalty (not "creature or planeswalker" removal). */

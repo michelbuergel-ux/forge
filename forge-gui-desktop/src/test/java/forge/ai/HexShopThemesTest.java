@@ -291,6 +291,34 @@ public class HexShopThemesTest extends AITest {
     }
 
     @Test
+    public void testTheEquipmentTheme() {
+        final HexTheme equipment = HexTheme.get("equipment");
+        AssertJUnit.assertNotNull(equipment);
+        AssertJUnit.assertFalse("topped up like the other mechanics", equipment.isStrict());
+        AssertJUnit.assertEquals("added last: the others keep their places", HexTheme.all().size() - 1, HexTheme.indexOf("equipment"));
+        AssertJUnit.assertEquals("critters", HexTheme.byIndex(HexTheme.indexOf("equipment") - 1).id);
+        for (final String card : new String[] { "Bonesplitter", "Loxodon Warhammer", "Stoneforge Mystic", "Puresteel Paladin" }) {
+            AssertJUnit.assertTrue(card, equipment.fits(HexContent.get().getCard(card).getRules()));
+        }
+        for (final String card : new String[] { "Lightning Bolt", "Grizzly Bears", "Sol Ring", "Pacifism" }) {
+            AssertJUnit.assertFalse(card, equipment.fits(HexContent.get().getCard(card).getRules()));
+        }
+        // enough of it for the towns: every colour may offer it
+        for (final HexColor color : HexColor.COLORS) {
+            AssertJUnit.assertTrue(color + " towns", HexContent.get().themesFor(color).contains(equipment));
+        }
+        // a tab of it holds Equipment
+        final List<HexShopOffer> stock = HexContent.get().themeStock(HexColor.WHITE, equipment, new java.util.Random(7));
+        int fitting = 0;
+        for (final HexShopOffer offer : stock) {
+            if (equipment.fits(HexContent.get().getCard(offer.card).getRules())) {
+                fitting++;
+            }
+        }
+        AssertJUnit.assertTrue("Equipment on the shelves: " + fitting, fitting >= HexContent.CARDS_PER_SHOP);
+    }
+
+    @Test
     public void testEveryHeadHasShelvesOfItsOwn() {
         final HexCampaign c = HexCampaign.create("Test", 42L, 4, java.util.Arrays.asList(new HexPlayer("Ann", false), new HexPlayer("Bob", false)));
         c.shop();
