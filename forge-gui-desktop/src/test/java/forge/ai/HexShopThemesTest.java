@@ -295,7 +295,7 @@ public class HexShopThemesTest extends AITest {
         final HexTheme equipment = HexTheme.get("equipment");
         AssertJUnit.assertNotNull(equipment);
         AssertJUnit.assertFalse("topped up like the other mechanics", equipment.isStrict());
-        AssertJUnit.assertEquals("added last: the others keep their places", HexTheme.all().size() - 1, HexTheme.indexOf("equipment"));
+        AssertJUnit.assertEquals("after the critters: the others keep their places", HexTheme.indexOf("critters") + 1, HexTheme.indexOf("equipment"));
         AssertJUnit.assertEquals("critters", HexTheme.byIndex(HexTheme.indexOf("equipment") - 1).id);
         for (final String card : new String[] { "Bonesplitter", "Loxodon Warhammer", "Stoneforge Mystic", "Puresteel Paladin" }) {
             AssertJUnit.assertTrue(card, equipment.fits(HexContent.get().getCard(card).getRules()));
@@ -316,6 +316,33 @@ public class HexShopThemesTest extends AITest {
             }
         }
         AssertJUnit.assertTrue("Equipment on the shelves: " + fitting, fitting >= HexContent.CARDS_PER_SHOP);
+    }
+
+    @Test
+    public void testTheCloneAndCopyTheme() {
+        final HexTheme copy = HexTheme.get("copy");
+        AssertJUnit.assertNotNull(copy);
+        AssertJUnit.assertFalse(copy.isStrict());
+        AssertJUnit.assertEquals("added last: the others keep their places", HexTheme.all().size() - 1, HexTheme.indexOf("copy"));
+        AssertJUnit.assertEquals("equipment", HexTheme.byIndex(HexTheme.indexOf("copy") - 1).id);
+        for (final String card : new String[] { "Clone", "Phantasmal Image", "Fork", "Twincast", "Rite of Replication", "Grapeshot" }) {
+            AssertJUnit.assertTrue(card, copy.fits(HexContent.get().getCard(card).getRules()));
+        }
+        for (final String card : new String[] { "Lightning Bolt", "Grizzly Bears", "Counterspell", "Relentless Rats" }) {
+            AssertJUnit.assertFalse(card, copy.fits(HexContent.get().getCard(card).getRules()));
+        }
+        // the colours that copy most offer it
+        for (final HexColor color : new HexColor[] { HexColor.BLUE, HexColor.RED }) {
+            AssertJUnit.assertTrue(color + " towns", HexContent.get().themesFor(color).contains(copy));
+        }
+        final List<HexShopOffer> stock = HexContent.get().themeStock(HexColor.BLUE, copy, new java.util.Random(11));
+        int fitting = 0;
+        for (final HexShopOffer offer : stock) {
+            if (copy.fits(HexContent.get().getCard(offer.card).getRules())) {
+                fitting++;
+            }
+        }
+        AssertJUnit.assertTrue("clones and copies on the shelves: " + fitting, fitting >= HexContent.CARDS_PER_SHOP);
     }
 
     @Test

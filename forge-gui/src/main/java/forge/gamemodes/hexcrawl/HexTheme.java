@@ -121,6 +121,8 @@ public final class HexTheme {
         all.add(mechanic("equipment", r -> r.getType().hasSubtype("Equipment")
                 || hints(r, DeckHints.Type.TYPE, "Equipment")
                 || mentionsEquipment(r)));
+        // clones and copies: creatures that enter as a copy, tokens that are copies, spells and abilities copied
+        all.add(mechanic("copy", HexTheme::copies));
         ALL = Collections.unmodifiableList(all);
     }
 
@@ -130,6 +132,14 @@ public final class HexTheme {
 
     private static HexTheme mechanic(final String id, final Predicate<CardRules> fits) {
         return new HexTheme(id, "lblHexTheme_" + id, null, fits);
+    }
+
+    private static final java.util.regex.Pattern COPY = java.util.regex.Pattern.compile("\\bcop(y|ies|ied|ying)\\b");
+
+    /** Rules text that copies something: a permanent (as a clone or a token), a spell or an ability. */
+    private static boolean copies(final CardRules r) {
+        final String oracle = r.getOracleText();
+        return oracle != null && COPY.matcher(oracle.toLowerCase(java.util.Locale.ROOT)).find();
     }
 
     /** Rules text about Equipment or equipped creatures. */
