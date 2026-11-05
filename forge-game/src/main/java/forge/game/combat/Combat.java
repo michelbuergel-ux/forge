@@ -811,7 +811,7 @@ public class Combat {
                 }
 
                 if (AttackingBand.isValidBand(attackers, true))
-                    assigningPlayer = attackingPlayer;
+                    assigningPlayer = getDecidingAttacker(attackers.get(0)); // banding: the attackers' controller (a team mate's own)
 
                 assignedDamage = true;
                 Map<Card, Integer> map = assigningPlayer.getController().assignCombatDamage(blocker, attackers, null, damage, defender, divideCombatDamageAsChoose || assigningPlayer != blocker.getController() || !this.legacyOrderCombatants);
@@ -862,7 +862,8 @@ public class Combat {
             }
 
             GameEntity defender = getDefenderByAttacker(band);
-            Player assigningPlayer = getAttackingPlayer();
+            // the attacker's controller assigns its damage (with shared team turns, a team mate's creature is theirs)
+            Player assigningPlayer = getDecidingAttacker(attacker);
             orderedBlockers = blockersOrderedForDamageAssignment.get().get(attacker);
             // Defensive Formation is very similar to Banding with Blockers
             // It allows the defending player to assign damage instead of the attacking player
@@ -946,7 +947,7 @@ public class Combat {
                 } // No damage happens if blocked but no blockers left
             } else {
                 Map<Card, Integer> map = assigningPlayer.getController().assignCombatDamage(attacker, orderedBlockers, attackers,
-                        damageDealt, defender, divideCombatDamageAsChoose || getAttackingPlayer() != assigningPlayer || !this.legacyOrderCombatants);
+                        damageDealt, defender, divideCombatDamageAsChoose || getDecidingAttacker(attacker) != assigningPlayer || !this.legacyOrderCombatants);
 
                 attackers.remove(attacker);
                 // player wants to assign another first
