@@ -10,7 +10,10 @@ import forge.util.IHasForgeLog;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 
+import io.netty.util.IllegalReferenceCountException;
 import java.net.SocketAddress;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class RemoteClient implements IToClient, IHasForgeLog {
@@ -27,6 +30,11 @@ public final class RemoteClient implements IToClient, IHasForgeLog {
     private volatile int codecConsumerId = -1;
     private final AtomicInteger sendErrors = new AtomicInteger(0);
     private RemoteClientGuiGame gui;
+    /**
+     * The questions {@link #sendAndWait} sent and still waits for an answer to, by id, as they went out (a retained
+     * copy, released when the answer comes): {@link #resendWaiting} sends them again.
+     */
+    private final Map<Integer, ByteBuf> waiting = new ConcurrentHashMap<>();
 
     // Package-private: SaturationLoggingHandler reads/resets these on writability transitions
     volatile long saturationStartMs = 0L;
@@ -135,6 +143,50 @@ public final class RemoteClient implements IToClient, IHasForgeLog {
             replies.complete(event.getId(), null);
             return replies.get(event.getId());
         }
+        waiting.put(event.getId(), encoded.retainedDuplicate()); // kept until the answer, to be sent again if need be
+        try {
+            return writeAndWait(ch, encoded, event);
+        } finally {
+            final ByteBuf kept = waiting.remove(event.getId());
+            if (kept != null) {
+                kept.release();
+            }
+        }
+    }
+
+    /**
+     * Sends again every question this client has not answered yet: the same bytes with the same id, so its answer
+     * reaches the game that waits for it. For a fight that hangs because a question or its answer got lost on the
+     * way (else the game thread waits for ever); a question that only waits for a slow player is shown to them a
+     * second time, and of two answers the first counts. Returns how many questions were sent.
+     */
+    public int resendWaiting() {
+        final Channel ch = channel;
+        int sent = 0;
+        for (final Map.Entry<Integer, ByteBuf> e : waiting.entrySet()) {
+            final ByteBuf copy;
+            try {
+                copy = e.getValue().retainedDuplicate();
+            } catch (final IllegalReferenceCountException answered) {
+                continue; // answered (and released) meanwhile
+            }
+            if (ch == null) {
+                copy.release();
+                continue;
+            }
+            netLog.info("Sending question {} to {} again", e.getKey(), username);
+            ch.writeAndFlush(copy).addListener(f -> {
+                if (!f.isSuccess()) {
+                    sendErrors.incrementAndGet();
+                    netLog.error("Sending question {} to {} again failed", e.getKey(), username);
+                }
+            });
+            sent++;
+        }
+        return sent;
+    }
+
+    private Object writeAndWait(final Channel ch, final ByteBuf encoded, final IdentifiableNetEvent event) {
         ch.writeAndFlush(encoded).addListener(f -> {
             if (!f.isSuccess()) {
                 sendErrors.incrementAndGet();

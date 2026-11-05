@@ -134,8 +134,10 @@ public final class HexFight {
 
     /**
      * Host: the fight hangs. Every prompt open right now (anybody's, the host's included) is closed as if
-     * passed, and the guests are shown their prompt again; the game goes on with its next step. Not on the
-     * screen thread. Returns false if the game loop does not run any more: then only {@link #abort} helps.
+     * passed, and the guests are shown their prompt again; a question a guest has not answered (a choice, a
+     * confirmation) is sent to them again, as it or its answer may have got lost on the way. The game goes on
+     * with its next step, or with the guest's answer. Not on the screen thread. Returns false if the game loop
+     * does not run any more: then only {@link #abort} helps.
      */
     public boolean forceNextStep() {
         final Game g = game;
@@ -147,6 +149,11 @@ public final class HexFight {
         }
         for (final PlayerControllerHuman pch : humanControllers()) {
             pch.getInputQueue().clearInputs(); // shows every screen its next prompt, too
+            // a question a friend has not answered (a choice, a confirmation): sent to them again, in case it or
+            // the answer got lost on the way; the game waits for that answer, and closing it here could break it
+            if (pch.getGui() instanceof forge.gamemodes.net.server.RemoteClientGuiGame remote && remote.getClient() != null) {
+                remote.getClient().resendWaiting();
+            }
         }
         return true;
     }
