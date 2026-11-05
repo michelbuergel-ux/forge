@@ -28,6 +28,8 @@ import forge.util.IHasForgeLog;
 final class TeamPriority implements IHasForgeLog {
     /** A head whose prompt failed (see chooseConcurrently) is asked this many times again before it passes. */
     static final int PROMPT_RETRIES = 3;
+    /** How often the state-based actions are tried again when they trip over a change made elsewhere meanwhile. */
+    static final int STATE_RETRIES = 3;
     private final PhaseHandler ph;
     private final Game game;
     /** The team mates asked at the same time right now, whose OKs wait for each other; null if none. */
@@ -204,6 +206,36 @@ final class TeamPriority implements IHasForgeLog {
      * @return false if the game ended (or state-based actions must be looked at again first)
      */
     boolean step() {
+        // the game's state is the team's thread's but while it waits for the mates (see OpenPrompts#await): the mates'
+        // prompts work out what they may play under the same lock, and that changes the game too
+        final java.util.concurrent.locks.ReentrantLock lock = game.getStateLock();
+        lock.lock();
+        try {
+            return stepLocked();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * The state-based actions. Should something change the game meanwhile all the same (a scan not under the
+     * game's state lock), they fail with a ConcurrentModificationException: they are done again, and the game goes
+     * on, where the exception ended the game loop and froze the fight.
+     */
+    private boolean checkStateBasedEffects() {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return ph.checkStateBasedEffects();
+            } catch (final java.util.ConcurrentModificationException e) {
+                if (attempt >= STATE_RETRIES || game.isGameOver()) {
+                    throw e;
+                }
+                engineLog.warn(e, "State-based actions met a change made meanwhile ({}), again", attempt);
+            }
+        }
+    }
+
+    private boolean stepLocked() {
         final Player first = ph.getPriorityPlayer();
         final Set<Player> passed = new HashSet<>();
         // the prompts of the heads asked at the same time: they stay open while a mate acts
@@ -211,7 +243,7 @@ final class TeamPriority implements IHasForgeLog {
         int aiLoops = 0;
         try {
             while (true) {
-                if (ph.checkStateBasedEffects()) {
+                if (checkStateBasedEffects()) {
                     return false;
                 }
                 final List<Player> heads = ph.getPriorityTeam(first);
@@ -329,10 +361,29 @@ final class TeamPriority implements IHasForgeLog {
             });
         }
 
+        /**
+         * Waits for an answer (null: none within the time, or forever if negative) without the game's state lock: the
+         * mates' prompts need it to work out what they may play, and answer only then.
+         */
+        private PriorityChoice await(final long timeoutMs) throws InterruptedException {
+            final java.util.concurrent.locks.ReentrantLock lock = game.getStateLock();
+            final int holds = lock.isHeldByCurrentThread() ? lock.getHoldCount() : 0;
+            for (int i = 0; i < holds; i++) {
+                lock.unlock();
+            }
+            try {
+                return timeoutMs < 0 ? answers.take() : answers.poll(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+            } finally {
+                for (int i = 0; i < holds; i++) {
+                    lock.lock();
+                }
+            }
+        }
+
         /** The next answer of an open prompt. */
         PriorityChoice take() {
             try {
-                final PriorityChoice answer = answers.take();
+                final PriorityChoice answer = await(-1);
                 open.remove(answer.player());
                 return answer;
             } catch (final InterruptedException e) {
@@ -356,7 +407,7 @@ final class TeamPriority implements IHasForgeLog {
             final List<PriorityChoice> later = Lists.newArrayList();
             try {
                 while (!waiting.isEmpty()) {
-                    final PriorityChoice answer = answers.take();
+                    final PriorityChoice answer = await(-1);
                     if (waiting.remove(answer.player())) {
                         open.remove(answer.player());
                     } else {
@@ -379,7 +430,7 @@ final class TeamPriority implements IHasForgeLog {
             final long until = System.currentTimeMillis() + 5000;
             while (!open.isEmpty() && System.currentTimeMillis() < until) {
                 try {
-                    final PriorityChoice answer = answers.poll(200, java.util.concurrent.TimeUnit.MILLISECONDS);
+                    final PriorityChoice answer = await(200);
                     if (answer != null) {
                         open.remove(answer.player());
                     }

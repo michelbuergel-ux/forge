@@ -115,6 +115,69 @@ public class SharedTeamPriorityTest extends AITest {
         AssertJUnit.assertTrue(game.getPhaseHandler().is(PhaseType.MAIN1));
     }
 
+    @Test(timeOut = 60000)
+    public void testThePromptsWorkOutWhatTheyMayPlayUnderTheGamesLockAndTheTeamWaitsWithoutIt() {
+        final Game game = initAndCreateTeamGame();
+        final Player a1 = game.getPlayers().get(0);
+        final Player a2 = game.getPlayers().get(2);
+        addCard("Glorious Anthem", a1); // static effects, recomputed by the scans and by the state-based actions
+        addCard("Grizzly Bears", a2);
+        final Card forest = addCardToZone("Forest", a2, ZoneType.Hand);
+        final ConcurrentHead c1 = new ConcurrentHead(game, a1);
+        final ConcurrentHead c2 = new ConcurrentHead(game, a2);
+        a1.dangerouslySetController(c1);
+        a2.dangerouslySetController(c2);
+
+        final CountDownLatch a1Scanned = new CountDownLatch(1);
+        final java.util.concurrent.atomic.AtomicBoolean gotLock = new java.util.concurrent.atomic.AtomicBoolean();
+        // a1's prompt works out what it may play on its own thread, as a screen's prompt does: under the game's lock,
+        // which the team's thread must not keep while it waits for the answers
+        c1.script = n -> {
+            if (n == 1) {
+                final java.util.concurrent.locks.ReentrantLock lock = game.getStateLock();
+                try {
+                    if (lock.tryLock(10, TimeUnit.SECONDS)) {
+                        gotLock.set(true);
+                        try {
+                            for (int i = 0; i < 50; i++) {
+                                game.getAction().checkStaticAbilities(false);
+                            }
+                        } finally {
+                            lock.unlock();
+                        }
+                    }
+                } catch (final InterruptedException e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    a1Scanned.countDown();
+                }
+            }
+            return null;
+        };
+        c2.script = n -> {
+            if (n == 1) {
+                try {
+                    AssertJUnit.assertTrue(a1Scanned.await(15, TimeUnit.SECONDS));
+                } catch (final InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                for (final SpellAbility sa : forest.getAllPossibleAbilities(a2, true)) {
+                    if (sa.isLandAbility()) {
+                        return Collections.singletonList(sa);
+                    }
+                }
+            }
+            return null;
+        };
+
+        game.getPhaseHandler().mainLoopStep();
+
+        AssertJUnit.assertTrue("a1's prompt got the game's lock while the team waited", gotLock.get());
+        AssertJUnit.assertTrue(a2.getCardsIn(ZoneType.Battlefield).contains(game.getCardState(forest)));
+        AssertJUnit.assertFalse("the team's thread let go of it", game.getStateLock().isLocked());
+        AssertJUnit.assertFalse(game.getPhaseHandler().getPriorityPlayer().sameTeam(a1));
+    }
+
     /** A head whose prompt stays open while its mate acts: it is told, and shown anew afterwards. */
     private static class KeepOpenHead extends ConcurrentHead {
         final java.util.List<String> mateActs = new java.util.concurrent.CopyOnWriteArrayList<>();

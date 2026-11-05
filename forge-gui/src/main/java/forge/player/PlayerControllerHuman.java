@@ -127,8 +127,6 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
 
     protected final InputQueue inputQueue;
 
-    /** Shared team priority: team mates' prompts may scan the game at the same time, so they take turns for that. */
-    private static final Object CONCURRENT_SCAN_LOCK = new Object();
     private volatile boolean concurrentChoice;
     /** The prompts open for this player (nested ones count too), and whether its OK waits for team mates. */
     private final java.util.concurrent.atomic.AtomicInteger openInputs = new java.util.concurrent.atomic.AtomicInteger();
@@ -1784,8 +1782,14 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         // shouldAutoYield, not isYieldActive: it clears yields that have run their course, so an expiring one no longer skips the scan
         // Compute the actionable set when APINA / suggestions / highlights need it.
         if (concurrentChoice) {
-            synchronized (CONCURRENT_SCAN_LOCK) {
+            // on a thread of its own: working out what may be played changes the game, so not while the team's
+            // thread (or a mate's prompt) works on it
+            final java.util.concurrent.locks.ReentrantLock lock = getGame().getStateLock();
+            lock.lock();
+            try {
                 refreshAvailableActions();
+            } finally {
+                lock.unlock();
             }
         } else {
             refreshAvailableActions();
@@ -1940,8 +1944,12 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
             return;
         }
         // what may be played now (the mate's spell is on the stack)
-        synchronized (CONCURRENT_SCAN_LOCK) {
+        final java.util.concurrent.locks.ReentrantLock lock = getGame().getStateLock();
+        lock.lock();
+        try {
             refreshAvailableActions();
+        } finally {
+            lock.unlock();
         }
         if (mayAutoPass() && !inp.hasQueuedCard()) {
             inp.interrupt(); // nothing to do any more: this head passes
