@@ -139,11 +139,16 @@ public final class HexCampaignIO {
         if (!f.isFile()) {
             return null;
         }
+        final HexCampaign c;
         try (Reader r = new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8)) {
-            return GSON.fromJson(r, HexCampaign.class);
+            c = GSON.fromJson(r, HexCampaign.class);
         } catch (final Exception e) {
             throw new IllegalStateException("Could not load campaign " + name, e);
         }
+        if (c != null) {
+            c.settlePerks(); // a save from when perks came more often keeps what it earned
+        }
+        return c;
     }
 
     public static List<String> list() {

@@ -48,7 +48,9 @@ public class HexCampaign {
     /** The gold multipliers a new campaign can be started with (starting gold, fight rewards, bounties). */
     public static final int[] GOLD_MULTIPLIERS = { 1, 2, 3, 5, 10, 20 };
     /** Every head picks a perk after this many won fights. */
-    public static final int PERK_EVERY_WINS = 3;
+    public static final int PERK_EVERY_WINS = 10;
+    /** Perks came this often before: a campaign saved then keeps what it earned so (see {@link #perkBaseWins}). */
+    static final int OLD_PERK_EVERY_WINS = 3;
     /** Perks offered to choose from. */
     public static final int PERK_CHOICES = 3;
     /** Cards from the enemy's deck a head may choose its reward from. */
@@ -213,6 +215,8 @@ public class HexCampaign {
             final int goldMultiplier, final HexDifficulty difficulty0) {
         final HexCampaign c = new HexCampaign();
         c.name = name;
+        c.perkBaseWins = 0; // perks every PERK_EVERY_WINS won fights from the start
+        c.perkBasePerks = 0;
         c.goldMultiplier = Math.max(1, goldMultiplier);
         c.difficulty = HexDifficulty.of(difficulty0);
         c.teamLife = c.difficulty.teamLife;
@@ -1622,9 +1626,30 @@ public class HexCampaign {
 
     // ------------------------------------------------------------------ perks
 
-    /** How many perks the head may still choose (one every few won fights). */
+    /**
+     * Won fights from which on a perk comes every {@link #PERK_EVERY_WINS}, and the perks earned until then. Null in a
+     * campaign saved when perks came every {@link #OLD_PERK_EVERY_WINS} won fights: it keeps what it earned so, and the
+     * next perk comes {@link #PERK_EVERY_WINS} won fights after that (see {@link #settlePerks}).
+     */
+    public Integer perkBaseWins;
+    public Integer perkBasePerks;
+
+    /** A campaign saved before perks came every {@link #PERK_EVERY_WINS} won fights: from now on they do. */
+    public void settlePerks() {
+        if (perkBaseWins == null || perkBasePerks == null) {
+            perkBaseWins = battlesWon;
+            perkBasePerks = battlesWon / OLD_PERK_EVERY_WINS;
+        }
+    }
+
+    /** How many perks the head may still choose (one every {@link #PERK_EVERY_WINS} won fights). */
     public int perkPicksDue(final HexPlayer p) {
-        return p == null ? 0 : Math.max(0, battlesWon / PERK_EVERY_WINS - p.perks.size());
+        if (p == null) {
+            return 0;
+        }
+        settlePerks();
+        final int earned = perkBasePerks + Math.max(0, battlesWon - perkBaseWins) / PERK_EVERY_WINS;
+        return Math.max(0, earned - p.perks.size());
     }
 
     /** Gives every head that has a perk due a choice of perks (if it has none to choose from yet). */

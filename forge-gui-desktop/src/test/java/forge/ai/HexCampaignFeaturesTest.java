@@ -67,12 +67,14 @@ public class HexCampaignFeaturesTest extends AITest {
     }
 
     @Test
-    public void testPerksEveryThreeWins() {
+    public void testPerksEveryTenWins() {
+        AssertJUnit.assertEquals(10, HexCampaign.PERK_EVERY_WINS);
         final HexCampaign c = newCampaign();
         final HexPlayer ann = c.player("Ann");
-        winFight(c);
-        winFight(c);
-        AssertJUnit.assertTrue("no perk before three wins", ann.perkOffer.isEmpty());
+        for (int i = 1; i < HexCampaign.PERK_EVERY_WINS; i++) {
+            winFight(c);
+        }
+        AssertJUnit.assertTrue("no perk before ten wins", ann.perkOffer.isEmpty());
         winFight(c);
         AssertJUnit.assertEquals(HexCampaign.PERK_CHOICES, ann.perkOffer.size());
 
@@ -97,6 +99,34 @@ public class HexCampaignFeaturesTest extends AITest {
         ann.perks.add(HexPerk.EXTRA_CARD.name());
         final List<RegisteredPlayer> players = HexBattle.createPlayers(c, enemy(), true);
         AssertJUnit.assertEquals(players.get(1).getStartingHand() + 1, players.get(0).getStartingHand());
+    }
+
+    @Test
+    public void testASaveFromWhenPerksCameEveryThreeWinsKeepsThemAndGoesOnEveryTen() {
+        final HexCampaign c = newCampaign();
+        final HexPlayer ann = c.player("Ann");
+        // as saved then: 22 won fights, 7 perks taken
+        c.perkBaseWins = null;
+        c.perkBasePerks = null;
+        c.battlesWon = 22;
+        for (int i = 0; i < 7; i++) {
+            ann.perks.add(HexPerk.GOLD_BONUS.name());
+        }
+        AssertJUnit.assertEquals(0, c.perkPicksDue(ann));
+        AssertJUnit.assertEquals("counted from now on", Integer.valueOf(22), c.perkBaseWins);
+        c.battlesWon = 31;
+        AssertJUnit.assertEquals(0, c.perkPicksDue(ann));
+        c.battlesWon = 32;
+        AssertJUnit.assertEquals("ten wins later", 1, c.perkPicksDue(ann));
+        // a perk earned then and not taken yet stays due
+        final HexCampaign old = newCampaign();
+        old.perkBaseWins = null;
+        old.perkBasePerks = null;
+        old.battlesWon = 24;
+        for (int i = 0; i < 7; i++) {
+            old.player("Ann").perks.add(HexPerk.GOLD_BONUS.name());
+        }
+        AssertJUnit.assertEquals(1, old.perkPicksDue(old.player("Ann")));
     }
 
     /** The enemy side of a fight, in seat order. */
