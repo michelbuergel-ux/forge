@@ -36,9 +36,12 @@ public class HeadlessNetworkGuiGame extends NetworkGuiGame {
 
     private final java.util.concurrent.atomic.AtomicInteger setGameViewCount = new java.util.concurrent.atomic.AtomicInteger(0);
     private volatile boolean openViewCalled = false;
+    /** What the match screen sees of the teams when it opens (as CMatchUI decides the team layout). */
+    private volatile String openViewTeam = "";
 
     public int getSetGameViewCount() { return setGameViewCount.get(); }
     public boolean isOpenViewCalled() { return openViewCalled; }
+    public String getOpenViewTeam() { return openViewTeam; }
 
     @Override
     protected void updateCurrentPlayer(PlayerView player) { }
@@ -51,6 +54,31 @@ public class HeadlessNetworkGuiGame extends NetworkGuiGame {
     @Override
     public void openView(TrackableCollection<PlayerView> myPlayers) {
         openViewCalled = true;
+        // what CMatchUI.openView looks at for team play: the game's shared team turns, and mates and foes of
+        // the own head among the game's players
+        final forge.game.GameView gv = getGameView();
+        if (gv == null || myPlayers == null || myPlayers.isEmpty()) {
+            openViewTeam = "gameView=" + (gv != null) + " myPlayers=" + (myPlayers == null ? 0 : myPlayers.size());
+            return;
+        }
+        PlayerView me = myPlayers.get(0);
+        for (final PlayerView p : gv.getPlayers()) {
+            if (p.equals(me)) {
+                me = p;
+            }
+        }
+        int mates = 0;
+        int foes = 0;
+        for (final PlayerView p : gv.getPlayers()) {
+            if (!p.equals(me)) {
+                if (me.isOpponentOf(p)) {
+                    foes++;
+                } else {
+                    mates++;
+                }
+            }
+        }
+        openViewTeam = "shared=" + gv.isSharedTeamTurns() + " players=" + gv.getPlayers().size() + " mates=" + mates + " foes=" + foes;
     }
 
     @Override

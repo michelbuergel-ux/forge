@@ -51,6 +51,31 @@ public class SharedTeamNetworkTest implements IHasForgeLog {
         Assert.assertTrue(result.teamMateHandCardsSeen > 0, "a remote head should see its team mate's hand");
         Assert.assertTrue(result.pingsReceived > 0, "the ping should have reached the team mate");
         Assert.assertEquals(result.sendErrors, 0, "send errors during the game");
+        // the remote heads' match screens know the teams when they open: one battlefield per team needs it
+        Assert.assertEquals(result.openViewTeamPerClient.size(), 2);
+        for (final String seen : result.openViewTeamPerClient) {
+            Assert.assertEquals(seen, "shared=true players=4 mates=1 foes=2", "what a remote head's screen sees of the teams");
+        }
+    }
+
+    @Test(timeOut = 180000, description = "Two remote heads against one enemy head (an archenemy) see their team when the screen opens")
+    public void testTwoHeadsAgainstOneSeeTheirTeam() {
+        // slot 0: host AI (team 1), slots 1+2: remote clients (team 0)
+        final UnifiedNetworkHarness.GameResult result = new UnifiedNetworkHarness()
+                .playerCount(3)
+                .remoteClients(2)
+                .useAiForRemotePlayers(false)
+                .multiHeadedGiant(1, 0, 0)
+                .decks(decks())
+                .gameTimeout(150000)
+                .execute();
+
+        Assert.assertTrue(result.gameStarted, "Game should have started: " + result.toSummary());
+        Assert.assertTrue(result.gameCompleted, "Game should have completed: " + result.toSummary());
+        Assert.assertEquals(result.openViewTeamPerClient.size(), 2);
+        for (final String seen : result.openViewTeamPerClient) {
+            Assert.assertEquals(seen, "shared=true players=3 mates=1 foes=1", "what a remote head's screen sees of the teams");
+        }
     }
 
     @Test(timeOut = 180000, description = "An AI plays for a remote head that drops out, so the game goes on")

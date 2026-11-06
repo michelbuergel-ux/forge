@@ -676,6 +676,7 @@ public class UnifiedNetworkHarness implements IHasForgeLog {
                 result.teamMateHandCardsSeen = Math.max(result.teamMateHandCardsSeen, client.getMaxTeamMateHandCardsSeen());
                 result.pingsReceived += client.getPingsReceived();
                 result.priorityPromptsPerClient.add(client.getPriorityPrompts());
+                result.openViewTeamPerClient.add(client.getOpenViewTeam());
             }
             // Snapshot client-side state from first remote client for post-game assertions
             if (!remoteClients.isEmpty()) {
@@ -821,6 +822,8 @@ public class UnifiedNetworkHarness implements IHasForgeLog {
         public int teamMateHandCardsSeen;
         public int pingsReceived;
         public List<Integer> priorityPromptsPerClient = new ArrayList<>();
+        /** Per remote client: what its match screen saw of the teams when it opened. */
+        public List<String> openViewTeamPerClient = new ArrayList<>();
         public Exception exception;
 
         /**

@@ -294,6 +294,9 @@ public class ProtocolGuiGame extends NetworkGuiGame implements IHasForgeLog {
 
     @Override
     public void openView(final TrackableCollection<PlayerView> myPlayers) {
+        // the state as it is now first: the client builds its match screen from it when openView comes (with team play,
+        // who is whose opponent decides the battlefields; set just before openView, it would arrive only afterwards)
+        updateGameView();
         send(ProtocolMethod.openView, myPlayers);
         updateGameView();
         // Initialize delta sync by sending the initial full state
