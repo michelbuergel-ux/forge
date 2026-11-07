@@ -176,7 +176,9 @@ public class CardProperty {
                 return false;
             }
         } else if (property.startsWith("YouCtrl")) {
-            if (!controller.equals(sourceController)) {
+            // team permanents: a team mate's permanent (or one that just left the battlefield) counts as yours
+            if (!controller.equals(sourceController) && !(sourceController != null && lki.getLastKnownZone() != null
+                    && lki.getLastKnownZone().is(ZoneType.Battlefield) && sourceController.sharesPermanentsWith(controller))) {
                 return false;
             }
         } else if (property.startsWith("YourTeamCtrl")) {

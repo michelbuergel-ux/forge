@@ -1929,7 +1929,7 @@ public class AbilityUtils {
                 if (sq[0].equals("DevotionDual")) {
                     colorCode |= ManaAtom.fromName(sq[2]);
                 }
-                for (Card c0 : player.getCardsIn(ZoneType.Battlefield)) {
+                for (Card c0 : player.getPermanentsYouControl()) {
                     for (ManaCostShard sh : c0.getManaCost()) {
                         if (sh.isColor(colorCode)) {
                             colorOccurrences++;
@@ -2555,7 +2555,8 @@ public class AbilityUtils {
         if (sq[0].startsWith("Domain")) {
             int n = 0;
             Player neededPlayer = sq[0].equals("DomainActivePlayer") ? game.getPhaseHandler().getPlayerTurn() : player;
-            CardCollection lands = neededPlayer.getLandsInPlay();
+            CardCollection lands = neededPlayer == player
+                    ? CardLists.filter(player.getPermanentsYouControl(), CardPredicates.LANDS) : neededPlayer.getLandsInPlay();
             for (String basic : MagicColor.Constant.BASIC_LANDS) {
                 if (!CardLists.getType(lands, basic).isEmpty()) {
                     n++;
@@ -2565,7 +2566,7 @@ public class AbilityUtils {
         }
 
         if (sq[0].contains("AbilityYouCtrl")) {
-            CardCollection all = CardLists.getValidCards(player.getCardsIn(ZoneType.Battlefield), "Creature", player, c, ctb);
+            CardCollection all = CardLists.getValidCards(player.getPermanentsYouControl(), "Creature", player, c, ctb);
             int count = 0;
             for (String ab : sq[0].substring(15).split(",")) {
                 CardCollection found = CardLists.getValidCards(all, "Creature.with" + ab, player, c, ctb);
@@ -2583,7 +2584,7 @@ public class AbilityUtils {
             List<Card> chosenMulti = Lists.newArrayList();
 
             // Figure out how to count each class separately.
-            for (Card card : player.getCardsIn(ZoneType.Battlefield)) {
+            for (Card card : player.getPermanentsYouControl()) {
                 if (!card.isCreature()) {
                     continue;
                 }
@@ -3872,7 +3873,7 @@ public class AbilityUtils {
         // build a list of cards in each possible specified zone
 
         if (sq[0].contains("YouCtrl")) {
-            someCards.addAll(cc.getCardsIn(ZoneType.Battlefield));
+            someCards.addAll(cc.getPermanentsYouControl());
         }
 
         if (sq[0].contains("InYourYard")) {

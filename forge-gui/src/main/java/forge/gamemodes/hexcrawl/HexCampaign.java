@@ -125,6 +125,11 @@ public class HexCampaign {
     public int teamLife = 20;
     /** Multiplies the starting gold and all gold rewards (fights and bounties); 1 = normal. */
     public int goldMultiplier = 1;
+    /**
+     * Team permanents, chosen when the campaign starts: in its fights the permanents of a whole team count as the
+     * ones "you control" for every head of the team (the enemy's too); see GameRules#hasTeamSharedPermanents.
+     */
+    public boolean teamPermanents;
     /** How hard the campaign is (null: saved before there were levels, plays as Normal); see difficulty(). */
     public HexDifficulty difficulty;
     /** New Game Plus: the run of the campaign, 1 for the first; every new one makes the enemies stronger. */

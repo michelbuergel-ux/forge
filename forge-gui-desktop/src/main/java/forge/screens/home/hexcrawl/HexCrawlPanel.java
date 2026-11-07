@@ -987,6 +987,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         if (campaign.difficulty() != forge.gamemodes.hexcrawl.HexDifficulty.NORMAL) {
             record += "  ·  " + t(campaign.difficulty().key());
         }
+        if (campaign.teamPermanents) {
+            record += "  ·  " + t("lblHexTeamPermanentsInfo");
+        }
         lblRecord.setText(record);
         for (final JComponent c : new JComponent[] { hdBosses, bossTrack, lblRecord }) {
             c.setVisible(true);
@@ -2246,6 +2249,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         final HexCampaign campaign = HexCampaign.create(settings.name(), new Random().nextLong(), HexMap.radiusFor(players.size()), players,
                 settings.goldMultiplier(), settings.difficulty());
+        campaign.teamPermanents = settings.teamPermanents();
         HexCampaignIO.save(campaign);
         setSession(new HexSession(campaign));
         if (HostingServer.isHosting()) {

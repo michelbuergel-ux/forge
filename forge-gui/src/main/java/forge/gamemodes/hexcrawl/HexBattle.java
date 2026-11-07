@@ -308,6 +308,13 @@ public final class HexBattle {
         return false;
     }
 
+    /** The rules of a fight of this campaign: {@link #createRules()}, and the campaign's team permanents. */
+    public static GameRules createRules(final HexCampaign campaign) {
+        final GameRules rules = createRules();
+        rules.setTeamSharedPermanents(campaign != null && campaign.teamPermanents);
+        return rules;
+    }
+
     public static GameRules createRules() {
         final GameRules rules = new GameRules(GameType.Constructed);
         rules.setAppliedVariants(EnumSet.of(GameType.Constructed, GameType.MultiHeadedGiant));
@@ -380,7 +387,7 @@ public final class HexBattle {
             final Result result = resultOf(fight, match == null ? null : match.getGame());
             onFinished.finished(result, fight.end(result));
         };
-        holder[0] = lobby.startPreparedMatch(createRules(), players, humanSeats, hook, HexMusic.fightPlaylist(campaign, enc));
+        holder[0] = lobby.startPreparedMatch(createRules(campaign), players, humanSeats, hook, HexMusic.fightPlaylist(campaign, enc));
         fight.begin(holder[0].getGame());
         return holder[0];
     }
@@ -412,7 +419,7 @@ public final class HexBattle {
             final Result result = resultOf(fight, match.getGame());
             onFinished.finished(result, fight.end(result));
         });
-        match.startMatch(createRules(), null, players, guis, HexMusic.fightPlaylist(campaign, enc));
+        match.startMatch(createRules(campaign), null, players, guis, HexMusic.fightPlaylist(campaign, enc));
         fight.begin(match.getGame());
         return match;
     }

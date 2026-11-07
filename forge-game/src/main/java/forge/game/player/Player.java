@@ -362,6 +362,35 @@ public class Player extends GameEntity implements Comparable<Player> {
         return getAllOtherPlayers().filter(PlayerPredicates.isOpponentOf(this).negate());
     }
 
+    /**
+     * Team permanents (see {@link forge.game.GameRules#hasTeamSharedPermanents}): whether the permanents the other
+     * player controls count as ones this player controls, for what a card says about the permanents "you control".
+     */
+    public final boolean sharesPermanentsWith(final Player other) {
+        if (other == null) {
+            return false;
+        }
+        if (other.equals(this)) {
+            return true;
+        }
+        return game != null && game.getRules().hasTeamSharedPermanents() && sameTeam(other);
+    }
+
+    /**
+     * The permanents this player controls for what a card says about the permanents "you control": its own, and
+     * with team permanents its team mates' as well (see {@link #sharesPermanentsWith}).
+     */
+    public final CardCollectionView getPermanentsYouControl() {
+        if (game == null || !game.getRules().hasTeamSharedPermanents()) {
+            return getCardsIn(ZoneType.Battlefield);
+        }
+        final CardCollection all = new CardCollection();
+        for (final Player p : getTeamMates(true)) {
+            all.addAll(p.getCardsIn(ZoneType.Battlefield));
+        }
+        return all;
+    }
+
     public final PlayerCollection getTeamMates(final boolean inclThis) {
         PlayerCollection col = new PlayerCollection();
         if (inclThis) {
@@ -2180,7 +2209,7 @@ public class Player extends GameEntity implements Comparable<Player> {
     }
 
     public final boolean hasMetalcraft() {
-        return CardLists.count(getCardsIn(ZoneType.Battlefield), CardPredicates.ARTIFACTS) >= 3;
+        return CardLists.count(getPermanentsYouControl(), CardPredicates.ARTIFACTS) >= 3;
     }
 
     public final boolean hasThreshold() {
@@ -2215,7 +2244,7 @@ public class Player extends GameEntity implements Comparable<Player> {
     }
 
     public boolean hasFerocious() {
-        return !CardLists.filterPower(getCreaturesInPlay(), 4).isEmpty();
+        return !CardLists.filterPower(CardLists.filter(getPermanentsYouControl(), CardPredicates.CREATURES), 4).isEmpty();
     }
 
     public final boolean hasSurge() {

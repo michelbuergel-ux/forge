@@ -59,7 +59,7 @@ import net.miginfocom.swing.MigLayout;
  */
 final class HexNewCampaignPage extends JPanel {
     /** What the page was filled in with. */
-    record Settings(String name, int companions, int goldMultiplier, HexDifficulty difficulty, boolean host) { }
+    record Settings(String name, int companions, int goldMultiplier, HexDifficulty difficulty, boolean host, boolean teamPermanents) { }
 
     private static final int PLATE_W = 640;
     private static final int TEXT_W = PLATE_W - 64;
@@ -72,6 +72,8 @@ final class HexNewCampaignPage extends JPanel {
     private final List<Pill> goldPills = new ArrayList<>();
     private final List<Pill> difficultyPills = new ArrayList<>();
     private final JPanel difficultyNote = holder();
+    private final Pill pillOwnPermanents;
+    private final Pill pillTeamPermanents;
     private final Pill pillAlone;
     private final Pill pillHost;
     private final JPanel hostingNote = holder();
@@ -92,6 +94,7 @@ final class HexNewCampaignPage extends JPanel {
     private int goldChoice;
     private HexDifficulty difficulty = HexDifficulty.NORMAL;
     private boolean host;
+    private boolean teamPermanents;
     private String code;
     private Consumer<Settings> onStart;
     private Runnable onCancel;
@@ -149,6 +152,17 @@ final class HexNewCampaignPage extends JPanel {
         }
         plate.add(goldRow, "gaptop 8, growx 0");
         plate.add(wrapped(t("lblHexSetupGoldHint"), body(Font.PLAIN, 12f), FAINT, TEXT_W), "gaptop 6");
+
+        plate.add(new Heading(t("lblHexSetupPermanents")), "gaptop 18");
+        final JPanel permanentsRow = row();
+        pillOwnPermanents = new Pill(t("lblHexSetupPermanentsOwn"));
+        pillTeamPermanents = new Pill(t("lblHexSetupPermanentsTeam"));
+        pillOwnPermanents.addActionListener(e -> { teamPermanents = false; update(); });
+        pillTeamPermanents.addActionListener(e -> { teamPermanents = true; update(); });
+        permanentsRow.add(pillOwnPermanents, "h 34!");
+        permanentsRow.add(pillTeamPermanents, "h 34!");
+        plate.add(permanentsRow, "gaptop 8, growx 0");
+        plate.add(wrapped(t("lblHexSetupPermanentsHint"), body(Font.PLAIN, 12f), FAINT, TEXT_W), "gaptop 6");
 
         plate.add(new Heading(t("lblHexSetupFriends")), "gaptop 18");
         final JPanel friendsRow = row();
@@ -219,6 +233,7 @@ final class HexNewCampaignPage extends JPanel {
         companions = 0;
         goldChoice = 0;
         difficulty = HexDifficulty.NORMAL;
+        teamPermanents = false;
         host = HostingServer.isHosting();
         code = null;
         btnCopy.setText(t("lblHexCopy"));
@@ -241,7 +256,8 @@ final class HexNewCampaignPage extends JPanel {
             return;
         }
         close();
-        onStart.accept(new Settings(txtName.getText().trim(), companions, HexCampaign.GOLD_MULTIPLIERS[goldChoice], difficulty, host));
+        onStart.accept(new Settings(txtName.getText().trim(), companions, HexCampaign.GOLD_MULTIPLIERS[goldChoice], difficulty, host,
+                teamPermanents));
     }
 
     private void cancel() {
@@ -263,6 +279,8 @@ final class HexNewCampaignPage extends JPanel {
             difficultyPills.get(i).setActive(HexDifficulty.values()[i] == difficulty);
         }
         setText(difficultyNote, describe(difficulty), body(Font.PLAIN, 12f), FAINT);
+        pillOwnPermanents.setActive(!teamPermanents);
+        pillTeamPermanents.setActive(teamPermanents);
         final boolean hosting = HostingServer.isHosting();
         pillAlone.setActive(!host);
         pillHost.setActive(host);

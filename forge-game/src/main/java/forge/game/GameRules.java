@@ -20,6 +20,7 @@ public class GameRules {
     private int simTimeout = 120;
     private boolean sharedTeamTurns = false;
     private boolean streamlinedPriority = false;
+    private boolean teamSharedPermanents = false;
 
     // it's a preference, not rule... but I could hardly find a better place for it
     private boolean useGrayText;
@@ -162,6 +163,20 @@ public class GameRules {
 
     public void setSharedTeamTurns(final boolean sharedTeamTurns) {
         this.sharedTeamTurns = sharedTeamTurns;
+    }
+
+    /**
+     * Shared team turns with team permanents (a Hex Campaign option): for what a card says about the permanents "you
+     * control", the permanents of the whole team count. Each permanent keeps its real controller: it still counts as
+     * one "you don't control" or "another player controls", and only its controller attacks with it, taps it for a
+     * cost or sacrifices it. See {@link forge.game.player.Player#sharesPermanentsWith}.
+     */
+    public boolean hasTeamSharedPermanents() {
+        return teamSharedPermanents && hasSharedTeamTurns();
+    }
+
+    public void setTeamSharedPermanents(final boolean teamSharedPermanents) {
+        this.teamSharedPermanents = teamSharedPermanents;
     }
 
     /**
