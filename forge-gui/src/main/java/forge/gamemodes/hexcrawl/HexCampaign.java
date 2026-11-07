@@ -130,6 +130,8 @@ public class HexCampaign {
      * ones "you control" for every head of the team (the enemy's too); see GameRules#hasTeamSharedPermanents.
      */
     public boolean teamPermanents;
+    /** Loaded from the backup of this time (yyyyMMdd-HHmmss) as the save could not be read; not saved. See HexCampaignIO#load. */
+    public transient String restoredFrom;
     /** How hard the campaign is (null: saved before there were levels, plays as Normal); see difficulty(). */
     public HexDifficulty difficulty;
     /** New Game Plus: the run of the campaign, 1 for the first; every new one makes the enemies stronger. */

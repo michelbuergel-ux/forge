@@ -399,6 +399,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 final HexCampaign c = HexCampaignIO.load(saved.get(0));
                 if (c != null) {
                     setSession(new HexSession(c));
+                    tellIfRestored(c);
                 }
             } catch (final RuntimeException e) {
                 e.printStackTrace(); // a broken save must not block the screen
@@ -2092,7 +2093,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         if (choice == null) {
             return;
         }
-        final java.io.File file = HexCampaignIO.saveFile(choice);
+        java.io.File file = HexCampaignIO.saveFile(choice);
+        if (!file.exists()) {
+            file = new java.io.File(file.getPath() + ".tmp"); // a save that was still being put in place
+        }
         final boolean trash = java.awt.Desktop.isDesktopSupported()
                 && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.MOVE_TO_TRASH);
         if (!FOptionPane.showConfirmDialog(t(trash ? "lblHexDeleteConfirm" : "lblHexDeleteConfirmForGood", choice), t("lblHexDelete"))) {
@@ -2101,6 +2105,12 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         final boolean done = trash ? java.awt.Desktop.getDesktop().moveToTrash(file) : file.delete();
         if (!done) {
             FOptionPane.showErrorDialog(t("lblHexDeleteFailed", choice), t("lblHexDelete"));
+            return;
+        }
+        // its backups go with it (a new campaign of that name must not be restored from them)
+        final java.io.File backups = HexCampaignIO.backupDir(choice);
+        if (backups.isDirectory() && !(trash && java.awt.Desktop.getDesktop().moveToTrash(backups))) {
+            HexCampaignIO.deleteBackups(choice);
         }
     }
 
@@ -2276,8 +2286,26 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
     }
 
+    /** A campaign whose save could not be read was restored from a backup: the player is told from when. */
+    private void tellIfRestored(final HexCampaign campaign) {
+        if (campaign == null || campaign.restoredFrom == null) {
+            return;
+        }
+        String when = campaign.restoredFrom;
+        try {
+            final java.time.LocalDateTime t = java.time.LocalDateTime.parse(campaign.restoredFrom,
+                    java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+            when = t.format(java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.SHORT));
+        } catch (final RuntimeException e) {
+            // the time as it is in the name of the backup
+        }
+        final String shown = when;
+        SwingUtilities.invokeLater(() -> FOptionPane.showMessageDialog(t("lblHexRestored", campaign.name, shown), t("lblHexRestoredTitle")));
+    }
+
     /** Plays this campaign from now on (as the host of any table). */
     private void openCampaign(final HexCampaign campaign) {
+        tellIfRestored(campaign);
         if (settingUp) {
             setupPage.close();
             settingUp = false;

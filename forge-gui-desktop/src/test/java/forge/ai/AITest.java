@@ -42,6 +42,10 @@ public class AITest {
         if (System.getProperty("forge.hex.dumpDir") == null) {
             System.setProperty("forge.hex.dumpDir", new java.io.File(System.getProperty("java.io.tmpdir"), "forge-test-hex-dumps").getPath());
         }
+        // and the campaigns saved in a test (with their backups) go here
+        if (System.getProperty("forge.hex.saveDir") == null) {
+            System.setProperty("forge.hex.saveDir", new java.io.File(System.getProperty("java.io.tmpdir"), "forge-test-hex-saves").getPath());
+        }
         GuiBase.setInterface(new GuiDesktop());
         FModel.initialize(null, preferences -> {
             preferences.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, false);
