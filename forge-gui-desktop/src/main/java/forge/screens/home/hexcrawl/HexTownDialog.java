@@ -239,6 +239,11 @@ final class HexTownDialog {
         return scroll;
     }
 
+    /** How wide the shop's scroll bar is (the skin's). */
+    private static int scrollBarWidth() {
+        return Math.max(12, scroller(new JPanel()).getVerticalScrollBar().getPreferredSize().width);
+    }
+
     private static JLabel title(final String text) {
         return label(text, display(24f), TEXT_BRIGHT);
     }
@@ -317,7 +322,9 @@ final class HexTownDialog {
         final HexTile town = campaign().tile();
         palette = HexTownStyle.palette(town.color);
         pageW = width - SIDEBAR_W - 2 * 24 - 16; // the page's padding and room for a scroll bar
-        tileW = Math.max(110, Math.min(200, (pageW - PREVIEW_W - 20 - (COLUMNS - 1) * GAP) / COLUMNS));
+        // the tiles' room: the page without its padding, the preview and its gap, the tiles' insets, the scroll bar
+        final int tilesRoom = width - SIDEBAR_W - 4 - 2 * 24 - 20 - PREVIEW_W - 4 - scrollBarWidth() - 6;
+        tileW = Math.max(100, Math.min(200, (tilesRoom - (COLUMNS - 1) * GAP) / COLUMNS));
         counterW = (pageW - (COUNTER_COLUMNS - 1) * 14) / COUNTER_COLUMNS;
         relicW = (pageW - 2 * GAP) / 3;
         questW = (pageW - GAP) / 2;
@@ -558,6 +565,9 @@ final class HexTownDialog {
         if (session.isFightRunning() || !campaign().mayPickTheme(p.name, slot)) {
             setMessage(t("lblHexThemeLocked"), true);
             return;
+        }
+        if (t("lblHexThemeLocked").equals(lblMessage.getText())) {
+            setMessage("", false); // said of another section
         }
         final HexColor color = campaign().tile().color;
         new HexThemePicker(() -> palette, t("lblHexThemePickTitle", String.valueOf(slot + 1)), campaign().themeChoices(), p.themes[slot],
@@ -832,9 +842,14 @@ final class HexTownDialog {
         if (section >= HexCampaign.TAB_PICKED) {
             final int slot = section - HexCampaign.TAB_PICKED;
             final boolean has = themeId(section) != null;
-            final GoldButton change = new GoldButton(t(has ? "lblHexThemeChange" : "lblHexThemeChooseShort"), GoldButton.Kind.OUTLINE, 11.5f);
             final HexPlayer p = head();
             final boolean mayPick = p != null && !session.isFightRunning() && campaign().mayPickTheme(p.name, slot);
+            final GoldButton change = new GoldButton(t(!mayPick ? "lblHexThemeLockedShort" : has ? "lblHexThemeChange" : "lblHexThemeChooseShort"),
+                    GoldButton.Kind.OUTLINE, 11.5f);
+            if (!mayPick) { // locked until the next fight: a padlock, and no click
+                change.withGlyph(HexTownStyle.Glyph.LOCK);
+                change.setEnabled(false);
+            }
             change.setToolTipText(mayPick ? t("lblHexThemePickHint") : t("lblHexThemeLocked"));
             change.addActionListener(e -> openThemeMenu(slot, change));
             row.add(change, "h 28!");

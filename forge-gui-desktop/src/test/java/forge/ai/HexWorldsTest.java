@@ -57,6 +57,11 @@ public class HexWorldsTest extends AITest {
         // Secret Lair drops, by collector number
         AssertJUnit.assertEquals("SLD", HexWorlds.printing("universesbeyond", "Nezahal, Primal Tide").getEdition()); // Monster Hunter
         AssertJUnit.assertEquals("SLD", HexWorlds.printing("marvel", "Abundant Growth").getEdition()); // Abundant Groot
+        AssertJUnit.assertTrue("Sonic", fits("universesbeyond", "Sonic the Hedgehog"));
+        AssertJUnit.assertEquals("Masters of the Universe", "SLD", HexWorlds.printing("universesbeyond", "Full Throttle").getEdition());
+        AssertJUnit.assertEquals("Godzilla", "IKO", HexWorlds.printing("universesbeyond", "Crystalline Giant").getEdition());
+        AssertJUnit.assertEquals("Age of Sigmar", "SLD", HexWorlds.printing("warhammer40k", "Loxodon Warhammer").getEdition());
+        AssertJUnit.assertEquals("Blood Bowl", "SLD", HexWorlds.printing("warhammer40k", "Fellwar Stone").getEdition());
         // not of the world
         AssertJUnit.assertFalse(fits("fallout", "Grizzly Bears"));
         AssertJUnit.assertFalse(fits("marvel", "Dogmeat, Ever Loyal"));
