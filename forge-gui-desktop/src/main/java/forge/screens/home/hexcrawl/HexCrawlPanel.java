@@ -150,6 +150,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     private int newGamePlusPromptedCycle;
     private boolean perkPromptOpen;
     private boolean eventPromptOpen;
+    /** The fight whose deck this person was asked for (once per fight), and whether the question is open. */
+    private String deckPromptShown;
+    private boolean deckPromptOpen;
     /** The last event (see HexCampaign.eventSerial) already shown on this screen. */
     private int shownEventSerial = -1;
     /** The last cards this person's head got for one of its own (see HexPlayer.giftSerial) already shown. */
@@ -442,6 +445,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             promptRewardIfWaiting();
             promptPerkIfWaiting();
             promptEventIfWaiting();
+            promptDeckIfWaiting();
         });
     }
 
@@ -929,6 +933,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 tag = t("lblHexYou");
             }
             final List<String> carried = new ArrayList<>();
+            if (p.deckCount() > 1) {
+                final String deckName = p.deckName(p.activeDeckIndex());
+                carried.add(deckName == null ? t("lblHexDeckMain") : deckName);
+            }
             carried.add(t("lblHexCardsCount", String.valueOf(p.deck.size())));
             if (!p.relics.isEmpty()) {
                 carried.add(t("lblHexRelicCount", String.valueOf(p.relics.size())));
@@ -1442,8 +1450,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         final boolean alone = session.getPresent().size() == 1 && !session.isGuest();
         session.vote(target.q, target.r);
         // playing alone the step happens at once, and so does a fight; only a hunter that caught
-        // the party leaves time to look at the deck first
-        if (alone && campaign.pendingEncounter != null && campaign.pendingEncounter.ambush && !session.isFightRunning()) {
+        // the party leaves time to look at the deck first (with several decks the question of the deck does that)
+        final HexPlayer me = campaign.player(session.getMyHead());
+        if (alone && campaign.pendingEncounter != null && campaign.pendingEncounter.ambush && !session.isFightRunning()
+                && (me == null || me.deckCount() <= 1)) {
             refresh();
             final int choice = FOptionPane.showOptionDialog(t("lblHexAmbush", campaign.pendingEncounter.enemyName) + "\n\n"
                     + describe(campaign.pendingEncounter), campaign.name,
@@ -1645,6 +1655,51 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             return;
         }
         promptEvent();
+    }
+
+    /**
+     * Before every fight (in a dungeon too) a person whose head has several decks says which one it fights with; the
+     * fight waits for that. Once per fight: closed, the Fight button starts it with the deck played.
+     */
+    private void promptDeckIfWaiting() {
+        final HexCampaign campaign = getCampaign();
+        final String me = session == null ? null : session.getMyHead();
+        if (campaign == null || me == null || deckPromptOpen || eventPromptOpen || perkPromptOpen || rewardPromptOpen || !isShowing()
+                || !session.mustChooseDeck(me)) {
+            return;
+        }
+        final HexEncounter enc = campaign.pendingEncounter;
+        final String key = enc.q + "," + enc.r + "," + campaign.fights() + "," + campaign.cycle + "," + campaign.steps;
+        if (key.equals(deckPromptShown)) {
+            return;
+        }
+        deckPromptShown = key;
+        deckPromptOpen = true;
+        try {
+            final HexPlayer mine = campaign.player(me);
+            final List<String> choices = new ArrayList<>();
+            for (int i = 0; i < mine.deckCount(); i++) {
+                final String name = mine.deckName(i);
+                choices.add((name == null ? t("lblHexDeckMain") : name) + "  ·  "
+                        + t("lblHexCardsCount", String.valueOf(Math.max(mine.deckSize(i), HexCampaign.MIN_DECK_SIZE))));
+            }
+            final forge.toolbox.FComboBox<String> box = new forge.toolbox.FComboBox<>(choices);
+            box.setSelectedIndex(mine.activeDeckIndex());
+            final int choice = FOptionPane.showOptionDialog(describe(enc) + "\n\n" + t("lblHexDeckForFight"), campaign.name,
+                    FOptionPane.QUESTION_ICON, box, Arrays.asList(t("lblHexFight"), t("lblHexDeckFirst")), 0);
+            if (choice == 0 && session.mustChooseDeck(me)) {
+                final int index = box.getSelectedIndex();
+                if (index >= 0 && index != mine.activeDeckIndex()) {
+                    session.selectDeck(me, index);
+                }
+                session.readyToFight();
+            } else if (choice == 1) {
+                showDeck();
+            }
+        } finally {
+            deckPromptOpen = false;
+        }
+        refresh();
     }
 
     /** A ruined shrine, a caravan or a mirror: this person picks a card of their own to give (or copy), or leaves it. */

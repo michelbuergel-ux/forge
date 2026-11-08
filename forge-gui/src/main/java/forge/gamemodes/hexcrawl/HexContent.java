@@ -253,7 +253,9 @@ public final class HexContent {
         if (rules == null) {
             return false;
         }
-        final String oracle = rules.getOracleText();
+        // the rules text, not its reminders: partner's "(You can have two commanders if both have partner.)" is no
+        // reason to leave a creature out, the card plays well without commanders
+        final String oracle = rules.getOracleText() == null ? null : rules.getOracleText().replaceAll("\\([^)]*\\)", "");
         return (oracle != null && oracle.toLowerCase(java.util.Locale.ROOT).contains("commander"))
                 || rules.canBeBackground() || rules.hasKeyword("Choose a Background");
     }
@@ -1136,6 +1138,8 @@ public final class HexContent {
     static final int GOLD_ROLLS = 60;
     static final int GOLD_SHARE = 10;
     static final int GOLD_SHARE_BORDER = 15;
+    /** A theme of a world's factions (mostly multicoloured cards): half the draws. */
+    static final int GOLD_SHARE_MULTICOLOURED = 30;
     static final int COLORLESS_SHARE = 10;
     static final int COLORLESS_SHARE_ARTIFACTS = 40;
     /** Of the multicoloured draws: 1 in MANY_COLOURS_ODDS is a card of three colours or more. */
@@ -1149,7 +1153,8 @@ public final class HexContent {
         final int roll = rnd.nextInt(GOLD_ROLLS);
         final int colorless = shop == HexShopType.ARTIFACT ? COLORLESS_SHARE_ARTIFACTS : COLORLESS_SHARE; // artifacts are mostly colourless
         final byte bit = bitOf(color);
-        final int gold = bit == 0 ? 0 : neighbours.isEmpty() ? GOLD_SHARE : GOLD_SHARE_BORDER;
+        final int gold = bit == 0 ? 0 : theme != null && theme.isMulticoloured() ? GOLD_SHARE_MULTICOLOURED
+                : neighbours.isEmpty() ? GOLD_SHARE : GOLD_SHARE_BORDER;
         if (roll < colorless) {
             return shelf(shop, HexColor.COLORLESS, theme);
         }
@@ -1261,28 +1266,44 @@ public final class HexContent {
     public static final int THEME_MIN_CARDS = 15;
     private final Map<HexColor, List<HexTheme>> themesByColor = new EnumMap<>(HexColor.class);
 
+    private final Map<String, Integer> themeCardCounts = new HashMap<>();
+
+    /**
+     * How many cards a town of this colour can sell in a theme: those of its colour in all its card shops, the
+     * multicoloured ones with its colour, and the colourless ones for a theme that sells only its own cards.
+     */
+    public synchronized int themeCardCount(final HexColor color, final HexTheme theme) {
+        final String key = color + "|" + theme.id;
+        final Integer known = themeCardCounts.get(key);
+        if (known != null) {
+            return known;
+        }
+        int cards = 0;
+        for (final HexShopType shop : HexShopType.CARD_SHOPS) {
+            final List<PaperCard> any = shelf(shop, color, theme).get(null);
+            cards += any == null ? 0 : any.size();
+            if (theme.isStrict() && color != HexColor.COLORLESS) { // the shops sell colourless cards too
+                final List<PaperCard> colourless = shelf(shop, HexColor.COLORLESS, theme).get(null);
+                cards += colourless == null ? 0 : colourless.size();
+            }
+            if (color != HexColor.COLORLESS) { // and multicoloured cards with the town's colour
+                for (final GoldKind kind : new GoldKind[] { GoldKind.PAIRS, GoldKind.MANY }) {
+                    final List<PaperCard> gold = goldShelf(shop, kind, bitOf(color), theme).get(null);
+                    cards += gold == null ? 0 : gold.size();
+                }
+            }
+        }
+        themeCardCounts.put(key, cards);
+        return cards;
+    }
+
     /** The themes with enough cards in this colour to stock a town's shops (all themes if none has). */
     public synchronized List<HexTheme> themesFor(final HexColor color) {
         List<HexTheme> result = themesByColor.get(color);
         if (result == null) {
             result = new ArrayList<>();
             for (final HexTheme theme : HexTheme.all()) {
-                int cards = 0;
-                for (final HexShopType shop : HexShopType.CARD_SHOPS) {
-                    final List<PaperCard> any = shelf(shop, color, theme).get(null);
-                    cards += any == null ? 0 : any.size();
-                    if (theme.isStrict() && color != HexColor.COLORLESS) { // the shops sell colourless cards too
-                        final List<PaperCard> colourless = shelf(shop, HexColor.COLORLESS, theme).get(null);
-                        cards += colourless == null ? 0 : colourless.size();
-                    }
-                    if (color != HexColor.COLORLESS) { // and multicoloured cards with the town's colour
-                        for (final GoldKind kind : new GoldKind[] { GoldKind.PAIRS, GoldKind.MANY }) {
-                            final List<PaperCard> gold = goldShelf(shop, kind, bitOf(color), theme).get(null);
-                            cards += gold == null ? 0 : gold.size();
-                        }
-                    }
-                }
-                if (cards >= THEME_MIN_CARDS) {
+                if (themeCardCount(color, theme) >= THEME_MIN_CARDS) {
                     result.add(theme);
                 }
             }

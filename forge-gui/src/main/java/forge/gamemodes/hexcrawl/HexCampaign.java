@@ -2244,6 +2244,11 @@ public class HexCampaign {
     }
 
     public boolean buy(final String playerName, final HexShopOffer offer) {
+        return buy(playerName, offer, false);
+    }
+
+    /** Buys an offer of the head's shelves; a card goes into the deck played, or into the sideboard. */
+    public boolean buy(final String playerName, final HexShopOffer offer, final boolean toSideboard) {
         final HexPlayer p = player(playerName);
         final List<HexShopOffer> stock = shop();
         if (!inTown() || p == null || !stock.contains(offer) || !playerName.equals(ownerOfTab(offer.tab))) {
@@ -2258,7 +2263,7 @@ public class HexCampaign {
         }
         spend(p, price);
         tally(p, s -> s.cardsBought++);
-        p.deck.add(offer.card);
+        (toSideboard ? p.sideboard : p.deck).add(offer.card);
         stock.remove(offer);
         // remembered for this visit: a misclick is sold back at what it cost
         if (steps != p.boughtStep || !tile().key().equals(p.boughtTown)) {
@@ -2278,11 +2283,16 @@ public class HexCampaign {
      * (TAB_TOWN, TAB_RANDOM, TAB_PICKED + slot; -1 for any tab), if the town has one.
      */
     public boolean buy(final String playerName, final HexShopType type, final int tab, final String card) {
+        return buy(playerName, type, tab, card, false);
+    }
+
+    /** The same; the card goes into the sideboard instead of the deck played if asked. */
+    public boolean buy(final String playerName, final HexShopType type, final int tab, final String card, final boolean toSideboard) {
         final String tabKey = tab < 0 ? null : tabKey(playerName, tab);
         for (final HexShopOffer offer : shop()) {
             if (offer.card.equals(card) && (type == null || offer.shop == type) && playerName.equals(ownerOfTab(offer.tab))
                     && (tabKey == null || offer.shop == HexShopType.RELIC || tabKey.equals(offer.tab))) {
-                return buy(playerName, offer);
+                return buy(playerName, offer, toSideboard);
             }
         }
         return false;
@@ -2601,6 +2611,155 @@ public class HexCampaign {
                 return false;
             }
             p.deck.add(card);
+        }
+        return true;
+    }
+
+    // ------------------------------------------------------------------ several decks
+
+    /** The most decks a head may have, and the longest name of one. */
+    public static final int MAX_DECKS = 12;
+    public static final int DECK_NAME_MAX = 32;
+
+    private static String deckNameOf(final String name) {
+        if (name == null) {
+            return null;
+        }
+        final String trimmed = name.replaceAll("\\s+", " ").trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        return trimmed.length() > DECK_NAME_MAX ? trimmed.substring(0, DECK_NAME_MAX).trim() : trimmed;
+    }
+
+    /**
+     * A head plays another of its decks: the deck it played keeps its list, and the new one takes its cards from all
+     * the head owns (deck and sideboard); what the head no longer owns is left out, and a deck below the minimum size
+     * is filled up with basic lands. The rest goes to the sideboard. Allowed in a dungeon too (the cards themselves
+     * do not change hands there); whether a fight is running is for the caller to check.
+     */
+    public boolean selectDeck(final String playerName, final int index) {
+        final HexPlayer p = player(playerName);
+        if (p == null) {
+            return false;
+        }
+        p.ensureDecks();
+        if (index < 0 || index >= p.decks.size()) {
+            return false;
+        }
+        if (index == p.activeDeck) {
+            return true;
+        }
+        final List<String> pool = p.ownedCards();
+        p.decks.get(p.activeDeck).cards = new ArrayList<>(p.deck);
+        final List<String> next = new ArrayList<>();
+        for (final String card : p.decks.get(index).cards) {
+            if (pool.remove(card)) {
+                next.add(card);
+            }
+        }
+        if (next.size() < MIN_DECK_SIZE) {
+            final String basic = basicLandFor(next);
+            while (next.size() < MIN_DECK_SIZE) {
+                pool.remove(basic); // the sideboard's own copies first, else new ones
+                next.add(basic);
+            }
+        }
+        p.deck = next;
+        p.sideboard = pool;
+        p.decks.get(index).cards = new ArrayList<>();
+        p.activeDeck = index;
+        return true;
+    }
+
+    /** The basic land a deck has most of; else the one of its most common colour; else the colourless one. */
+    private static String basicLandFor(final List<String> cards) {
+        final HexContent content = HexContent.get();
+        final java.util.Map<String, Integer> basics = new java.util.HashMap<>();
+        final byte[] bits = { forge.card.MagicColor.WHITE, forge.card.MagicColor.BLUE, forge.card.MagicColor.BLACK,
+                forge.card.MagicColor.RED, forge.card.MagicColor.GREEN }; // in the order of HexColor.COLORS
+        final int[] colors = new int[HexColor.COLORS.length];
+        for (final String card : cards) {
+            if (content.isBasicLand(card)) {
+                basics.merge(card, 1, Integer::sum);
+            }
+            final forge.item.PaperCard pc = content.getCard(card);
+            if (pc != null) {
+                for (int i = 0; i < colors.length; i++) {
+                    if (pc.getRules().getColor().hasAnyColor(bits[i])) {
+                        colors[i]++;
+                    }
+                }
+            }
+        }
+        String best = null;
+        for (final java.util.Map.Entry<String, Integer> e : basics.entrySet()) {
+            if (best == null || e.getValue() > basics.get(best)) {
+                best = e.getKey();
+            }
+        }
+        if (best != null) {
+            return best;
+        }
+        int top = -1;
+        for (int i = 0; i < colors.length; i++) {
+            if (colors[i] > 0 && (top < 0 || colors[i] > colors[top])) {
+                top = i;
+            }
+        }
+        return top < 0 ? HexColor.COLORLESS.getBasicLand() : HexColor.COLORS[top].getBasicLand();
+    }
+
+    /**
+     * A head makes a new deck, a copy of the one it plays, and plays it from now on (so it can change it at once).
+     * Nothing changes hands, so a dungeon allows it too.
+     */
+    public boolean newDeck(final String playerName, final String name) {
+        final HexPlayer p = player(playerName);
+        final String clean = deckNameOf(name);
+        if (p == null || clean == null) {
+            return false;
+        }
+        p.ensureDecks();
+        if (p.decks.size() >= MAX_DECKS) {
+            return false;
+        }
+        p.decks.get(p.activeDeck).cards = new ArrayList<>(p.deck);
+        p.decks.add(new HexDeck(clean));
+        p.activeDeck = p.decks.size() - 1;
+        return true;
+    }
+
+    public boolean renameDeck(final String playerName, final int index, final String name) {
+        final HexPlayer p = player(playerName);
+        final String clean = deckNameOf(name);
+        if (p == null || clean == null) {
+            return false;
+        }
+        p.ensureDecks();
+        if (index < 0 || index >= p.decks.size()) {
+            return false;
+        }
+        p.decks.get(index).name = clean;
+        return true;
+    }
+
+    /** A head throws a deck away (never its last one); its cards stay where they are. The deck played: the first other. */
+    public boolean deleteDeck(final String playerName, final int index) {
+        final HexPlayer p = player(playerName);
+        if (p == null) {
+            return false;
+        }
+        p.ensureDecks();
+        if (p.decks.size() <= 1 || index < 0 || index >= p.decks.size()) {
+            return false;
+        }
+        if (index == p.activeDeck && !selectDeck(playerName, index == 0 ? 1 : 0)) {
+            return false;
+        }
+        p.decks.remove(index);
+        if (p.activeDeck > index) {
+            p.activeDeck--;
         }
         return true;
     }

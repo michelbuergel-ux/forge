@@ -9,10 +9,8 @@ import static forge.screens.home.hexcrawl.HexTownStyle.MUTED;
 import static forge.screens.home.hexcrawl.HexTownStyle.PARCHMENT_INK;
 import static forge.screens.home.hexcrawl.HexTownStyle.PARCHMENT_SOFT;
 import static forge.screens.home.hexcrawl.HexTownStyle.REWARD;
-import static forge.screens.home.hexcrawl.HexTownStyle.TEXT;
 import static forge.screens.home.hexcrawl.HexTownStyle.TEXT_BRIGHT;
 import static forge.screens.home.hexcrawl.HexTownStyle.WANTED;
-import static forge.screens.home.hexcrawl.HexTownStyle.alpha;
 import static forge.screens.home.hexcrawl.HexTownStyle.body;
 import static forge.screens.home.hexcrawl.HexTownStyle.caps;
 import static forge.screens.home.hexcrawl.HexTownStyle.decorative;
@@ -26,7 +24,6 @@ import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
-import java.awt.GridLayout;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.MouseAdapter;
@@ -43,10 +40,9 @@ import java.util.function.Function;
 import javax.swing.BorderFactory;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
-import javax.swing.JMenuItem;
 import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
 import javax.swing.ScrollPaneConstants;
+import javax.swing.SwingUtilities;
 
 import forge.gamemodes.hexcrawl.HexCampaign;
 import forge.gamemodes.hexcrawl.HexColor;
@@ -135,12 +131,17 @@ final class HexTownDialog {
     private final JPanel body = new JPanel(pages);
     private String tab = HexShopType.CREATURE.name();
 
-    // theme tabs: the town's theme, the random one and the two the head picked
-    private final ThemePill[] themePills = new ThemePill[HexCampaign.TAB_PICKED + HexCampaign.PICKED_THEMES];
+    // the sections of a shop: the town's theme, the random one and the two the head picked (HexCampaign.TAB_TOWN,
+    // TAB_RANDOM, TAB_PICKED + slot); one chip each over the page jumps to it, lit while it is in view
+    private static final int SECTIONS = HexCampaign.TAB_PICKED + HexCampaign.PICKED_THEMES;
+    private final ThemePill[] themePills = new ThemePill[SECTIONS];
     private GoldButton btnRestock;
-    private final List<HexTheme> themeChoices = new ArrayList<>();
-    /** The theme tab shown: HexCampaign.TAB_TOWN, TAB_RANDOM or TAB_PICKED + slot. */
-    private int themeTab = HexCampaign.TAB_TOWN;
+    /** The section the page shows at its top (its chip is lit). */
+    private int sectionInView = HexCampaign.TAB_TOWN;
+    /** A section to scroll to once the page is built again (after a theme was picked), or -1. */
+    private int scrollToSection = -1;
+    private final Map<Integer, JComponent> sectionHeads = new LinkedHashMap<>();
+    private FScrollPane tilesScroll;
     /** A picked tab whose new theme a guest has asked for, until the host's answer arrives. */
     private int pendingPickTab = -1;
 
@@ -152,6 +153,18 @@ final class HexTownDialog {
     private final JLabel lblPreviewInfo = label(" ", body(Font.PLAIN, 12f), MUTED);
     private GoldButton btnPreviewBuy;
     private HexShopType previewType;
+    private int previewTab;
+
+    /** Where bought cards go: the deck played or the sideboard (remembered while the program runs). */
+    private static boolean buyToSideboard;
+    private final List<Pill> buyIntoPills = new ArrayList<>();
+    /** The last purchase, while it can still be undone (sold back at what it cost); null if none. */
+    private record LastBuy(String head, String card, int price, boolean toSideboard) { }
+    private LastBuy lastBuy;
+    private GoldButton btnUndo;
+
+    /** The search over all merchants and sections of the town; while it holds text the page shows what it finds. */
+    private final HexTownStyle.SearchField search = new HexTownStyle.SearchField(Localizer.getInstance().getMessage("lblHexTownSearch"));
     private HexShopOffer previewOffer;
 
     // relic dealer
@@ -263,6 +276,10 @@ final class HexTownDialog {
     }
 
     private void setMessage(final String text, final boolean bad) {
+        lastBuy = null; // any other news: the last purchase is no longer undone from here
+        if (btnUndo != null) {
+            btnUndo.setVisible(false);
+        }
         lblMessage.setText(text == null || text.isEmpty() ? " " : text);
         lblMessage.setForeground(bad ? BAD : palette.light());
     }
@@ -321,7 +338,13 @@ final class HexTownDialog {
         body.add(buildTradePage(), TAB_TRADE);
         main.add(body, "wmin 0, hmin 0");
         lblMessage.setFont(body(Font.PLAIN, 13f));
-        main.add(lblMessage, "h 22!, gaptop 8");
+        final JPanel messageRow = transparent(new MigLayout("insets 0, gap 12, fillx, hidemode 3", "[grow, fill][]", "[26!]"));
+        messageRow.add(lblMessage, "aligny center");
+        btnUndo = new GoldButton(t("lblHexUndo"), GoldButton.Kind.OUTLINE, 11.5f);
+        btnUndo.addActionListener(e -> undoLastBuy());
+        btnUndo.setVisible(false);
+        messageRow.add(btnUndo, "h 26!");
+        main.add(messageRow, "gaptop 6");
         center.add(main, "wmin 0, hmin 0");
         root.add(center, "wmin 0, hmin 0");
         setMessage("", false);
@@ -399,6 +422,13 @@ final class HexTownDialog {
 
     private JPanel buildSidebar() {
         final Sidebar side = new Sidebar(palette, new MigLayout("insets 14 12 14 12, gap 0, wrap 1, fillx", "[grow, fill]"));
+        search.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override public void insertUpdate(final javax.swing.event.DocumentEvent e) { onSearch(); }
+            @Override public void removeUpdate(final javax.swing.event.DocumentEvent e) { onSearch(); }
+            @Override public void changedUpdate(final javax.swing.event.DocumentEvent e) { onSearch(); }
+        });
+        search.setToolTipText(t("lblHexTownSearchHint"));
+        side.add(search, "h 32!, gapbottom 14");
         side.add(heading(t("lblHexMerchants")), "gapleft 12, gapbottom 6");
         for (final HexShopType type : HexShopType.values()) {
             if (type != HexShopType.RELIC) {
@@ -420,18 +450,41 @@ final class HexTownDialog {
         item.addActionListener(e -> {
             tab = key;
             setMessage("", false);
+            clearSearch();
             fill();
         });
         navItems.put(key, item);
         side.add(item, "h 44!, gapbottom 4");
     }
 
+    private String query() {
+        return search.getText().trim();
+    }
+
+    private boolean searching() {
+        return !query().isEmpty();
+    }
+
+    /** Empties the search field (and so the page shows the merchant chosen again). */
+    private void clearSearch() {
+        if (!search.getText().isEmpty()) {
+            search.setText("");
+        }
+    }
+
+    private void onSearch() {
+        if (searching() && !isCardShop()) {
+            tab = HexShopType.CREATURE.name(); // the search shows cards: away from the notice board or the counter
+        }
+        fill();
+    }
+
     private boolean isCardShop() {
         return !TAB_QUESTS.equals(tab) && !TAB_SELL.equals(tab) && !TAB_TRADE.equals(tab) && !HexShopType.RELIC.name().equals(tab);
     }
 
-    /** The offers of one shop of this town in the theme tab shown. Read only, so it is safe on a guest's copy too. */
-    private List<HexShopOffer> offers(final HexShopType type) {
+    /** The offers of one shop of this town in one section (theme tab). Read only, so it is safe on a guest's copy too. */
+    private List<HexShopOffer> offers(final HexShopType type, final int themeTab) {
         final List<HexShopOffer> result = new ArrayList<>();
         final HexCampaign c = campaign();
         final HexPlayer p = head();
@@ -458,15 +511,16 @@ final class HexTownDialog {
             final List<HexQuest> offers = c.questOffers.get(c.tile().key());
             return String.valueOf(offers == null ? 0 : offers.size());
         }
-        return String.valueOf(offers(HexShopType.valueOf(key)).size());
+        if (HexShopType.RELIC.name().equals(key)) {
+            return String.valueOf(offers(HexShopType.RELIC, 0).size());
+        }
+        return ""; // a card shop: always a full page
     }
 
     // ------------------------------------------------------------------ theme tabs
 
     private JPanel buildThemeTabs() {
         final JPanel row = transparent(new MigLayout("insets 0, gap 8, aligny center", "", "[46!]"));
-        themeChoices.clear();
-        themeChoices.addAll(campaign().themeChoices());
         for (int i = 0; i < themePills.length; i++) {
             final int tabIndex = i;
             final String kind = i == HexCampaign.TAB_TOWN ? t("lblHexThemeKindTown")
@@ -487,13 +541,16 @@ final class HexTownDialog {
     private void onThemePill(final int tabIndex, final ThemePill pill) {
         if (tabIndex >= HexCampaign.TAB_PICKED && (themeId(tabIndex) == null || pill.pressedArrow())) {
             openThemeMenu(tabIndex - HexCampaign.TAB_PICKED, pill);
+        } else if (searching()) {
+            scrollToSection = tabIndex; // back to the merchant's page, at this section
+            clearSearch();
         } else {
-            selectTheme(tabIndex);
+            scrollTo(tabIndex);
         }
     }
 
-    /** The themes a head may pick for one of its tabs, in two columns under the tab. */
-    private void openThemeMenu(final int slot, final ThemePill pill) {
+    /** The themes a head may pick for one of its sections: grouped, with a search field, under what was clicked. */
+    private void openThemeMenu(final int slot, final JComponent anchor) {
         final HexPlayer p = head();
         if (p == null) {
             return;
@@ -502,22 +559,9 @@ final class HexTownDialog {
             setMessage(t("lblHexThemeLocked"), true);
             return;
         }
-        final JPopupMenu menu = new JPopupMenu();
-        menu.setLayout(new GridLayout(0, 2));
-        menu.setBackground(palette.mid());
-        menu.setBorder(BorderFactory.createLineBorder(alpha(GOLD, .5)));
-        for (int i = 0; i < themeChoices.size(); i++) {
-            final HexTheme theme = themeChoices.get(i);
-            final int index = i + 1;
-            final JMenuItem item = new JMenuItem(theme.getLabel());
-            item.setFont(body(theme.id.equals(p.themes[slot]) ? Font.BOLD : Font.PLAIN, 13f));
-            item.setOpaque(true);
-            item.setBackground(palette.mid());
-            item.setForeground(TEXT);
-            item.addActionListener(e -> onThemePicked(slot, index));
-            menu.add(item);
-        }
-        menu.show(pill, 0, pill.getHeight() + 4);
+        final HexColor color = campaign().tile().color;
+        new HexThemePicker(() -> palette, t("lblHexThemePickTitle", String.valueOf(slot + 1)), campaign().themeChoices(), p.themes[slot],
+                theme -> content.themeCardCount(color, theme), theme -> onThemePicked(slot, theme)).show(anchor);
     }
 
     /** A head pays for new shelves in every tab of the town (and new relics). */
@@ -550,31 +594,58 @@ final class HexTownDialog {
         }
     }
 
-    private void selectTheme(final int tabIndex) {
-        if (themeId(tabIndex) != null) {
-            themeTab = tabIndex;
-            previewOffer = null;
-            setMessage("", false);
-            fill();
+    /** Scrolls the page so that the section starts at its top. */
+    private void scrollTo(final int section) {
+        final JComponent head = sectionHeads.get(section);
+        if (head == null || tilesScroll == null) {
+            return;
+        }
+        final int y = section == HexCampaign.TAB_TOWN ? 0 : head.getY();
+        tilesScroll.getViewport().setViewPosition(new Point(0, Math.max(0, Math.min(y,
+                pnlTiles.getHeight() - tilesScroll.getViewport().getHeight()))));
+        sectionInView = section;
+        fillThemes(head());
+    }
+
+    /** Which section is at the top of the page: the last one whose heading has scrolled past the top. */
+    private void spySection() {
+        if (tilesScroll == null || sectionHeads.isEmpty()) {
+            return;
+        }
+        final int top = tilesScroll.getViewport().getViewPosition().y + 40;
+        final boolean atEnd = top - 40 + tilesScroll.getViewport().getHeight() >= pnlTiles.getHeight() - 2;
+        int in = HexCampaign.TAB_TOWN;
+        for (final Map.Entry<Integer, JComponent> e : sectionHeads.entrySet()) {
+            if (e.getValue().getY() <= top) {
+                in = e.getKey();
+            }
+        }
+        if (atEnd && top > 40) { // scrolled to the end: the last section, even when it is too short to reach the top
+            for (final Integer key : sectionHeads.keySet()) {
+                in = key;
+            }
+        }
+        if (in != sectionInView) {
+            sectionInView = in;
+            fillThemes(head());
         }
     }
 
-    private void onThemePicked(final int slot, final int index) {
+    private void onThemePicked(final int slot, final HexTheme theme) {
         final HexPlayer p = head();
-        if (p == null || index <= 0 || index > themeChoices.size()) {
+        if (p == null || theme == null) {
             return;
         }
-        final HexTheme theme = themeChoices.get(index - 1);
         if (theme.id.equals(p.themes[slot])) {
-            selectTheme(HexCampaign.TAB_PICKED + slot);
+            scrollTo(HexCampaign.TAB_PICKED + slot);
             return;
         }
         if (session.isFightRunning() || !campaign().mayPickTheme(p.name, slot)) {
             setMessage(t("lblHexThemeLocked"), true);
         } else {
             setMessage("", false);
-            themeTab = HexCampaign.TAB_PICKED + slot;
-            pendingPickTab = themeTab;
+            pendingPickTab = HexCampaign.TAB_PICKED + slot;
+            scrollToSection = pendingPickTab;
             previewOffer = null;
             session.pickTheme(p.name, slot, theme.id);
         }
@@ -582,16 +653,16 @@ final class HexTownDialog {
     }
 
     private void fillThemes(final HexPlayer p) {
+        if (p == null) {
+            return;
+        }
         final String[] ids = { themeId(0), themeId(1), themeId(2), themeId(3) };
         if (pendingPickTab >= 0 && pendingPickTab < ids.length && ids[pendingPickTab] != null) {
             pendingPickTab = -1;
         }
-        if (themeTab < 0 || themeTab >= ids.length || (ids[themeTab] == null && themeTab != pendingPickTab)) {
-            themeTab = HexCampaign.TAB_TOWN; // the tab shown has no theme (another head, a save from before): back to the town's
-        }
         for (int i = 0; i < themePills.length; i++) {
             if (i == HexCampaign.TAB_RANDOM) { // no theme: any cards of the town
-                themePills[i].set(t("lblHexThemeAnyCards"), i == themeTab, false);
+                themePills[i].set(t("lblHexThemeAnyCards"), i == sectionInView && !searching(), false);
                 themePills[i].setEnabled(true);
                 themePills[i].setToolTipText(t("lblHexThemeAnyCardsHint"));
                 continue;
@@ -602,7 +673,7 @@ final class HexTownDialog {
             if (theme == null && i == pendingPickTab) {
                 text = "…";
             }
-            themePills[i].set(text, i == themeTab && (theme != null || i == pendingPickTab), picked);
+            themePills[i].set(text, i == sectionInView && !searching(), picked);
             themePills[i].setEnabled(theme != null || picked);
             if (picked) {
                 final boolean mayPick = !session.isFightRunning() && campaign().mayPickTheme(p.name, i - HexCampaign.TAB_PICKED);
@@ -641,7 +712,13 @@ final class HexTownDialog {
             e.getValue().setActive(e.getKey().equals(tab));
             e.getValue().setCount(navCount(c, e.getKey()));
         }
-        if (isCardShop()) {
+        if (searching()) {
+            for (final NavItem item : navItems.values()) {
+                item.setActive(false);
+            }
+            fillSearch(query());
+            pages.show(body, PAGE_CARDS);
+        } else if (isCardShop()) {
             fillTiles(HexShopType.valueOf(tab));
             pages.show(body, PAGE_CARDS);
         } else {
@@ -667,7 +744,9 @@ final class HexTownDialog {
         page.add(buildThemeTabs(), "h 48!");
         final JPanel lower = transparent(new MigLayout("insets 0, gap 20, fill", "[grow, fill][" + PREVIEW_W + "!, fill]", "[grow]"));
         final JPanel left = transparent(new MigLayout("insets 0, gap 0, wrap 1, fill", "[grow, fill]", "[grow, fill][]"));
-        left.add(scroller(pnlTiles), "wmin 0, hmin 0");
+        tilesScroll = scroller(pnlTiles);
+        tilesScroll.getViewport().addChangeListener(e -> spySection());
+        left.add(tilesScroll, "wmin 0, hmin 0");
         pnlBasics.add(label(t("lblHexBasicLands"), body(Font.PLAIN, 13f), MUTED));
         for (final HexColor color : HexColor.COLORS) {
             final GoldButton b = new GoldButton(color.getBasicLand(), GoldButton.Kind.OUTLINE, 12f);
@@ -705,63 +784,235 @@ final class HexTownDialog {
         btnPreviewBuy = new GoldButton(t("lblHexBuy"), GoldButton.Kind.GOLD, 15f);
         btnPreviewBuy.addActionListener(e -> {
             if (previewOffer != null) {
-                buy(previewType, previewOffer);
+                buy(previewType, previewTab, previewOffer);
             }
         });
         panel.add(btnPreviewBuy, "h 48!, gaptop 12");
+        final JPanel into = transparent(new MigLayout("insets 0, gap 10, aligny center", "[][]", "[36!]"));
+        into.add(label(t("lblHexBuyInto"), body(Font.PLAIN, 13f), MUTED));
+        final PillTray tray = new PillTray();
+        for (final boolean side : new boolean[] { false, true }) {
+            final Pill pill = new Pill(t(side ? "lblHexBuyIntoSide" : "lblHexBuyIntoDeck"));
+            pill.addActionListener(e -> {
+                buyToSideboard = side;
+                fillBuyInto();
+            });
+            buyIntoPills.add(pill);
+            tray.add(pill, "h 28!");
+        }
+        into.add(tray);
+        panel.add(into, "gaptop 10, alignx center");
+        fillBuyInto();
         return panel;
     }
 
-    /** One tile per card on offer: its picture (pointing at it shows it big, a click buys it), its price and the copies already owned. */
+    private void fillBuyInto() {
+        for (int i = 0; i < buyIntoPills.size(); i++) {
+            buyIntoPills.get(i).setActive((i == 1) == buyToSideboard);
+        }
+    }
+
+    /** The name of a section: its kind (the town's, any cards, yours) and its theme. */
+    private String sectionTitle(final int section) {
+        if (section == HexCampaign.TAB_RANDOM) {
+            return t("lblHexThemeKindRandom") + " · " + t("lblHexThemeAnyCards");
+        }
+        final HexTheme theme = HexTheme.get(themeId(section));
+        final String kind = t(section == HexCampaign.TAB_TOWN ? "lblHexThemeKindTown" : "lblHexThemeKindYours");
+        if (theme == null) {
+            return kind + " · " + (section == pendingPickTab ? "…" : t("lblHexThemeChooseShort"));
+        }
+        return kind + " · " + theme.getName();
+    }
+
+    /** The heading of a section; a section of the head's own has a button to pick (another) theme. */
+    private JComponent sectionHead(final int section) {
+        final JPanel row = transparent(new MigLayout("insets 0, gap 12, fillx", "[grow, fill][]", "[30!]"));
+        row.add(new HexSidebarParts.Heading(sectionTitle(section)), "aligny center");
+        if (section >= HexCampaign.TAB_PICKED) {
+            final int slot = section - HexCampaign.TAB_PICKED;
+            final boolean has = themeId(section) != null;
+            final GoldButton change = new GoldButton(t(has ? "lblHexThemeChange" : "lblHexThemeChooseShort"), GoldButton.Kind.OUTLINE, 11.5f);
+            final HexPlayer p = head();
+            final boolean mayPick = p != null && !session.isFightRunning() && campaign().mayPickTheme(p.name, slot);
+            change.setToolTipText(mayPick ? t("lblHexThemePickHint") : t("lblHexThemeLocked"));
+            change.addActionListener(e -> openThemeMenu(slot, change));
+            row.add(change, "h 28!");
+        }
+        return row;
+    }
+
+    /**
+     * The page of one shop: every section under its heading, one after the other (the town's theme, any cards, the
+     * head's two themes). Pointing at a card shows it big, a click buys it; a tile shows the price and the copies owned.
+     */
     private void fillTiles(final HexShopType type) {
         pnlBasics.setVisible(type == HexShopType.LAND);
-        final List<HexShopOffer> list = offers(type);
         final HexPlayer buyer = head();
-        final StringBuilder shown = new StringBuilder(type.name()).append('/').append(themeTab).append('/').append(buyer.name)
-                .append('/').append(buyer.gold).append('/').append(buyer.deck.size()).append('/').append(buyer.sideboard.size());
-        for (final HexShopOffer o : list) {
-            shown.append('|').append(o.card).append('=').append(price(buyer, o));
-        }
-        HexShopOffer preview = null;
-        for (final HexShopOffer o : list) {
-            if (previewOffer != null && type == previewType && o.card.equals(previewOffer.card)) {
-                preview = o;
+        final List<List<HexShopOffer>> sections = new ArrayList<>();
+        final StringBuilder shown = new StringBuilder(type.name()).append('/').append(buyer.name).append('/').append(buyer.gold)
+                .append('/').append(buyer.deck.size()).append('/').append(buyer.sideboard.size()).append('/').append(pendingPickTab)
+                .append('/').append(session.isFightRunning());
+        for (int section = 0; section < SECTIONS; section++) {
+            final List<HexShopOffer> list = offers(type, section);
+            sections.add(list);
+            shown.append('#').append(themeId(section));
+            if (section >= HexCampaign.TAB_PICKED) {
+                shown.append('/').append(campaign().mayPickTheme(buyer.name, section - HexCampaign.TAB_PICKED));
+            }
+            for (final HexShopOffer o : list) {
+                shown.append('|').append(o.card).append('=').append(price(buyer, o));
             }
         }
-        showPreview(type, preview != null ? preview : list.isEmpty() ? null : list.get(0));
-        if (shown.toString().equals(tilesShown)) {
-            return; // nothing changed: keep the pictures as they are
+        // the card shown big: the one pointed at last, while it is still on offer; else the first one of the page
+        HexShopOffer preview = null;
+        int previewSection = 0;
+        for (int section = 0; section < SECTIONS && preview == null; section++) {
+            for (final HexShopOffer o : sections.get(section)) {
+                if (previewOffer != null && type == previewType && section == previewTab && o.card.equals(previewOffer.card)) {
+                    preview = o;
+                    previewSection = section;
+                }
+            }
         }
+        for (int section = 0; section < SECTIONS && preview == null; section++) {
+            if (!sections.get(section).isEmpty()) {
+                preview = sections.get(section).get(0);
+                previewSection = section;
+            }
+        }
+        showPreview(type, previewSection, preview);
+        if (!shown.toString().equals(tilesShown)) {
+            final boolean newShop = !tilesShown.startsWith(type.name() + "/");
+            tilesShown = shown.toString();
+            pnlTiles.removeAll();
+            sectionHeads.clear();
+            for (int section = 0; section < SECTIONS; section++) {
+                final int tab = section;
+                final JComponent head = sectionHead(section);
+                sectionHeads.put(section, head);
+                pnlTiles.add(head, (section == 0 ? "" : "newline, gaptop 18, ") + "span, growx, gapbottom 2");
+                final List<HexShopOffer> list = sections.get(section);
+                if (themeId(section) == null) {
+                    // a section of the head's own without a theme yet: what it is for
+                    pnlTiles.add(wrapped(t(section == pendingPickTab ? "lblHexThemeComing" : "lblHexThemeInvite"), body(Font.PLAIN, 14f), MUTED,
+                            pageW - PREVIEW_W - 60), "span, gapleft 4");
+                    continue;
+                }
+                if (list.isEmpty()) {
+                    // a theme that sells only fitting cards may simply have none of this kind here
+                    final HexTheme theme = HexTheme.get(themeId(section));
+                    pnlTiles.add(label(t(theme != null && theme.isStrict() ? "lblHexNothingInTheme" : "lblHexNothingOnOffer"),
+                            body(Font.PLAIN, 14f), MUTED), "span, gapleft 4");
+                }
+                for (final HexShopOffer o : list) {
+                    addTile(buyer, type, tab, o);
+                }
+            }
+            pnlTiles.revalidate();
+            pnlTiles.repaint();
+            final int target = scrollToSection;
+            scrollToSection = -1;
+            if (newShop || target >= 0) { // another shop starts at its top; a theme just picked is shown
+                SwingUtilities.invokeLater(() -> {
+                    pnlTiles.validate();
+                    if (target >= 0) {
+                        scrollTo(target);
+                    } else if (tilesScroll != null) {
+                        tilesScroll.getViewport().setViewPosition(new Point(0, 0));
+                    }
+                });
+            }
+        }
+    }
+
+    /** One card on offer: its picture (pointing at it shows it big, a click buys it), its price and the copies in the deck. */
+    private void addTile(final HexPlayer buyer, final HexShopType type, final int section, final HexShopOffer o) {
+        final int price = price(buyer, o);
+        final int inDeck = Collections.frequency(buyer.deck, o.card);
+        pnlTiles.add(new ShopTile(content.getCard(o.card), tileW, String.valueOf(price),
+                inDeck > 0 ? t("lblHexInDeck", String.valueOf(inDeck)) : null, buyer.gold < price, new TileListener() {
+                    @Override
+                    public void hovered() {
+                        showPreview(type, section, o);
+                    }
+
+                    @Override
+                    public void clicked() {
+                        buy(type, section, o);
+                    }
+                }));
+    }
+
+    /** One offer found by the search: where it is sold (merchant and section) and the offer. */
+    private record Found(HexShopType type, int section, HexShopOffer offer) { }
+
+    /**
+     * What the search finds: every card of every merchant and section of this head's shelves that matches, under one
+     * heading per merchant; a card sold in two sections once.
+     */
+    private void fillSearch(final String query) {
+        pnlBasics.setVisible(false);
+        final HexPlayer buyer = head();
+        final Map<HexShopType, List<Found>> byShop = new LinkedHashMap<>();
+        final java.util.Set<String> seen = new java.util.HashSet<>();
+        final StringBuilder shown = new StringBuilder("?").append(query).append('/').append(buyer.name).append('/').append(buyer.gold)
+                .append('/').append(buyer.deck.size()).append('/').append(buyer.sideboard.size());
+        for (final HexShopType type : HexShopType.CARD_SHOPS) {
+            for (int section = 0; section < SECTIONS; section++) {
+                for (final HexShopOffer o : offers(type, section)) {
+                    if (forge.gamemodes.hexcrawl.HexCardSearch.matches(content.getCard(o.card), query) && seen.add(type + "|" + o.card)) {
+                        byShop.computeIfAbsent(type, k -> new ArrayList<>()).add(new Found(type, section, o));
+                        shown.append('|').append(o.card).append('=').append(price(buyer, o));
+                    }
+                }
+            }
+        }
+        // the card shown big: the one pointed at last, while the search still finds it; else the first one found
+        Found preview = null;
+        Found firstFound = null;
+        for (final List<Found> list : byShop.values()) {
+            for (final Found f : list) {
+                firstFound = firstFound == null ? f : firstFound;
+                if (previewOffer != null && f.type() == previewType && f.section() == previewTab && f.offer().card.equals(previewOffer.card)) {
+                    preview = f;
+                }
+            }
+        }
+        preview = preview == null ? firstFound : preview;
+        if (preview == null) {
+            showPreview(null, 0, null);
+        } else {
+            showPreview(preview.type(), preview.section(), preview.offer());
+        }
+        if (shown.toString().equals(tilesShown)) {
+            return;
+        }
+        final boolean newSearch = !tilesShown.startsWith("?");
         tilesShown = shown.toString();
         pnlTiles.removeAll();
-        if (list.isEmpty()) {
-            // a theme that sells only fitting cards may simply have none of this kind here
-            final HexTheme theme = HexTheme.get(themeId(themeTab));
-            pnlTiles.add(label(t(theme != null && theme.isStrict() ? "lblHexNothingInTheme" : "lblHexNothingOnOffer"),
-                    body(Font.PLAIN, 14f), MUTED), "span");
+        sectionHeads.clear();
+        boolean first = true;
+        for (final Map.Entry<HexShopType, List<Found>> e : byShop.entrySet()) {
+            pnlTiles.add(new HexSidebarParts.Heading(t(e.getKey().getLabelKey())), (first ? "" : "newline, gaptop 18, ") + "span, growx, h 30!, gapbottom 2");
+            first = false;
+            for (final Found f : e.getValue()) {
+                addTile(buyer, f.type(), f.section(), f.offer());
+            }
         }
-        for (final HexShopOffer o : list) {
-            final int price = price(buyer, o);
-            final int inDeck = Collections.frequency(buyer.deck, o.card);
-            pnlTiles.add(new ShopTile(content.getCard(o.card), tileW, String.valueOf(price),
-                    inDeck > 0 ? t("lblHexInDeck", String.valueOf(inDeck)) : null, buyer.gold < price, new TileListener() {
-                        @Override
-                        public void hovered() {
-                            showPreview(type, o);
-                        }
-
-                        @Override
-                        public void clicked() {
-                            buy(type, o);
-                        }
-                    }));
+        if (byShop.isEmpty()) {
+            pnlTiles.add(label(t("lblHexTownSearchNone"), body(Font.PLAIN, 14f), MUTED), "span, gapleft 4");
         }
         pnlTiles.revalidate();
         pnlTiles.repaint();
+        if (newSearch && tilesScroll != null) {
+            SwingUtilities.invokeLater(() -> tilesScroll.getViewport().setViewPosition(new Point(0, 0)));
+        }
     }
 
-    private void showPreview(final HexShopType type, final HexShopOffer o) {
+    private void showPreview(final HexShopType type, final int section, final HexShopOffer o) {
         previewType = type;
+        previewTab = section;
         previewOffer = o;
         final HexPlayer p = head();
         if (o == null || p == null) {
@@ -797,7 +1048,7 @@ final class HexTownDialog {
         }
     }
 
-    private void buy(final HexShopType type, final HexShopOffer o) {
+    private void buy(final HexShopType type, final int section, final HexShopOffer o) {
         final HexPlayer p = head();
         if (p == null) {
             return;
@@ -806,8 +1057,28 @@ final class HexTownDialog {
         if (p.gold < price) {
             setMessage(t("lblHexNotEnoughGold"), true);
         } else {
-            setMessage(t("lblHexBoughtCard", p.name, o.card, String.valueOf(price)), false);
-            session.buy(p.name, type, themeTab, o.card);
+            setMessage(t(buyToSideboard ? "lblHexBoughtCardSide" : "lblHexBoughtCard", p.name, o.card, String.valueOf(price)), false);
+            session.buy(p.name, type, section, o.card, buyToSideboard);
+            lastBuy = new LastBuy(p.name, o.card, price, buyToSideboard);
+            btnUndo.setVisible(true);
+        }
+        fill();
+    }
+
+    /** The last purchase sold back at what it cost (the campaign does that for cards bought during this visit). */
+    private void undoLastBuy() {
+        final LastBuy last = lastBuy;
+        final HexPlayer p = last == null ? null : campaign().player(last.head());
+        if (p == null) {
+            return;
+        }
+        final boolean possible = last.toSideboard() ? p.sideboard.contains(last.card())
+                : p.deck.contains(last.card()) && p.deck.size() > HexCampaign.MIN_DECK_SIZE;
+        if (!possible) {
+            setMessage(t("lblHexUndoFailed", last.card()), true);
+        } else {
+            session.sell(p.name, last.card(), last.toSideboard());
+            setMessage(t("lblHexUndone", last.card(), String.valueOf(last.price())), false);
         }
         fill();
     }
@@ -833,7 +1104,7 @@ final class HexTownDialog {
     }
 
     private void fillRelics(final HexPlayer p) {
-        final List<HexShopOffer> offers = offers(HexShopType.RELIC);
+        final List<HexShopOffer> offers = offers(HexShopType.RELIC, 0);
         final StringBuilder shown = new StringBuilder(p.name).append('/').append(p.gold).append('/').append(p.relics);
         for (final HexShopOffer o : offers) {
             shown.append('|').append(o.card).append('=').append(price(p, o));

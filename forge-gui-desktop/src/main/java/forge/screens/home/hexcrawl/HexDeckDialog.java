@@ -30,14 +30,18 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 
+import javax.swing.BorderFactory;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.ScrollPaneConstants;
 
-import forge.card.CardRules;
 import forge.deckchooser.FDeckViewer;
 import forge.gamemodes.hexcrawl.HexCampaign;
+import forge.gamemodes.hexcrawl.HexCardGroups;
+import forge.gamemodes.hexcrawl.HexCardGroups.Kind;
 import forge.gamemodes.hexcrawl.HexColor;
 import forge.gamemodes.hexcrawl.HexContent;
 import forge.gamemodes.hexcrawl.HexDeckStats;
@@ -118,6 +122,8 @@ final class HexDeckDialog {
     private JPanel sideCards;
     private JPanel pnlSide;
     private final List<Pill> filterPills = new ArrayList<>();
+    /** The deck played, a click opens the list of the head's decks. */
+    private Pill deckPill;
     private JPanel pnlRelics;
     private JPanel relicSummary;
     private CardFace preview;
@@ -133,7 +139,9 @@ final class HexDeckDialog {
     private String adviceShown = "";
 
     private String tab = TAB_SIDE;
+    /** What the sideboard shows: "all", "fits" or a kind ({@link #KIND} and its name). */
     private String filter = "all";
+    private static final String KIND = "kind:";
     private String hovered;
     private String message = "";
     private boolean messageBad;
@@ -329,7 +337,12 @@ final class HexDeckDialog {
     private JPanel buildDeckPanel() {
         final GildedPanel panel = new GildedPanel(palette, new MigLayout("insets 16 14 14 18, gap 0 6, wrap 1, fill", "[grow, fill]", "[][grow, fill]"));
         final JPanel top = transparent(new MigLayout("insets 0, gap 10, aligny bottom", "[][]push[]"));
-        top.add(label(t("lblHexDeckList"), display(20f), TEXT_BRIGHT));
+        final PillTray deckTray = new PillTray();
+        deckPill = new Pill(t("lblHexDeckList"), true);
+        deckPill.setToolTipText(t("lblHexDeckMenuTip"));
+        deckPill.addActionListener(e -> openDeckMenu());
+        deckTray.add(deckPill, "h 30!");
+        top.add(deckTray);
         lblDeckCount = label(" ", body(Font.PLAIN, 13f), MUTED);
         top.add(lblDeckCount, "gapbottom 3");
         final GoldButton pictures = new GoldButton(t("lblHexAsPictures"), GoldButton.Kind.OUTLINE, 11.5f);
@@ -361,15 +374,19 @@ final class HexDeckDialog {
         sideCards.setOpaque(false);
         final JPanel side = transparent(new MigLayout("insets 0, gap 0 10, wrap 1, fill", "[grow, fill]", "[][][grow, fill]"));
         side.add(label(t("lblHexSideNote"), body(Font.PLAIN, 12f), HexTownStyle.FAINT));
-        final JPanel filters = transparent(new MigLayout("insets 0, gap 6, wrap 3"));
-        final String[][] choices = { { "all", "lblHexFilterAll" }, { "creature", "lblHexFilterCreatures" }, { "spell", "lblHexFilterSpells" },
-                { "land", "lblHexFilterLands" }, { "fits", "lblHexFilterFits" } };
+        final JPanel filters = transparent(new MigLayout("insets 0, gap 6, wrap 2"));
+        final String[][] choices = { { "all", "lblHexFilterAll" }, { "fits", "lblHexFilterFits" }, { KIND, "lblHexFilterKind" } };
         for (final String[] choice : choices) {
-            final Pill pill = new Pill(t(choice[1]));
+            final boolean menu = choice[0].endsWith(":");
+            final Pill pill = new Pill(t(choice[1]), menu);
             pill.putClientProperty("filter", choice[0]);
             pill.addActionListener(e -> {
-                filter = choice[0];
-                fill();
+                if (KIND.equals(choice[0])) {
+                    openKindMenu(pill);
+                } else {
+                    filter = choice[0];
+                    fill();
+                }
             });
             filterPills.add(pill);
             filters.add(pill, "h 30!");
@@ -468,8 +485,12 @@ final class HexDeckDialog {
         tabRelics.set(p.relics.size() + "/" + SLOTS.length, TAB_RELICS.equals(tab));
         sidePages.show(sideCards, tab);
         for (final Pill pill : filterPills) {
-            pill.setActive(filter.equals(pill.getClientProperty("filter")));
+            final String f = (String) pill.getClientProperty("filter");
+            pill.setActive(f.endsWith(":") ? filter.startsWith(f) : filter.equals(f));
         }
+        final String played = deckLabel(p, p.activeDeckIndex());
+        deckPill.setText(played.length() > 22 ? played.substring(0, 21).trim() + "..." : played);
+        deckPill.setToolTipText(played + " \u00B7 " + t("lblHexDeckMenuTip"));
         fillLists(p, stats, editable);
         fillRelics(p);
         fillNumbers(stats);
@@ -518,7 +539,8 @@ final class HexDeckDialog {
                 }
             }
         }
-        lblSubtitle.setText(caps(p.name + " · " + words + " · " + t("lblHexCardsCount", String.valueOf(p.deck.size()))));
+        final String deckName = p.deckCount() > 1 ? " · " + deckLabel(p, p.activeDeckIndex()) : "";
+        lblSubtitle.setText(caps(p.name + deckName + " · " + words + " · " + t("lblHexCardsCount", String.valueOf(p.deck.size()))));
     }
 
     /** One entry per card name with its copies, in the order of the list. */
@@ -534,12 +556,14 @@ final class HexDeckDialog {
         return card == null ? 99 : Math.max(0, card.getRules().getManaCost().getCMC());
     }
 
-    private static String kind(final PaperCard card) {
-        if (card == null) {
-            return "spell";
-        }
-        final CardRules rules = card.getRules();
-        return rules.getType().isLand() ? "land" : rules.getType().isCreature() ? "creature" : "spell";
+    private static Kind kind(final PaperCard card) {
+        return card == null ? Kind.OTHER : HexCardGroups.kindOf(card.getRules());
+    }
+
+    /** The name of a head's deck (an older save's deck has none: the main deck). */
+    private String deckLabel(final HexPlayer p, final int index) {
+        final String name = p.deckName(index);
+        return name == null ? t("lblHexDeckMain") : name;
     }
 
     /** Whether no land of the deck makes a colour of the card. */
@@ -572,12 +596,11 @@ final class HexDeckDialog {
         // the deck, by kind
         pnlDeck.removeAll();
         final TreeMap<String, Integer> deck = counts(p.deck);
-        final String[][] groups = { { "creature", "lblHexGroupCreatures" }, { "spell", "lblHexGroupSpells" }, { "land", "lblHexGroupLands" } };
-        for (final String[] group : groups) {
+        for (final Kind group : Kind.values()) {
             final List<Map.Entry<String, Integer>> entries = new ArrayList<>();
             int copies = 0;
             for (final Map.Entry<String, Integer> e : deck.entrySet()) {
-                if (group[0].equals(kind(content.getCard(e.getKey())))) {
+                if (group == kind(content.getCard(e.getKey()))) {
                     entries.add(e);
                     copies += e.getValue();
                 }
@@ -586,7 +609,7 @@ final class HexDeckDialog {
                 continue;
             }
             entries.sort(byCost);
-            pnlDeck.add(new HexSidebarParts.Heading(t(group[1]) + "   " + copies), "gaptop 8, gapbottom 2");
+            pnlDeck.add(new HexSidebarParts.Heading(t(group.labelKey()) + "   " + copies), "gaptop 8, gapbottom 2");
             for (final Map.Entry<String, Integer> e : entries) {
                 final String name = e.getKey();
                 final PaperCard card = content.getCard(name);
@@ -595,20 +618,26 @@ final class HexDeckDialog {
             }
         }
 
-        // the sideboard, the cards that suit the deck first
+        // the sideboard, the cards that suit the deck first; one kind of card under its heading
         pnlSide.removeAll();
+        final Kind kindShown = filter.startsWith(KIND) ? Kind.valueOf(filter.substring(KIND.length())) : null;
         final List<Map.Entry<String, Integer>> side = new ArrayList<>();
+        int copies = 0;
         for (final Map.Entry<String, Integer> e : counts(p.sideboard).entrySet()) {
             final PaperCard card = content.getCard(e.getKey());
             final boolean fits = card == null || stats.fits(card.getRules());
-            if ("all".equals(filter) || ("fits".equals(filter) ? fits : filter.equals(kind(card)))) {
+            if ("all".equals(filter) || ("fits".equals(filter) ? fits : kind(card) == kindShown)) {
                 side.add(e);
+                copies += e.getValue();
             }
         }
         side.sort(Comparator.comparing((Map.Entry<String, Integer> e) -> {
             final PaperCard card = content.getCard(e.getKey());
             return card != null && !stats.fits(card.getRules());
         }).thenComparing(byCost));
+        if (kindShown != null && !side.isEmpty()) {
+            pnlSide.add(new HexSidebarParts.Heading(t(kindShown.labelKey()) + "   " + copies), "gaptop 8, gapbottom 2");
+        }
         for (final Map.Entry<String, Integer> e : side) {
             final String name = e.getKey();
             final PaperCard card = content.getCard(name);
@@ -624,7 +653,7 @@ final class HexDeckDialog {
         if (hovered == null || (!p.deck.contains(hovered) && !p.sideboard.contains(hovered))) {
             hovered = null;
             for (final String name : rowNames) {
-                if (hovered == null && "creature".equals(kind(content.getCard(name)))) {
+                if (hovered == null && kind(content.getCard(name)) == Kind.CREATURE) {
                     hovered = name;
                 }
             }
@@ -690,6 +719,138 @@ final class HexDeckDialog {
         for (int i = 0; i < rows.size(); i++) {
             rows.get(i).setSelected(rowNames.get(i).equals(hovered));
         }
+    }
+
+    // ------------------------------------------------------------------ menus
+
+    /** A menu painted like the window, under its pill. */
+    private JPopupMenu popup() {
+        final JPopupMenu menu = new JPopupMenu();
+        menu.setBackground(palette.mid());
+        menu.setBorder(BorderFactory.createLineBorder(HexTownStyle.alpha(HexTownStyle.GOLD, .5)));
+        return menu;
+    }
+
+    private JMenuItem menuItem(final JPopupMenu menu, final String text, final boolean chosen, final boolean enabled, final Runnable action) {
+        final JMenuItem item = new JMenuItem(text);
+        item.setFont(body(chosen ? Font.BOLD : Font.PLAIN, 13f));
+        item.setOpaque(true);
+        item.setBackground(palette.mid());
+        item.setForeground(chosen ? HexTownStyle.GOLD : HexTownStyle.TEXT);
+        item.setEnabled(enabled);
+        item.addActionListener(e -> action.run());
+        menu.add(item);
+        return item;
+    }
+
+    /** The kinds of cards the sideboard can show (those it has are marked with their number). */
+    private void openKindMenu(final Pill pill) {
+        final HexPlayer p = head();
+        if (p == null) {
+            return;
+        }
+        final java.util.EnumMap<Kind, Integer> have = new java.util.EnumMap<>(Kind.class);
+        for (final String card : p.sideboard) {
+            have.merge(kind(content.getCard(card)), 1, Integer::sum);
+        }
+        final JPopupMenu menu = popup();
+        for (final Kind k : Kind.values()) {
+            final int n = have.getOrDefault(k, 0);
+            if (k == Kind.OTHER && n == 0) {
+                continue;
+            }
+            menuItem(menu, t(k.labelKey()) + (n > 0 ? "   " + n : ""), filter.equals(KIND + k.name()), true, () -> {
+                filter = KIND + k.name();
+                fill();
+            });
+        }
+        menu.show(pill, 0, pill.getHeight() + 4);
+    }
+
+    // ------------------------------------------------------------------ the head's decks
+
+    /** Decks may be picked, made, renamed and thrown away outside a fight, in a dungeon too; only for the own head. */
+    private boolean mayChangeDecks(final HexPlayer p) {
+        return p != null && !session.isFightRunning() && session.mayActFor(session.getMyHead(), p.name);
+    }
+
+    private void openDeckMenu() {
+        final HexPlayer p = head();
+        if (p == null) {
+            return;
+        }
+        final boolean may = mayChangeDecks(p);
+        final JPopupMenu menu = popup();
+        final int active = p.activeDeckIndex();
+        for (int i = 0; i < p.deckCount(); i++) {
+            final int index = i;
+            final int size = Math.max(p.deckSize(i), HexCampaign.MIN_DECK_SIZE);
+            menuItem(menu, deckLabel(p, i) + "   " + t("lblHexCardsCount", String.valueOf(size)), i == active, may, () -> pickDeck(index));
+        }
+        menu.addSeparator();
+        menuItem(menu, t("lblHexDeckNew") + "...", false, may && p.deckCount() < HexCampaign.MAX_DECKS, this::newDeck);
+        menuItem(menu, t("lblHexDeckRename") + "...", false, may, this::renameDeck);
+        menuItem(menu, t("lblHexDeckDelete") + "...", false, may && p.deckCount() > 1, this::deleteDeck);
+        if (!may) {
+            setMessage(session.isFightRunning() ? t("lblHexNoChangesInFight") : t("lblHexViewOnly", p.name), true);
+            fill();
+        }
+        menu.show(deckPill, 0, deckPill.getHeight() + 6);
+    }
+
+    private void pickDeck(final int index) {
+        final HexPlayer p = head();
+        if (!mayChangeDecks(p) || index == p.activeDeckIndex()) {
+            return;
+        }
+        final boolean filled = p.deckSize(index) < HexCampaign.MIN_DECK_SIZE;
+        session.selectDeck(p.name, index);
+        setMessage(t(filled ? "lblHexDeckPlayingFilled" : "lblHexDeckPlaying", deckLabel(p, index)), false);
+        fill();
+    }
+
+    private void newDeck() {
+        final HexPlayer p = head();
+        if (!mayChangeDecks(p)) {
+            return;
+        }
+        final String name = forge.toolbox.FOptionPane.showInputDialog(t("lblHexDeckNewPrompt"), t("lblHexDeckNew"), null,
+                t("lblHexDeckNumbered", String.valueOf(p.deckCount() + 1)));
+        if (name == null || name.isBlank()) {
+            return;
+        }
+        session.newDeck(p.name, name);
+        setMessage(t("lblHexDeckCreated", name.trim()), false);
+        fill();
+    }
+
+    private void renameDeck() {
+        final HexPlayer p = head();
+        if (!mayChangeDecks(p)) {
+            return;
+        }
+        final int index = p.activeDeckIndex();
+        final String name = forge.toolbox.FOptionPane.showInputDialog(t("lblHexDeckNamePrompt"), t("lblHexDeckRename"), null, deckLabel(p, index));
+        if (name == null || name.isBlank()) {
+            return;
+        }
+        session.renameDeck(p.name, index, name);
+        fill();
+    }
+
+    private void deleteDeck() {
+        final HexPlayer p = head();
+        if (!mayChangeDecks(p) || p.deckCount() <= 1) {
+            return;
+        }
+        final int index = p.activeDeckIndex();
+        final String name = deckLabel(p, index);
+        if (!forge.toolbox.FOptionPane.showConfirmDialog(t("lblHexDeckDeleteConfirm", name), t("lblHexDeckDelete"))) {
+            return;
+        }
+        session.deleteDeck(p.name, index);
+        setMessage(t("lblHexDeckDeleted", name), false);
+        fill();
     }
 
     // ------------------------------------------------------------------ moving cards

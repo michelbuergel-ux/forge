@@ -14,6 +14,15 @@ public final class HexActionEvent implements NetEvent {
     public static final String QUEST = "QUEST";
     /** Moves a card between deck and sideboard; the flag says "to the sideboard". */
     public static final String MOVE = "MOVE";
+    /**
+     * A head's decks: q = {@link #DECK_PICK} (play deck r), {@link #DECK_NEW} (a copy of the deck played, named text),
+     * {@link #DECK_RENAME} (deck r gets the name text) or {@link #DECK_DELETE} (deck r).
+     */
+    public static final String DECK = "DECK";
+    public static final int DECK_PICK = 0;
+    public static final int DECK_NEW = 1;
+    public static final int DECK_RENAME = 2;
+    public static final int DECK_DELETE = 3;
     /** A head picks the theme of one of its theme tabs: q = slot, text = theme id. */
     public static final String THEME = "THEME";
     /** A head takes a perk: text = perk name. */
@@ -68,7 +77,7 @@ public final class HexActionEvent implements NetEvent {
     public int getR() { return r; }
     /** A card or relic name (BUY, SELL, SELL_RELIC, MOVE) or a colour (LAND). */
     public String getText() { return text; }
-    /** REWARD: take the card; SELL: from the sideboard; MOVE: to the sideboard. */
+    /** REWARD: take the card; SELL: from the sideboard; MOVE: to the sideboard; BUY: into the sideboard (else the deck). */
     public boolean getFlag() { return flag; }
     /** The head the action is for; null means the sender's own head. */
     public String getHead() { return head; }

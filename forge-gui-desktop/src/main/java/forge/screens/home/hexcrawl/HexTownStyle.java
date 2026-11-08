@@ -1012,12 +1012,63 @@ final class HexTownStyle {
         }
     }
 
+    /** A search field: dark and round, with a gold edge, and a hint while it is empty; Escape empties it. */
+    static final class SearchField extends javax.swing.JTextField {
+        private final String hint;
+
+        SearchField(final String hint0) {
+            hint = hint0;
+            setOpaque(false);
+            setForeground(TEXT);
+            setCaretColor(GOLD_LIGHT);
+            setFont(body(Font.PLAIN, 14f));
+            setBorder(javax.swing.BorderFactory.createEmptyBorder(4, 12, 4, 12));
+            addKeyListener(new java.awt.event.KeyAdapter() {
+                @Override
+                public void keyPressed(final java.awt.event.KeyEvent e) {
+                    // Escape empties the field; an empty field lets it through (to close a menu or the window)
+                    if (e.getKeyCode() == java.awt.event.KeyEvent.VK_ESCAPE && !getText().isEmpty()) {
+                        setText("");
+                        e.consume();
+                    }
+                }
+            });
+        }
+
+        @Override
+        protected void paintComponent(final Graphics g) {
+            final Graphics2D g2 = smooth(g);
+            final int h = getHeight();
+            g2.setColor(new Color(0, 0, 0, 110));
+            g2.fill(round(0.5, 0.5, getWidth() - 1, h - 1, h));
+            g2.setColor(alpha(GOLD, hasFocus() ? .6 : .35));
+            g2.draw(round(0.5, 0.5, getWidth() - 1, h - 1, h));
+            if (getText().isEmpty() && hint != null) {
+                g2.setFont(getFont());
+                g2.setColor(FAINT);
+                final java.awt.FontMetrics fm = g2.getFontMetrics();
+                g2.drawString(hint, 12, (h + fm.getAscent() - fm.getDescent()) / 2);
+            }
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
     /** One of a group of pills (heads, team mates): the chosen one is gold. */
     static final class Pill extends PaintedButton {
+        /** The room of a menu pill's arrow after its text: the gap and the arrow. */
+        private static final int ARROW = 14;
         private boolean active;
+        private final boolean menu;
 
         Pill(final String text) {
+            this(text, false);
+        }
+
+        /** A pill that opens a menu shows a small arrow after its text. */
+        Pill(final String text, final boolean menu0) {
             super(text);
+            menu = menu0;
         }
 
         void setActive(final boolean active0) {
@@ -1027,7 +1078,7 @@ final class HexTownStyle {
 
         @Override
         public Dimension getPreferredSize() {
-            return new Dimension(width(this, getText(), body(Font.BOLD, 14f)) + 32, 36);
+            return new Dimension(width(this, getText(), body(Font.BOLD, 14f)) + 32 + (menu ? ARROW : 0), 36);
         }
 
         @Override
@@ -1039,7 +1090,23 @@ final class HexTownStyle {
                 g.setColor(new Color(255, 255, 255, 20));
                 g.fill(round(0, 0, w, h, h));
             }
-            drawCentered(g, getText(), body(Font.BOLD, 14f), active ? GOLD_INK : new Color(0xe8e0cc), w / 2.0, h / 2.0);
+            final Color ink = active ? GOLD_INK : new Color(0xe8e0cc);
+            if (!menu) {
+                drawCentered(g, getText(), body(Font.BOLD, 14f), ink, w / 2.0, h / 2.0);
+                return;
+            }
+            final int textW = width(this, getText(), body(Font.BOLD, 14f));
+            final double left = (w - textW - ARROW) / 2.0;
+            drawCentered(g, getText(), body(Font.BOLD, 14f), ink, left + textW / 2.0, h / 2.0);
+            final double x = left + textW + 6;
+            final double y = h / 2.0 - 2;
+            final java.awt.geom.Path2D arrow = new java.awt.geom.Path2D.Double();
+            arrow.moveTo(x, y);
+            arrow.lineTo(x + 8, y);
+            arrow.lineTo(x + 4, y + 5);
+            arrow.closePath();
+            g.setColor(ink);
+            g.fill(arrow);
         }
     }
 

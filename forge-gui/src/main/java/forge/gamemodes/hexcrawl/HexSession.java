@@ -226,7 +226,12 @@ public class HexSession {
 
     /** Buys a card or a relic; the shop may be null if it does not matter which shop sells it. */
     public void buy(final String head, final HexShopType shop, final int tab, final String card) {
-        act(new HexActionEvent(HexActionEvent.BUY, shop == null ? -1 : shop.ordinal(), tab, card, false, head));
+        buy(head, shop, tab, card, false);
+    }
+
+    /** Buys a card of the head's shelves; it goes into the sideboard instead of the deck played if asked. */
+    public void buy(final String head, final HexShopType shop, final int tab, final String card, final boolean toSideboard) {
+        act(new HexActionEvent(HexActionEvent.BUY, shop == null ? -1 : shop.ordinal(), tab, card, toSideboard, head));
     }
 
     public void buy(final String head, final String card) {
@@ -299,6 +304,24 @@ public class HexSession {
     /** Moves a card between the deck and the sideboard of a head; not while a fight runs. */
     public void moveCard(final String head, final String card, final boolean toSideboard) {
         act(new HexActionEvent(HexActionEvent.MOVE, 0, 0, card, toSideboard, head));
+    }
+
+    /** A head plays another of its decks (allowed in a dungeon too); not while a fight runs. */
+    public void selectDeck(final String head, final int index) {
+        act(new HexActionEvent(HexActionEvent.DECK, HexActionEvent.DECK_PICK, index, null, false, head));
+    }
+
+    /** A head makes a new deck, a copy of the one it plays, and plays it. */
+    public void newDeck(final String head, final String name) {
+        act(new HexActionEvent(HexActionEvent.DECK, HexActionEvent.DECK_NEW, 0, name, false, head));
+    }
+
+    public void renameDeck(final String head, final int index, final String name) {
+        act(new HexActionEvent(HexActionEvent.DECK, HexActionEvent.DECK_RENAME, index, name, false, head));
+    }
+
+    public void deleteDeck(final String head, final int index) {
+        act(new HexActionEvent(HexActionEvent.DECK, HexActionEvent.DECK_DELETE, index, null, false, head));
     }
 
     public void buyLand(final String head, final HexColor color) {
@@ -402,7 +425,7 @@ public class HexSession {
             } else if (HexActionEvent.BUY.equals(type)) {
                 final int shop = action.getQ();
                 campaign.buy(head, shop >= 0 && shop < HexShopType.values().length ? HexShopType.values()[shop] : null,
-                        action.getR(), action.getText());
+                        action.getR(), action.getText(), action.getFlag());
             } else if (HexActionEvent.EVENT_CHOICE.equals(type)) {
                 if (action.getQ() == 1) {
                     campaign.skipEvent(head);
@@ -434,6 +457,16 @@ public class HexSession {
             } else if (HexActionEvent.MOVE.equals(type)) {
                 if (!fightRunning && !campaign.deckLocked()) {
                     campaign.moveCard(head, action.getText(), action.getFlag());
+                }
+            } else if (HexActionEvent.DECK.equals(type)) {
+                if (!fightRunning) {
+                    switch (action.getQ()) {
+                        case HexActionEvent.DECK_PICK -> campaign.selectDeck(head, action.getR());
+                        case HexActionEvent.DECK_NEW -> campaign.newDeck(head, action.getText());
+                        case HexActionEvent.DECK_RENAME -> campaign.renameDeck(head, action.getR(), action.getText());
+                        case HexActionEvent.DECK_DELETE -> campaign.deleteDeck(head, action.getR());
+                        default -> { }
+                    }
                 }
             } else if (HexActionEvent.LAND.equals(type)) {
                 try {
@@ -507,12 +540,33 @@ public class HexSession {
         if (enc.ambush && (voters.isEmpty() || !fightReady.containsAll(voters))) {
             return false;
         }
+        if (!fightReady.containsAll(deckChoosers(voters))) {
+            return false; // a head with several decks first says which one it fights with
+        }
         if (fightHeld && fightReady.isEmpty()) {
             return false; // broken off: not again by itself, but when somebody presses Fight
         }
         fightHeld = false;
         fightRunning = true;
         return true;
+    }
+
+    /** The human heads at the table that have more than one deck: before every fight they pick the one they play. */
+    private List<String> deckChoosers(final List<String> voters) {
+        final List<String> result = new ArrayList<>();
+        for (final String name : voters) {
+            final HexPlayer p = campaign.player(name);
+            if (p != null && p.deckCount() > 1) {
+                result.add(name);
+            }
+        }
+        return result;
+    }
+
+    /** Must this head pick its deck before the fight that waits (it has several and has not said it is ready)? */
+    public synchronized boolean mustChooseDeck(final String head) {
+        final HexPlayer p = campaign == null ? null : campaign.player(head);
+        return p != null && !isAiHead(head) && campaign.pendingEncounter != null && !fightRunning && p.deckCount() > 1 && !fightReady.contains(head);
     }
 
     /** The vote ends: the leader's choice, or the field with the most votes (a tie is decided by lot). */

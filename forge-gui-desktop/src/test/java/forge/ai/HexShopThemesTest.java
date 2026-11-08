@@ -323,7 +323,8 @@ public class HexShopThemesTest extends AITest {
         final HexTheme copy = HexTheme.get("copy");
         AssertJUnit.assertNotNull(copy);
         AssertJUnit.assertFalse(copy.isStrict());
-        AssertJUnit.assertEquals("added last: the others keep their places", HexTheme.all().size() - 1, HexTheme.indexOf("copy"));
+        AssertJUnit.assertEquals("added after equipment: the others keep their places", 41, HexTheme.indexOf("copy"));
+        AssertJUnit.assertEquals("the themes of the worlds come after it", "teamwork", HexTheme.byIndex(42).id);
         AssertJUnit.assertEquals("equipment", HexTheme.byIndex(HexTheme.indexOf("copy") - 1).id);
         for (final String card : new String[] { "Clone", "Phantasmal Image", "Fork", "Twincast", "Rite of Replication", "Grapeshot" }) {
             AssertJUnit.assertTrue(card, copy.fits(HexContent.get().getCard(card).getRules()));

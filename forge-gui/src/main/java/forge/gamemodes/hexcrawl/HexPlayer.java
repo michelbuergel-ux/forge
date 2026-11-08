@@ -13,6 +13,12 @@ public class HexPlayer {
     public List<String> deck = new ArrayList<>();
     /** Cards the head owns but does not play, one entry per copy. Not touched by losses. */
     public List<String> sideboard = new ArrayList<>();
+    /**
+     * The head's decks, by name (empty in older saves: then its deck is the only one). The one it plays is
+     * {@link #activeDeck}; its cards are {@link #deck}. See {@link HexDeck}.
+     */
+    public List<HexDeck> decks = new ArrayList<>();
+    public int activeDeck;
     /** An event that waits for this head's choice (HexEvent name), or null; and the colour of its field. */
     public String eventOffer;
     public HexColor eventColor;
@@ -54,4 +60,55 @@ public class HexPlayer {
     public HexPlayer() { }
 
     public HexPlayer(final String name0, final boolean ai0) { name = name0; ai = ai0; }
+
+    /** How many decks the head has (at least one: an older save's deck). */
+    public int deckCount() {
+        return Math.max(1, decks.size());
+    }
+
+    /** The number of the deck the head plays. */
+    public int activeDeckIndex() {
+        return decks.isEmpty() ? 0 : Math.max(0, Math.min(activeDeck, decks.size() - 1));
+    }
+
+    /** The name of a deck; null for an older save's deck that has none (the main deck). */
+    public String deckName(final int index) {
+        return index < 0 || index >= decks.size() ? null : decks.get(index).name;
+    }
+
+    /** The cards a deck should hold: the deck played, or the list of another one. */
+    public List<String> deckCards(final int index) {
+        return index == activeDeckIndex() || index < 0 || index >= decks.size() ? deck : decks.get(index).cards;
+    }
+
+    /** Every card the head owns: its deck and its sideboard. */
+    public List<String> ownedCards() {
+        final List<String> all = new ArrayList<>(deck);
+        all.addAll(sideboard);
+        return all;
+    }
+
+    /** How many cards a deck has when the head picks it: those of its list the head still owns. */
+    public int deckSize(final int index) {
+        if (index == activeDeckIndex()) {
+            return deck.size();
+        }
+        final List<String> pool = ownedCards();
+        int n = 0;
+        for (final String card : deckCards(index)) {
+            if (pool.remove(card)) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** Gives an older save's head the list of its decks (one, the deck it plays). */
+    void ensureDecks() {
+        if (decks.isEmpty()) {
+            decks.add(new HexDeck(null));
+            activeDeck = 0;
+        }
+        activeDeck = activeDeckIndex();
+    }
 }

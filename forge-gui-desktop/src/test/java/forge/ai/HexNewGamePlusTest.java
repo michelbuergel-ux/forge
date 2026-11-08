@@ -179,12 +179,14 @@ public class HexNewGamePlusTest extends AITest {
 
     @Test
     public void testCardsThatNeedACommanderAreLeftOut() {
-        for (final String name : Arrays.asList("Command Tower", "Arcane Signet", "Thrasios, Triton Hero", "Candlekeep Sage")) {
+        for (final String name : Arrays.asList("Command Tower", "Arcane Signet", "Candlekeep Sage")) {
             final PaperCard card = FModel.getMagicDb().getCommonCards().getCard(name);
             AssertJUnit.assertNotNull(name, card);
             AssertJUnit.assertTrue(name + " needs a commander", HexContent.needsCommander(card.getRules()));
         }
         AssertJUnit.assertFalse(HexContent.needsCommander(FModel.getMagicDb().getCommonCards().getCard("Grizzly Bears").getRules()));
+        // partner's reminder names commanders, the card itself needs none: a creature like any other
+        AssertJUnit.assertFalse(HexContent.needsCommander(FModel.getMagicDb().getCommonCards().getCard("Thrasios, Triton Hero").getRules()));
 
         final HexContent content = HexContent.get();
         for (final HexColor color : HexColor.values()) {

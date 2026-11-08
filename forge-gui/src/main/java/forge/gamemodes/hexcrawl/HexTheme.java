@@ -24,6 +24,8 @@ public final class HexTheme {
     private final Predicate<CardRules> fits;
     /** Only cards that fit, never topped up with ordinary ones: a shop of this theme may hold fewer cards. */
     private final boolean strict;
+    /** Most of its cards are multicoloured (a world's factions): its shops draw multicoloured cards much more often. */
+    private final boolean multicoloured;
 
     /** Cards of at least this price fit the theme of expensive cards. */
     public static final int VALUABLE_PRICE = 500;
@@ -33,11 +35,47 @@ public final class HexTheme {
     }
 
     private HexTheme(final String id0, final String labelKey0, final String labelArg0, final Predicate<CardRules> fits0, final boolean strict0) {
+        this(id0, labelKey0, labelArg0, fits0, strict0, false);
+    }
+
+    private HexTheme(final String id0, final String labelKey0, final String labelArg0, final Predicate<CardRules> fits0, final boolean strict0,
+            final boolean multicoloured0) {
         id = id0;
         labelKey = labelKey0;
         labelArg = labelArg0;
         fits = fits0;
         strict = strict0;
+        multicoloured = multicoloured0;
+    }
+
+    /** The groups the theme picker sorts the themes into. */
+    public enum Group {
+        WORLDS, PLAY, KINDS, TRIBES;
+
+        public String labelKey() {
+            return "lblHexThemeGroup_" + name();
+        }
+    }
+
+    private static final java.util.Set<String> WORLDS = java.util.Set.of("ravnica", "tarkir", "alara", "strixhaven");
+    private static final java.util.Set<String> KINDS = java.util.Set.of("artifacts", "enchantments", "spells", "planeswalkers", "equipment",
+            "colorless", "valuable");
+
+    /** The worlds and their peoples, the ways to play (mechanics), the kinds of cards, or the tribes. */
+    public Group group() {
+        if (id.startsWith("tribe.") || "critters".equals(id) || "phyrexians".equals(id)) {
+            return Group.TRIBES;
+        } else if (WORLDS.contains(id)) {
+            return Group.WORLDS;
+        } else if (KINDS.contains(id)) {
+            return Group.KINDS;
+        }
+        return Group.PLAY;
+    }
+
+    /** Are most of the theme's cards multicoloured (see {@link #multicoloured})? */
+    public boolean isMulticoloured() {
+        return multicoloured;
     }
 
     /**
@@ -56,9 +94,9 @@ public final class HexTheme {
         return labelArg == null ? Localizer.getInstance().getMessage(labelKey) : Localizer.getInstance().getMessage(labelKey, labelArg);
     }
 
-    /** The label without its kind ("Elf" instead of "Tribe: Elf"), for places that name the kind themselves. */
+    /** The theme's name, as the shops and the town's banner show it (the same as its label). */
     public String getName() {
-        return labelArg == null ? getLabel() : labelArg;
+        return getLabel();
     }
 
     @Override
@@ -93,7 +131,7 @@ public final class HexTheme {
         for (final String tribe : new String[] { "Elf", "Goblin", "Zombie", "Vampire", "Dragon", "Human", "Spirit",
                 "Knight", "Soldier", "Wizard", "Merfolk", "Angel", "Beast", "Dinosaur", "Cat", "Elemental", "Faerie",
                 "Pirate", "Warrior", "Cleric", "Rogue", "Sliver" }) {
-            all.add(new HexTheme("tribe." + tribe, "lblHexThemeTribe", tribe, r -> hasCreatureType(r.getType(), tribe)
+            all.add(new HexTheme("tribe." + tribe, "lblHexTribe_" + tribe, null, r -> hasCreatureType(r.getType(), tribe)
                     || hints(r, DeckHints.Type.TYPE, tribe)));
         }
         // expensive cards: what costs 500 gold or more (the price list's treasures); last, so the indices above stay
@@ -101,7 +139,7 @@ public final class HexTheme {
                 r -> HexContent.get().price(r.getName()) >= VALUABLE_PRICE, true));
         // added later, so after the others: the indices above stay
         for (final String tribe : new String[] { "Dwarf", "Giant" }) {
-            all.add(new HexTheme("tribe." + tribe, "lblHexThemeTribe", tribe, r -> hasCreatureType(r.getType(), tribe)
+            all.add(new HexTheme("tribe." + tribe, "lblHexTribe_" + tribe, null, r -> hasCreatureType(r.getType(), tribe)
                     || hints(r, DeckHints.Type.TYPE, tribe)));
         }
         // colourless cards only (artifacts, Eldrazi, ...), no lands
@@ -123,6 +161,14 @@ public final class HexTheme {
                 || mentionsEquipment(r)));
         // clones and copies: creatures that enter as a copy, tokens that are copies, spells and abilities copied
         all.add(mechanic("copy", HexTheme::copies));
+        // the cards for playing together (partner, assist, ...), the factions of four worlds (Ravnica's guilds,
+        // Tarkir's clans and dragonlords, Alara's shards, Strixhaven's colleges) and the Phyrexians: only their own
+        // cards; the worlds' cards are mostly multicoloured. See HexCardGroups.
+        for (final HexCardGroups.Theme group : HexCardGroups.Theme.values()) {
+            final String id = group.name().toLowerCase(java.util.Locale.ROOT);
+            final boolean world = group != HexCardGroups.Theme.TEAMWORK && group != HexCardGroups.Theme.PHYREXIANS;
+            all.add(new HexTheme(id, "lblHexTheme_" + id, null, r -> HexCardGroups.belongsTo(group, r), true, world));
+        }
         ALL = Collections.unmodifiableList(all);
     }
 
