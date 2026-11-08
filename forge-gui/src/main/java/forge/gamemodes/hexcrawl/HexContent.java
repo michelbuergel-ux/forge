@@ -1073,6 +1073,12 @@ public final class HexContent {
         return FModel.getMagicDb().getCommonCards().getCard(name);
     }
 
+    /** A card on offer, in the printing of its theme's world (Fallout's Sol Ring with Vault Boy); else as {@link #getCard(String)}. */
+    public PaperCard getCard(final String name, final String themeId) {
+        final PaperCard inWorld = HexWorlds.isWorld(themeId) ? HexWorlds.printing(themeId, name) : null;
+        return inWorld != null ? inWorld : getCard(name);
+    }
+
     public boolean isBasicLand(final String name) {
         final PaperCard card = getCard(name);
         return card != null && card.getRules().getType().isBasicLand();

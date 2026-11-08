@@ -930,7 +930,7 @@ final class HexTownDialog {
     private void addTile(final HexPlayer buyer, final HexShopType type, final int section, final HexShopOffer o) {
         final int price = price(buyer, o);
         final int inDeck = Collections.frequency(buyer.deck, o.card);
-        pnlTiles.add(new ShopTile(content.getCard(o.card), tileW, String.valueOf(price),
+        pnlTiles.add(new ShopTile(content.getCard(o.card, o.theme), tileW, String.valueOf(price),
                 inDeck > 0 ? t("lblHexInDeck", String.valueOf(inDeck)) : null, buyer.gold < price, new TileListener() {
                     @Override
                     public void hovered() {
@@ -1022,7 +1022,7 @@ final class HexTownDialog {
             btnPreviewBuy.setEnabled(false);
             return;
         }
-        final PaperCard card = content.getCard(o.card);
+        final PaperCard card = content.getCard(o.card, o.theme);
         previewFace.setCard(card);
         final int sideboard = Collections.frequency(p.sideboard, o.card);
         String info = t("lblHexPreviewInfo", rarityName(card), String.valueOf(Collections.frequency(p.deck, o.card)));

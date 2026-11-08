@@ -1,0 +1,325 @@
+# The worlds of the Hex Campaign's shop themes that are not Magic's own planes (Universes Beyond).
+# [world id], then one line per source: a set code alone (the whole set), or a set code and collector
+# numbers (only those cards; the Secret Lair drops). A card belongs to a world if it is new in one of its
+# printings or shows new art there (see HexWorlds); the shops show the world's printing.
+# The Secret Lair drops were mapped with MTGJSON's SLD.json (its "subsets"); cards without one by hand.
+
+[marvel]
+# Marvel
+SPM
+SPE
+MSH
+MSC
+MAR
+LMAR
+MDD
+MDC
+# Marvel's Captain America
+SLD 1726 1727 1728 1729 1730
+# Marvel's Iron Man
+SLD 1731 1732 1733 1734 1735
+# Marvel's Wolverine
+SLD 1737 1738 1739 1740 1741
+# Marvel's Storm
+SLD 1742 1743 1744 1745 1746
+# Marvel's Black Panther
+SLD 1747 1748 1749 1750 1751
+# Marvel's Deadpool
+SLD 1753 1754 1755 1756 1757
+# Marvel's Spider-Man: Mana Symbiote
+SLD 1950 1951 1952 1953 1954
+# Marvel's Spider-Man: Villainous Plots
+SLD 1985 1986 1987 1988 1989
+# Marvel's Spider-Man: Heroic Deeds
+SLD 1990 1991 1992 1993 1994
+# Marvel's Spider-Man: Daily Bugle Breaking News
+SLD 1995 1996 1997 1998 1999
+# Marvel's Spider-Man: Venom Unleashed (Colors)
+SLD 2000 2001 2002 2003 2004
+# Marvel's Spider-Man: Venom Unleashed (Inks)
+SLD 2019 2020 2021 2022 2023
+# Marvel: Earth's Mightiest Pets
+SLD 2577 2578 2579 2580 2581 2582
+# Marvel: Zombies
+SLD 2589 2590 2591 2592 2593 2594
+# Marvel: Hulk Smash!
+SLD 2595 2596 2597 2598 2599
+# Marvel: True Believers in Love
+SLD 2611 2612 2613 2614 2615 2616
+# Marvel: Dan Hipp
+SLD 2617 2618 2619 2620 2621
+# Marvel: Spinner Rack Specials
+SLD 2622 2623 2624 2625 2626
+# Abundant Groot, Earth’s Mightiest Emblem
+SLD 870 908
+# Deadpool, Trading Card
+SLD 7127 7129
+
+[startrek]
+# Star Trek
+TRK
+TRC
+# Star Trek: Lower Decks
+SLD 2739 2740 2741 2742 2743 2744 2745 2746 2747 2748 2749 2750 2751 2752 2753
+
+[warhammer40k]
+# Warhammer 40,000
+40K
+# Warhammer 40,000: Orks
+SLD 1025 1026 1027 1028 1029
+
+[dnd]
+# Dungeons & Dragons
+AFR
+AFC
+CLB
+# Saturday Morning D&D
+SLD 310 311 312 313 314 315
+# Dungeons & Dragons: Honor Among Thieves
+SLD 1237 1238 1239 1240 1241 1242
+# Dungeons & Dragons: An Exhibition of Adventure
+SLD 1778 1779 1780 1781 1782 1783 1784
+# Dungeons & Dragons: Death is in the Eyes of the Beholder I
+SLD 1785 1786 1787 1788 1789 1790
+# Dungeons & Dragons: Death is in the Eyes of the Beholder II
+SLD 1791 1792 1793 1794 1795 1796
+# Dungeons & Dragons: Astarion's Thirst
+SLD 1797 1798 1799 1800 1801
+# Dungeons & Dragons: Karlach's Rage
+SLD 1802 1803 1804 1805 1806
+# Dungeons & Dragons: Shadowheart's Devotion
+SLD 2483 2484 2485 2486 2487
+# Dungeons & Dragons: Gale's Ambition
+SLD 2488 2489 2490 2491 2492
+# Dungeons & Dragons: Shadows Over Baldur's Gate
+SLD 2493 2494 2495 2496
+# Dungeons & Dragons: Whispers in Candlekeep
+SLD 2497 2498 2499 2500
+# Dungeons & Dragons: Strahd's Descent
+SLD 2501 2502 2503 2504
+# Dungeons & Dragons: Black Lights & Dark Dungeons
+SLD 2505 2506 2507 2508
+# Dungeons & Dragons: Lands of the Forgotten Realms
+SLD 2509 2510 2511 2512 2513
+# Themberchaud
+SLD 728
+
+[lotr]
+# The Lord of the Rings
+LTR
+LTC
+PLTC
+HOB
+HOC
+# More Adventures in Middle-earth
+SLD 1293 1294 1295 1296
+# The Hobbit: Over the Edge of the Wild
+SLD 2552 2553 2554 2555 2556
+# The Hobbit: Smaug's Spoils
+SLD 2557 2558 2559 2560 2561
+# The Hobbit: Desolation
+SLD 2562 2563 2564 2565 2566
+# The Hobbit: He Who Walks Unseen
+SLD 2567 2568 2569 2570 2571
+# Gríma Wormtongue
+SLD 734
+
+[doctorwho]
+# Doctor Who
+WHO
+# Doctor Who: The Dalek Lands
+SLD 1372 1373 1374 1375 1376
+# Doctor Who: The Weeping Angels
+SLD 1377 1378 1379 1380 1381
+# Doctor Who: Regeneration
+SLD 1580 1581 1582 1583 1584
+# Sonic Screwdriver
+SLD 803
+
+[fallout]
+# Fallout
+PIP
+# Fallout: Vault Boy
+SLD 1483 1484 1485 1486
+# Fallout: Points of Interest
+SLD 1532 1533 1534 1535 1536
+# Fallout: S.P.E.C.I.A.L.
+SLD 1632 1633 1634 1635 1636 1637 1638
+# Fallout: Beyond Vault 33
+SLD 2447 2448 2449 2450 2451 2452
+# Fallout: Rad
+SLD 2453 2454 2455 2456 2457
+# Fallout: Welcome to New Vegas
+SLD 2458 2459 2460 2461 2462
+# Fallout: Greet the Dog
+SLD 2463 2464 2465 2466 2467
+# Vault Boy (AKQA)
+SLD 790★ 795★ 796★ 1483★ 1484★ 1485★ 1486★ 1532★ 1533★ 1534★ 1535★ 1536★
+# Mirelurk Hatchling
+SLD 7095
+
+[assassinscreed]
+# Assassin's Creed
+ACR
+# Assassin's Creed: Lethal Legends
+SLD 1557 1558 1559 1560 1561
+# Assassin's Creed: Da Vinci's Designs
+SLD 1570 1571 1572 1573 1574
+
+[finalfantasy]
+# Final Fantasy
+FIN
+FIC
+FCA
+# Final Fantasy: Game Over
+SLD 1858 1859 1860 1861 1862
+# Final Fantasy: Weapons
+SLD 1863 1864 1865 1866 1867
+# Final Fantasy: Grimoire
+SLD 1868 1869 1870 1871 1872
+# Final Fantasy: summons
+SLD 7001 7002 7003 7004 7005 7006 7007 7008
+
+[tmnt]
+# Teenage Mutant Ninja Turtles
+TMT
+TMC
+PZA
+# Teenage Mutant Ninja Turtles: The Mighty Mutanimals
+SLD 2362 2363 2364 2365 2366
+# Teenage Mutant Ninja Turtles: VHS Villains
+SLD 2367 2368 2369 2370 2371
+# Teenage Mutant Ninja Turtles: The Last Ronin
+SLD 2372 2373 2374 2375 2376
+
+[avatar]
+# Avatar: The Last Airbender
+TLA
+TLE
+# Avatar: The Last Airbender: Everything Changed
+SLD 2287 2288 2289 2290
+# Avatar: The Last Airbender: A Lot to Learn
+SLD 2291 2292 2293 2294
+# Avatar: The Last Airbender: My Cabbages!
+SLD 2295 2296 2297 2298 2299
+# Avatar: The Last Airbender: One with the Elements
+SLD 2300 2301 2302 2303 2304 2305
+# Avatar: The Last Airbender: The Ember Island Players
+SLD 2306 2307 2308 2309 2310
+
+[universesbeyond]
+# Universes Beyond: the Secret Lairs of other worlds
+REX
+BOT
+# The Walking Dead
+SLD 143 144 145 146 147
+# Stranger Things
+SLD 340 341 342 343 344 345 346 347
+# Street Fighter
+SLD 428 429 430 431 432 433 434 435
+# Fortnite
+SLD 441 442 443 444 445 446 447
+# Fortnite: Landmarks and Locations
+SLD 448 449 450 451 452
+# Arcane
+SLD 477 478 479 480 481 482 483
+# Arcane: Lands
+SLD 484 485 486 487 488
+# Transformers: Optimus Prime vs. Megatron
+SLD 1079 1080 1081
+# Transformers: Roll Out or Rise Up
+SLD 1082 1083 1084 1085 1086 1087
+# Transformers: One Shall Stand, One Shall Fall
+SLD 1088 1089 1090 1091 1092
+# Evil Dead
+SLD 1352 1353 1354 1355 1356
+# Jurassic World: Life Breaks Free
+SLD 1389 1390 1391 1392 1393
+# Jurassic World: Dr. Ian Malcolm
+SLD 1394 1395 1396 1397
+# The Princess Bride
+SLD 1444 1445 1446 1447 1448 1449 1450 1451 1452
+# Creepshow
+SLD 1458 1459 1460 1461 1462
+# Tomb Raider
+SLD 1501 1502 1503 1504 1505 1506
+# Monty Python and the Holy Grail: Vol. 1
+SLD 1672 1673 1674 1675 1676
+# Monty Python and the Holy Grail: Vol. 2
+SLD 1678 1679 1680
+# The Real Ghostbusters
+SLD 1768 1769 1770 1771 1772
+# Ghostbusters: Slimer
+SLD 1773 1774 1775 1776 1777
+# Chucky
+SLD 1807 1808 1809 1810 1811
+# SpongeBob SquarePants: Legends of Bikini Bottom
+SLD 1926 1927 1928 1929 1930 1931 1932
+# SpongeBob SquarePants: Internet Sensation
+SLD 1933 1934 1935 1936 1937
+# SpongeBob SquarePants: Lands Under the Sea
+SLD 1939 1940 1941 1942 1943
+# The Office: Dwight's Destiny
+SLD 2165 2166 2167 2168 2169 2170
+# Jaws: Terror of Amity Island
+SLD 2175 2176 2177 2178 2179
+# The Last of Us Part I
+SLD 2197 2198 2199 2200
+# The Last of Us Part II
+SLD 2202 2203 2204 2205
+# God of War: Greek
+SLD 2207 2208 2209 2210 2211
+# God of War: Norse
+SLD 2212 2213 2214 2215
+# Uncharted
+SLD 2216 2217 2218 2219 2220
+# Horizon: Into the Forbidden West
+SLD 2221 2222 2223 2224 2225
+# Ghost of Tsushima
+SLD 2226 2227 2228 2229 2230
+# Furby: Doo-ay Noo-lah
+SLD 2311 2312 2313 2314 2315 2326 2327 2328 2329 2330
+# Furby: The Gathering
+SLD 2316 2317 2318 2319 2320 2331 2332 2333 2334 2335
+# Furby: The OddBodies
+SLD 2321 2322 2323 2324 2325 2336 2337 2338 2339 2340
+# Hatsune Miku
+SLD 2429 2443
+# My Little Pony: Friendship is Magic
+SLD 2534 2535 2536 2537 2538 2539
+# My Little Pony: The Lands of Equestria
+SLD 2540 2541 2542 2543 2544
+# Stardew Valley: Welcome to Stardew Valley
+SLD 2801 2802 2803 2804 2805 2806 2807
+# Stardew Valley: Life in Pelican Town
+SLD 2809 2810 2811 2812 2813
+# Stardew Valley: A Flicker in the Deep
+SLD 2814 2815 2816 2817 2818
+# The Walking Dead: Lucille
+SLD 581
+# Street Fighter, Fortnite
+SLD 675 676 677
+# Arcane
+SLD 696 697
+# Transformers
+SLD 710
+# Jurassic World
+SLD 740 740★ 741 741★ 1389★ 1390★ 1391★ 1392★ 1393★ 1394★ 1395★ 1396★ 1397★
+# Tomb Raider
+SLD 792
+# The Princess Bride
+SLD 804
+# Hatsune Miku
+SLD 807 808 1585 1586 1587 1587★ 1588 1589 1590 1591 1592 1593 1594 1594★ 1595 1596 1596★ 1597 1597★ 1598 1599 1600 1601 1602 1602★ 1603 1604 1605 1605★ 1606 1607 2430 2431 2432 2433 2434 2435 2436 2437 2438 2439 2440
+# Monty Python
+SLD 825 826
+# Ghostbusters
+SLD 871 872
+# Child's Play
+SLD 880
+# Monster Hunter
+SLD 2236 2237 2238 2239 2240 2241 2242 2243 2244 2245 2246 2247 2248 2249 2250 2251 2252 2253 2254
+# Ghost of Yōtei
+SLD 7055
+# Stardew Valley
+SLD 7188 7189

@@ -255,13 +255,16 @@ public class HexDecksTest extends AITest {
 
     @Test
     public void testThemesAndTheirFactions() {
-        assertGroups(Theme.TEAMWORK, "Pir, Imaginative Rascal", "PARTNER");
+        assertGroups(Theme.TEAMWORK, "Pir, Imaginative Rascal", "PARTNER", "YOUR_TEAM");
         assertGroups(Theme.TEAMWORK, "Huddle Up", "ASSIST");
         assertGroups(Theme.TEAMWORK, "Excavation Technique", "DEMONSTRATE");
         assertGroups(Theme.TEAMWORK, "Gladehart Cavalry", "SUPPORT");
         assertGroups(Theme.TEAMWORK, "Crush of Tentacles", "SURGE");
         assertGroups(Theme.TEAMWORK, "Minds Aglow", "JOIN_FORCES");
         assertGroups(Theme.TEAMWORK, "Expropriate", "COUNCIL");
+        assertGroups(Theme.TEAMWORK, "Rushblade Commander", "YOUR_TEAM");
+        assertGroups(Theme.TEAMWORK, "Combo Attack", "YOUR_TEAM");
+        assertGroups(Theme.TEAMWORK, "Dwarven Lightsmith", "ASSIST", "YOUR_TEAM");
 
         assertGroups(Theme.RAVNICA, "Lightning Helix", "BOROS");
         assertGroups(Theme.RAVNICA, "Azorius Guildgate", "AZORIUS");

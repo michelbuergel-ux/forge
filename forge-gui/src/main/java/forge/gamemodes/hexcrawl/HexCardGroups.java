@@ -71,7 +71,7 @@ public final class HexCardGroups {
 
     /** The themes of the shops (see {@link HexTheme}), each with its factions (group ids). */
     public enum Theme {
-        TEAMWORK("PARTNER", "ASSIST", "DEMONSTRATE", "SUPPORT", "SURGE", "JOIN_FORCES", "COUNCIL"),
+        TEAMWORK("PARTNER", "ASSIST", "DEMONSTRATE", "SUPPORT", "SURGE", "JOIN_FORCES", "COUNCIL", "YOUR_TEAM"),
         RAVNICA("AZORIUS", "DIMIR", "RAKDOS", "GRUUL", "SELESNYA", "ORZHOV", "IZZET", "GOLGARI", "BOROS", "SIMIC"),
         TARKIR("ABZAN", "JESKAI", "SULTAI", "MARDU", "TEMUR", "DROMOKA", "OJUTAI", "SILUMGAR", "KOLAGHAN", "ATARKA"),
         ALARA("BANT", "ESPER", "GRIXIS", "JUND", "NAYA"),
@@ -194,6 +194,8 @@ public final class HexCardGroups {
         TEAMWORK.put("SURGE", "(?im)(?:^|,\\s*)surge\\b");
         TEAMWORK.put("JOIN_FORCES", "(?i)\\bjoin forces\\b");
         TEAMWORK.put("COUNCIL", "(?i)\\bwill of the council\\b|\\bcouncil's dilemma\\b");
+        // Battlebond's cards for two-person teams: "creatures your team controls", "each player on your team", teammates
+        TEAMWORK.put("YOUR_TEAM", "(?i)\\byour team\\b|\\bteammates?\\b");
     }
     private static final Map<String, Pattern> TEAMWORK_PATTERNS = new java.util.LinkedHashMap<>();
     static {

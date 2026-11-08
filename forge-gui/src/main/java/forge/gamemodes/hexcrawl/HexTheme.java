@@ -65,7 +65,7 @@ public final class HexTheme {
     public Group group() {
         if (id.startsWith("tribe.") || "critters".equals(id) || "phyrexians".equals(id)) {
             return Group.TRIBES;
-        } else if (WORLDS.contains(id)) {
+        } else if (WORLDS.contains(id) || HexWorlds.isWorld(id)) {
             return Group.WORLDS;
         } else if (KINDS.contains(id)) {
             return Group.KINDS;
@@ -169,6 +169,14 @@ public final class HexTheme {
             final boolean world = group != HexCardGroups.Theme.TEAMWORK && group != HexCardGroups.Theme.PHYREXIANS;
             all.add(new HexTheme(id, "lblHexTheme_" + id, null, r -> HexCardGroups.belongsTo(group, r), true, world));
         }
+        // the worlds beyond Magic's planes (Marvel, Fallout, ...): the cards of their sets and Secret Lair drops. See HexWorlds.
+        for (final String world : HexWorlds.IDS) {
+            all.add(new HexTheme(world, "lblHexTheme_" + world, null, r -> HexWorlds.belongsTo(world, r.getName()), true));
+        }
+        // haste, deathtouch (creatures that have it, cards that give it) and direct damage
+        all.add(mechanic("haste", r -> mentions(r, HexTheme.HASTE) || hints(r, DeckHints.Type.KEYWORD, "Haste")));
+        all.add(mechanic("deathtouch", r -> mentions(r, HexTheme.DEATHTOUCH) || hints(r, DeckHints.Type.KEYWORD, "Deathtouch")));
+        all.add(mechanic("burn", r -> mentions(r, HexTheme.BURN)));
         ALL = Collections.unmodifiableList(all);
     }
 
@@ -178,6 +186,20 @@ public final class HexTheme {
 
     private static HexTheme mechanic(final String id, final Predicate<CardRules> fits) {
         return new HexTheme(id, "lblHexTheme_" + id, null, fits);
+    }
+
+    private static final java.util.regex.Pattern HASTE = java.util.regex.Pattern.compile("\\bhaste\\b");
+    private static final java.util.regex.Pattern DEATHTOUCH = java.util.regex.Pattern.compile("\\bdeathtouch\\b");
+    /** Damage dealt to any target, players, creatures, planeswalkers (not "deals combat damage", not "to you"). */
+    private static final java.util.regex.Pattern BURN = java.util.regex.Pattern.compile(
+            "\\bdeals? (?:\\d+|x|that much|twice that much|three times that much|damage equal to [^.]*?) (?:damage )?to "
+            + "(?:any|up to|another target|target|each|that player|defending player|its controller|that creature's controller"
+            + "|that permanent's controller)\\b");
+
+    /** Rules text (all faces, lower case) that matches. */
+    private static boolean mentions(final CardRules r, final java.util.regex.Pattern pattern) {
+        final String oracle = r.getOracleText();
+        return oracle != null && pattern.matcher(oracle.toLowerCase(java.util.Locale.ROOT)).find();
     }
 
     private static final java.util.regex.Pattern COPY = java.util.regex.Pattern.compile("\\bcop(y|ies|ied|ying)\\b");
