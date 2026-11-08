@@ -18,6 +18,7 @@
 package forge.game.phase;
 
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
@@ -34,6 +35,7 @@ import forge.game.cost.CostEnlist;
 import forge.game.cost.CostExert;
 import forge.game.event.*;
 import forge.game.player.Player;
+import forge.game.player.PlayerCollection;
 import forge.game.player.PlayerView;
 import forge.game.replacement.ReplacementResult;
 import forge.game.replacement.ReplacementType;
@@ -60,8 +62,7 @@ import java.util.*;
  * @author Forge
  * @version $Id: PhaseHandler.java 13001 2012-01-08 12:25:25Z Sloth $
  */
-public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
-    private static final long serialVersionUID = 5207222278370963197L;
+public class PhaseHandler implements IHasForgeLog {
 
     // used for debugging phase timing
     private final StopWatch sw = new StopWatch();
@@ -70,8 +71,8 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
     private PhaseType phase = null;
     private int turn = 0;
 
-    private final transient Stack<ExtraTurn> extraTurns = new Stack<>();
-    private final transient Map<PhaseType, Stack<ExtraPhase>> extraPhases = Maps.newEnumMap(PhaseType.class);
+    private final Stack<ExtraTurn> extraTurns = new Stack<>();
+    private final Map<PhaseType, Stack<ExtraPhase>> extraPhases = Maps.newEnumMap(PhaseType.class);
 
     private int nUpkeepsThisTurn = 0;
     private int nUpkeepsThisGame = 0;
@@ -80,24 +81,23 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
     private int nEndOfTurnsThisTurn = 0;
     private int planarDiceSpecialActionThisTurn = 0;
 
-    private transient Player playerTurn = null;
-    private transient Player playerPreviousTurn = null;
+    private Player playerTurn = null;
+    private Player playerPreviousTurn = null;
 
     // priority player
 
-    private transient Player pPlayerPriority = null;
-    private transient Player pFirstPriority = null;
-    /** Shared team turns: the heads holding priority together right now (empty otherwise). */
-    private transient volatile List<Player> priorityTeam = Collections.emptyList();
-    private final transient Set<Player> skippingPhasePlayers = new HashSet<>();
-    private transient Combat combat = null;
+    private Player pPlayerPriority = null;
+    private Player pFirstPriority = null;
+    /** Multi-Headed Giant: the heads holding priority together right now (empty otherwise). */
+    private volatile List<Player> priorityTeam = Collections.emptyList();
+    private Combat combat = null;
     private boolean skipDamageSteps = false;
     private boolean bRepeatCleanup = false;
 
     /** The need to next phase. */
     private boolean givePriorityToPlayer = false;
 
-    private final transient Game game;
+    private final Game game;
 
 
     public PhaseHandler(final Game game0) {
@@ -118,99 +118,28 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
     }
 
     public final boolean isPlayerTurn(final Player player) {
-        if (player == null) {
-            return false;
-        }
-        if (player.equals(playerTurn)) {
-            return true;
-        }
-        // shared team turns: it is the turn of every member of the active team
-        return playerTurn != null && isSharedTeamTurns() && player.sameTeam(playerTurn);
+        return playerTurn != null && playerTurn.sharesTeamWith(player);
     }
 
-    public final boolean isPlayerTurnOfAny(final Iterable<Player> players) {
-        for (final Player p : players) {
-            if (isPlayerTurn(p)) {
-                return true;
-            }
-        }
-        return false;
+    /** The players taking the current turn: the active player, or the whole active team under shared team turns (CR 805.4). */
+    public final PlayerCollection getActivePlayers() {
+        return playerTurn.getSharedTeam();
     }
 
-    /** Shared team turns: the team priority and the heads' declarations at the same time (see TeamPriority). */
-    private transient TeamPriority teamPriority;
-
-    private TeamPriority teamPriority() {
-        if (teamPriority == null) {
-            teamPriority = new TeamPriority(this, game);
-        }
-        return teamPriority;
-    }
-
-    /** The team mates asked at the same time right now, whose OKs wait for each other; null if none. */
-    public TeamReady getTeamReady() {
-        return teamPriority == null ? null : teamPriority.getTeamReady();
-    }
-
-    public final boolean isSharedTeamTurns() {
-        return game.getRules().hasSharedTeamTurns();
-    }
-
-    /**
-     * The players whose turn it is. Exactly the active player in a normal game; with shared team
-     * turns every member of the active team that is still in the game, the turn player first.
-     */
-    public final List<Player> getActivePlayers() {
-        return getTurnTeam(playerTurn);
-    }
-
-    /** Like {@link #getActivePlayers()}, minus the players skipping the current phase or step. */
-    public final List<Player> getPhaseActors() {
-        final List<Player> result = getActivePlayers();
-        result.removeAll(skippingPhasePlayers);
-        return result;
-    }
-
-    private List<Player> getTurnTeam(final Player p) {
-        final List<Player> result = Lists.newArrayList();
-        if (p == null) {
-            return result;
-        }
-        result.add(p);
-        if (isSharedTeamTurns()) {
-            for (final Player other : game.getPlayers()) {
-                if (other != p && other.sameTeam(p)) {
-                    result.add(other);
-                }
-            }
-        }
-        return result;
-    }
-
-    /** The player representing the team of p in the turn order (p itself in a normal game). */
-    private Player getTurnLeader(final Player p) {
-        if (p == null || !isSharedTeamTurns()) {
+    /** The team member who stands for the team as its active player: the first of them in turn order. */
+    private Player teamLead(final Player p) {
+        if (!game.getRules().hasSharedTeamTurns()) {
             return p;
         }
-        for (final Player other : game.getPlayers()) {
-            if (other.sameTeam(p)) {
-                return other;
-            }
-        }
-        return p;
+        return Iterables.getFirst(game.getPlayersInTurnOrder().filter(p::sameTeam), p);
     }
 
-    /** Whose turn comes after the turn of p: the next player, or the next team with shared team turns. */
-    private Player getNextTurnPlayerAfter(final Player p) {
-        Player next = game.getNextPlayerAfter(p);
-        if (!isSharedTeamTurns() || next == null) {
-            return next;
-        }
-        int guard = game.getRegisteredPlayers().size();
-        while (guard-- > 0 && next != p && next.sameTeam(p)) {
+    private Player nextTurnLead() {
+        Player next = game.getNextPlayerAfter(playerTurn);
+        while (next != null && next != playerTurn && isPlayerTurn(next)) {
             next = game.getNextPlayerAfter(next);
         }
-        return getTurnLeader(next);
+        return next;
     }
 
     public final Player getPlayerTurn() {
@@ -225,8 +154,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
 
     /** True if the next turn is this player's, or under shared team turns their team's (CR 805.4). */
     public final boolean isPlayerNextTurn(final Player player) {
-        final Player next = getNextTurn();
-        return next != null && (next.equals(player) || isSharedTeamTurns() && player != null && next.sameTeam(player));
+        return player.sharesTeamWith(getNextTurn());
     }
 
     public final Player getPreviousPlayerTurn() {
@@ -244,18 +172,52 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         setPriority(playerTurn);
     }
 
+    public final boolean isSharedTeamTurns() {
+        return game.getRules().hasSharedTeamTurns();
+    }
+
     /**
-     * Whether p may act right now: the priority player, or with shared team turns any head of the
-     * team that holds priority (a team receives priority as a unit, CR 810.6 for Two-Headed Giant).
+     * Multi-Headed Giant (see GameRules#hasTeamActingTogether): the heads of a team hold priority and declare
+     * attackers and blockers at the same time, each at its own screen; see TeamPriority. Two-Headed Giant gives
+     * priority to the team's players one after the other.
      */
+    private boolean actsTogether() {
+        return game.getRules().hasTeamActingTogether();
+    }
+
+    /** Multi-Headed Giant: the team priority and the heads' declarations at the same time (see TeamPriority). */
+    private TeamPriority teamPriority;
+
+    private TeamPriority teamPriority() {
+        if (teamPriority == null) {
+            teamPriority = new TeamPriority(this, game);
+        }
+        return teamPriority;
+    }
+
+    /** The team mates asked at the same time right now, whose OKs wait for each other; null if none. */
+    public TeamReady getTeamReady() {
+        return teamPriority == null ? null : teamPriority.getTeamReady();
+    }
+
+    public final boolean isPlayerTurnOfAny(final Iterable<Player> players) {
+        for (final Player p : players) {
+            if (isPlayerTurn(p)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether p may act right now: the priority player, or in Multi-Headed Giant any head of the team holding priority. */
     public final boolean hasPriority(final Player p) {
         return p != null && (p.equals(pPlayerPriority) || priorityTeam.contains(p));
     }
 
-    /** The heads sharing priority with p (p first, the others in turn order); just p in a normal game. */
+    /** The heads sharing priority with p when they act together (p first, the others in turn order); just p otherwise. */
     List<Player> getPriorityTeam(final Player p) {
         final List<Player> result = Lists.newArrayList(p);
-        if (!isSharedTeamTurns()) {
+        if (!actsTogether()) {
             return result;
         }
         Player next = game.getNextPlayerAfter(p);
@@ -269,10 +231,10 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         return result;
     }
 
-    /** Who receives priority after p: the next player, or with shared team turns the next team. */
+    /** Who receives priority after p: the next player, or when a team acts together the next team. */
     private Player getNextPriorityPlayerAfter(final Player p) {
         Player next = game.getNextPlayerAfter(p);
-        if (!isSharedTeamTurns()) {
+        if (!actsTogether()) {
             return next;
         }
         int guard = game.getRegisteredPlayers().size();
@@ -286,15 +248,15 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         if (a == b) {
             return true;
         }
-        return isSharedTeamTurns() && a != null && b != null && a.sameTeam(b);
+        return actsTogether() && a != null && b != null && a.sameTeam(b);
     }
 
-    /** The player has left the game; with shared team turns, so has every head of their team. */
+    /** The player has left the game; when a team acts together, so has every head of their team. */
     private boolean priorityUnitHasLeft(final Player p) {
         if (!p.hasLost()) {
             return false;
         }
-        if (isSharedTeamTurns()) {
+        if (actsTogether()) {
             for (final Player other : game.getPlayers()) {
                 if (other != p && !other.hasLost() && other.sameTeam(p)) {
                     return false;
@@ -358,25 +320,26 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                         }
                     }
                     active.incrementTurn();
+                    if (playerTurn.isExtraTurn()) {
+                        active.incrementExtraTurnsPlayed();
+                    }
 
                     final int lands = CardLists.count(active.getLandsInPlay(), CardPredicates.UNTAPPED);
                     active.setNumPowerSurgeLands(lands);
                 }
             }
 
-            // with shared team turns each head can skip a phase on its own;
-            // the phase itself is only skipped if every head skips it
-            skippingPhasePlayers.clear();
+            // CR 805.8: a step or phase that any player of the active team skips is skipped by the team
+            ReplacementResult repres = ReplacementResult.NotReplaced;
             for (final Player active : getActivePlayers()) {
                 final Map<AbilityKey, Object> repRunParams = AbilityKey.mapFromAffected(active);
                 repRunParams.put(AbilityKey.Phase, phase);
-                ReplacementResult repres = game.getReplacementHandler().run(ReplacementType.BeginPhase, repRunParams);
+                repres = game.getReplacementHandler().run(ReplacementType.BeginPhase, repRunParams);
                 if (repres != ReplacementResult.NotReplaced) {
-                    skippingPhasePlayers.add(active);
+                    break;
                 }
             }
-            if (skippingPhasePlayers.containsAll(getActivePlayers())) {
-                skippingPhasePlayers.clear();
+            if (repres != ReplacementResult.NotReplaced) {
                 // Currently there is no effect to skip entire beginning phase
                 // If in the future that kind of effect is added, need to handle it too.
                 // Handle skipping of entire combat phase
@@ -401,17 +364,11 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
     private boolean isSkippingPhase(final PhaseType phase) {
         switch (phase) {
             case DRAW:
-                // the player (or team) going first skips the first draw step
-                return turn == 1 && (game.getPlayers().size() == 2 || isSharedTeamTurns());
+                return turn == 1 && (game.getPlayers().size() == 2 || game.getRules().hasSharedTeamTurns());
 
             case COMBAT_BEGIN:
             case COMBAT_DECLARE_ATTACKERS:
-                for (final Player active : getActivePlayers()) {
-                    if (!active.isSkippingCombat()) {
-                        return false;
-                    }
-                }
-                return true;
+                return !getActivePlayers().allMatch(Player::isInGame);
 
             case COMBAT_DECLARE_BLOCKERS:
                 skipDamageSteps = !inCombat() || combat.getAttackers().isEmpty();
@@ -422,6 +379,37 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
 
             default:
                 return false;
+        }
+    }
+
+    // CR 514.1
+    private void discardToHandSize(final Player player) {
+        final int handSize = player.getZone(ZoneType.Hand).size();
+        final int max = player.getMaxHandSize();
+        int numDiscard = player.isUnlimitedHandSize() || handSize <= max || handSize == 0 ? 0 : handSize - max;
+        if (numDiscard <= 0) {
+            return;
+        }
+        final CardZoneTable zoneMovements = new CardZoneTable(game.getLastStateBattlefield(), game.getLastStateGraveyard());
+        Map<AbilityKey, Object> moveParams = AbilityKey.newMap();
+        AbilityKey.addCardZoneTableParams(moveParams, zoneMovements);
+
+        final CardCollection discarded = new CardCollection();
+        List<Card> discardedBefore = Lists.newArrayList(player.getDiscardedThisTurn());
+        for (Card c : player.getController().chooseCardsToDiscardToMaximumHandSize(numDiscard)) {
+            Card moved = player.discard(c, null, false, moveParams);
+            if (moved != null) {
+                discarded.add(moved);
+            }
+        }
+        zoneMovements.triggerChangesZoneAll(game, null);
+
+        if (!discarded.isEmpty()) {
+            final Map<AbilityKey, Object> runParams = AbilityKey.mapFromPlayer(player);
+            runParams.put(AbilityKey.Cards, discarded);
+            runParams.put(AbilityKey.Cause, null);
+            runParams.put(AbilityKey.DiscardedBefore, discardedBefore);
+            game.getTriggerHandler().runTrigger(TriggerType.DiscardedAll, runParams, false);
         }
     }
 
@@ -438,8 +426,8 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
             switch (phase) {
                 case UNTAP:
                     givePriorityToPlayer = false;
-                    for (final Player actor : getPhaseActors()) {
-                        game.getUntap().executeUntil(actor);
+                    for (final Player active : getActivePlayers()) {
+                        game.getUntap().executeUntil(active);
                     }
                     game.getUntap().executeAt();
                     break;
@@ -447,14 +435,14 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                 case UPKEEP:
                     nUpkeepsThisTurn++;
                     nUpkeepsThisGame++;
-                    for (final Player actor : getPhaseActors()) {
-                        game.getUpkeep().executeUntil(actor);
+                    for (final Player active : getActivePlayers()) {
+                        game.getUpkeep().executeUntil(active);
                     }
                     game.getUpkeep().executeAt();
 
-                    for (final Player actor : getPhaseActors()) {
-                        if (actor.getCardsIn(ZoneType.Battlefield).anyMatch(Card::isContraption)) {
-                            actor.advanceCrankCounter();
+                    for (final Player active : getActivePlayers()) {
+                        if (active.getCardsIn(ZoneType.Battlefield).anyMatch(Card::isContraption)) {
+                            active.advanceCrankCounter();
                         }
                     }
 
@@ -464,12 +452,12 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                     for (Player p : game.getPlayers()) {
                         p.resetNumDrawnThisDrawStep();
                     }
-                    for (final Player actor : getPhaseActors()) {
-                        actor.drawCard();
+                    for (final Player active : getActivePlayers()) {
+                        active.drawCard();
                         // a player set up to draw more each turn (the enemies of a Hex Campaign New Game Plus)
-                        final int extra = actor.getRegisteredPlayer() == null ? 0 : actor.getRegisteredPlayer().getExtraDrawsPerTurn();
+                        final int extra = active.getRegisteredPlayer() == null ? 0 : active.getRegisteredPlayer().getExtraDrawsPerTurn();
                         for (int i = 0; i < extra; i++) {
-                            actor.drawCard();
+                            active.drawCard();
                         }
                     }
                     break;
@@ -477,27 +465,27 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                 case MAIN1:
                     nMainsThisTurn++;
 
-                    for (final Player actor : getPhaseActors()) {
-                        if (actor.isArchenemy()) {
-                            actor.setSchemeInMotion(null);
+                    for (final Player active : getActivePlayers()) {
+                        if (active.isArchenemy()) {
+                            active.setSchemeInMotion(null);
                         }
                     }
 
                     GameEntityCounterTable table = new GameEntityCounterTable();
                     // CR 703.4f
-                    for (final Player actor : getPhaseActors()) {
-                        for (Card c : actor.getCardsIn(ZoneType.Battlefield)) {
+                    for (final Player active : getActivePlayers()) {
+                        for (Card c : active.getCardsIn(ZoneType.Battlefield)) {
                             if (c.isSaga() && c.hasChapter()) {
-                                c.addCounter(CounterEnumType.LORE, 1, actor, table);
+                                c.addCounter(CounterEnumType.LORE, 1, active, table);
                             }
                         }
                     }
                     table.replaceCounterEffect(game, null);
 
                     // CR 703.4g
-                    for (final Player actor : getPhaseActors()) {
-                        if (actor.getCardsIn(ZoneType.Battlefield).anyMatch(Card::isAttraction)) {
-                            actor.rollToVisitAttractions();
+                    for (final Player active : getActivePlayers()) {
+                        if (active.getCardsIn(ZoneType.Battlefield).anyMatch(Card::isAttraction)) {
+                            active.rollToVisitAttractions();
                         }
                     }
 
@@ -579,9 +567,8 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                     break;
 
                 case CLEANUP:
-                    // CR 514.1
                     for (final Player active : getActivePlayers()) {
-                        discardToMaximumHandSize(active);
+                        discardToHandSize(active);
                     }
 
                     // CR 514.2
@@ -625,16 +612,8 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
 
         if (!skipped) {
             // Run triggers if phase isn't being skipped
-            // (shared team turns: once for each head, so "your upkeep" works for all of them)
-            boolean first = true;
-            for (final Player actor : getPhaseActors()) {
-                final Map<AbilityKey, Object> runParams = AbilityKey.mapFromPlayer(actor);
-                //runParams.put(AbilityKey.Phase, phase.nameForScripts);
-                if (!first) {
-                    runParams.put(AbilityKey.SharedTurnRepeat, true);
-                }
-                first = false;
-                game.getTriggerHandler().runTrigger(TriggerType.Phase, runParams, false);
+            for (final Player active : getActivePlayers()) {
+                game.getTriggerHandler().runTrigger(TriggerType.Phase, AbilityKey.mapFromPlayer(active), false);
             }
         }
 
@@ -645,36 +624,6 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         if (phase == PhaseType.CLEANUP && (!game.getStack().isEmpty() || game.getStack().hasSimultaneousStackEntries())) {
             bRepeatCleanup = true;
             givePriorityToPlayer = true;
-        }
-    }
-
-    private void discardToMaximumHandSize(final Player player) {
-        final int handSize = player.getZone(ZoneType.Hand).size();
-        final int max = player.getMaxHandSize();
-        int numDiscard = player.isUnlimitedHandSize() || handSize <= max || handSize == 0 ? 0 : handSize - max;
-
-        if (numDiscard > 0) {
-            final CardZoneTable zoneMovements = new CardZoneTable(game.getLastStateBattlefield(), game.getLastStateGraveyard());
-            Map<AbilityKey, Object> moveParams = AbilityKey.newMap();
-            AbilityKey.addCardZoneTableParams(moveParams, zoneMovements);
-
-            final CardCollection discarded = new CardCollection();
-            List<Card> discardedBefore = Lists.newArrayList(player.getDiscardedThisTurn());
-            for (Card c : player.getController().chooseCardsToDiscardToMaximumHandSize(numDiscard)) {
-                Card moved = player.discard(c, null, false, moveParams);
-                if (moved != null) {
-                    discarded.add(moved);
-                }
-            }
-            zoneMovements.triggerChangesZoneAll(game, null);
-
-            if (!discarded.isEmpty()) {
-                final Map<AbilityKey, Object> runParams = AbilityKey.mapFromPlayer(player);
-                runParams.put(AbilityKey.Cards, discarded);
-                runParams.put(AbilityKey.Cause, null);
-                runParams.put(AbilityKey.DiscardedBefore, discardedBefore);
-                game.getTriggerHandler().runTrigger(TriggerType.DiscardedAll, runParams, false);
-            }
         }
     }
 
@@ -702,6 +651,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
 
         switch (phase) {
             case UPKEEP:
+                // under shared team turns it was the upkeep of every player of the active team
                 for (final Player active : getActivePlayers()) {
                     for (Card c : game.getCardsIncludePhasingIn(ZoneType.Battlefield)) {
                         c.getDamageHistory().setNotAttackedSinceLastUpkeepOf(active);
@@ -747,6 +697,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                     // start effects for next turn (do this first for ControlPlayer)
                     game.getCleanup().executeUntil();
                     // done this after check state effects, so it only has effect next check
+                    // ("until your next turn" ends for every player of a team taking its turn)
                     for (final Player active : getActivePlayers()) {
                         game.getCleanup().executeUntil(active);
                     }
@@ -754,6 +705,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                     handleMultiplayerEffects();
 
                     // "Trigger" for begin turn to get around a phase skipping
+                    // (shared team turns: once for each player of the team, so "your turn" works for all of them)
                     boolean firstHead = true;
                     for (final Player active : getActivePlayers()) {
                         final Map<AbilityKey, Object> runParams = AbilityKey.mapFromPlayer(active);
@@ -774,50 +726,57 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
     }
 
     private void declareAttackersTurnBasedAction() {
-        final Player whoDeclares = Objects.requireNonNullElse(playerTurn.getDeclaresAttackers(), playerTurn);
-
-        // with shared team turns every head declares the attackers it controls, into the same combat
-        final List<Player> attackingPlayers = Lists.newArrayList();
-        for (final Player active : getActivePlayers()) {
-            if (CombatUtil.canAttack(active)) {
-                attackingPlayers.add(active);
-            }
-        }
-
-        if (!attackingPlayers.isEmpty()) {
+        if (getActivePlayers().anyMatch(CombatUtil::canAttack)) {
             boolean success = false;
-            // a team's heads all declare; when their attack breaks a rule only those who can fix it declare again
+            // Multi-Headed Giant: the heads declare at the same time, each at its own screen; when their attack breaks
+            // a rule, the attackers stay and only the heads that can make it legal declare again
+            final List<Player> attackingPlayers = new ArrayList<>(getActivePlayers().filter(CombatUtil::canAttack));
+            final boolean together = actsTogether() && attackingPlayers.size() > 1;
             List<Player> declaring = attackingPlayers;
             do {
                 if (game.isGameOver()) { // they just like to close window at any moment
                     return;
                 }
 
-                for (final Player attackingPlayer : attackingPlayers) {
-                    final Player declarer = Objects.requireNonNullElse(attackingPlayer.getDeclaresAttackers(), attackingPlayer);
-                    if (!game.getUndoManager().isOwner(declarer)) {
-                        game.getUndoManager().barrier("Opponent declared attackers");
+                if (together) {
+                    for (final Player attacker : attackingPlayers) {
+                        final Player declarer = Objects.requireNonNullElse(attacker.getDeclaresAttackers(), attacker);
+                        if (!game.getUndoManager().isOwner(declarer)) {
+                            game.getUndoManager().barrier("Opponent declared attackers");
+                        }
                     }
-                }
-                // shared team turns: the heads at their own screens declare at the same time
-                final List<Player> asked = declaring;
-                declaring = attackingPlayers;
-                teamPriority().declareTogether(asked,
-                        p -> Objects.requireNonNullElse(p.getDeclaresAttackers(), p),
-                        p -> Objects.requireNonNullElse(p.getDeclaresAttackers(), p).getController().declareAttackers(p, combat));
-                if (game.isGameOver()) {
-                    return;
+                    final List<Player> asked = declaring;
+                    declaring = attackingPlayers;
+                    teamPriority().declareTogether(asked,
+                            a -> Objects.requireNonNullElse(a.getDeclaresAttackers(), a),
+                            a -> Objects.requireNonNullElse(a.getDeclaresAttackers(), a).getController().declareAttackers(a, combat));
+                    if (game.isGameOver()) {
+                        return;
+                    }
+                } else {
+                    // each member of an attacking team adds their own creatures to the one attack (CR 805.10b)
+                    for (final Player attacker : getActivePlayers()) {
+                        if (!CombatUtil.canAttack(attacker)) {
+                            continue;
+                        }
+                        final Player declarer = Objects.requireNonNullElse(attacker.getDeclaresAttackers(), attacker);
+                        if (!game.getUndoManager().isOwner(declarer)) {
+                            game.getUndoManager().barrier("Opponent declared attackers");
+                        }
+                        declarer.getController().declareAttackers(attacker, combat);
+                    }
                 }
                 combat.removeAbsentCombatants();
 
                 success = CombatUtil.validateAttackers(combat);
                 if (!success) {
-                    if (attackingPlayers.size() > 1) {
-                        // the attackers stay; the heads that can make it legal declare again, and everybody is told why
+                    if (together) {
                         declaring = teamPriority().headsToFixAttack(attackingPlayers);
                         teamPriority().notifyAttackToFix(attackingPlayers, declaring);
                     } else {
-                        whoDeclares.getController().notifyOfValue(null, null, "Attack declaration invalid");
+                        for (final Player attacker : getActivePlayers()) {
+                            Objects.requireNonNullElse(attacker.getDeclaresAttackers(), attacker).getController().notifyOfValue(null, null, "Attack declaration invalid");
+                        }
                     }
                     continue;
                 }
@@ -832,25 +791,20 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                     }
                 }
 
-                // CR 508.1g
-                List<Card> possibleExerters = CombatUtil.getOptionalAttackCostCreatures(combat.getAttackers(), CostExert.class);
-                if (!possibleExerters.isEmpty()) {
-                    if (attackingPlayers.size() > 1) {
-                        possibleExerters = teamPriority().chooseTogether(attackingPlayers, possibleExerters, (p, own) -> p.getController().exertAttackers(own));
-                    } else {
-                        possibleExerters = whoDeclares.getController().exertAttackers(possibleExerters);
+                // CR 508.1g, where each attacking player of a team chooses for their own creatures
+                final List<Card> possibleExerters = new ArrayList<>();
+                for (final Player attacker : getActivePlayers()) {
+                    final Player declarer = Objects.requireNonNullElse(attacker.getDeclaresAttackers(), attacker);
+                    final CardCollection own = CardLists.filterControlledBy(combat.getAttackers(), attacker);
+                    final List<Card> exerters = CombatUtil.getOptionalAttackCostCreatures(own, CostExert.class);
+                    if (!exerters.isEmpty()) {
+                        possibleExerters.addAll(declarer.getController().exertAttackers(exerters));
                     }
-                }
-
-                List<Card> possibleEnlisters = CombatUtil.getOptionalAttackCostCreatures(combat.getAttackers(), CostEnlist.class);
-                if (!possibleEnlisters.isEmpty()) {
-                    // TODO might want to skip if can't be paid
-                    if (attackingPlayers.size() > 1) {
-                        possibleEnlisters = teamPriority().chooseTogether(attackingPlayers, possibleEnlisters, (p, own) -> p.getController().enlistAttackers(own));
-                    } else {
-                        possibleEnlisters = whoDeclares.getController().enlistAttackers(possibleEnlisters);
+                    final List<Card> enlisters = CombatUtil.getOptionalAttackCostCreatures(own, CostEnlist.class);
+                    if (!enlisters.isEmpty()) {
+                        // TODO might want to skip if can't be paid
+                        possibleExerters.addAll(declarer.getController().enlistAttackers(enlisters));
                     }
-                    possibleExerters.addAll(possibleEnlisters);
                 }
 
                 for (final Card attacker : combat.getAttackers()) {
@@ -886,7 +840,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
             if (!tapped.isEmpty()) {
                 final Map<AbilityKey, Object> runParams = AbilityKey.newMap();
                 runParams.put(AbilityKey.Cards, tapped);
-                whoDeclares.getGame().getTriggerHandler().runTrigger(TriggerType.TapAll, runParams, false);
+                game.getTriggerHandler().runTrigger(TriggerType.TapAll, runParams, false);
             }
         }
 
@@ -894,7 +848,6 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
             return;
         }
 
-        // Reset all active Triggers
         game.getTriggerHandler().resetActiveTriggers();
 
         // Prepare and fire event 'attackers declared'
@@ -904,48 +857,40 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         }
         game.fireEvent(new GameEventAttackersDeclared(playerTurn, attackersMap));
 
-        // fire AttackersDeclared trigger
-        if (!combat.getAttackers().isEmpty() && isSharedTeamTurns()) {
-            // every head that attacks "attacks" on its own, with the creatures it controls
-            for (final Player attackingPlayer : combat.getAttackingPlayers()) {
-                final CardCollection ownAttackers = CardLists.filterControlledBy(combat.getAttackers(), attackingPlayer);
-                if (ownAttackers.isEmpty()) {
-                    continue;
-                }
-                List<GameEntity> attackedTarget = new ArrayList<>();
-                for (GameEntity ge : combat.getDefenders()) {
-                    final CardCollection ownAttackersOf = CardLists.filterControlledBy(combat.getAttackersOf(ge), attackingPlayer);
-                    if (!ownAttackersOf.isEmpty()) {
-                        final Map<AbilityKey, Object> runParams = AbilityKey.newMap();
-                        runParams.put(AbilityKey.Attackers, ownAttackersOf);
-                        runParams.put(AbilityKey.AttackingPlayer, attackingPlayer);
-                        runParams.put(AbilityKey.AttackedTarget, Collections.singletonList(ge));
-                        attackedTarget.add(ge);
-                        game.getTriggerHandler().runTrigger(TriggerType.AttackersDeclaredOneTarget, runParams, false);
-                    }
-                }
-                final Map<AbilityKey, Object> runParams = AbilityKey.newMap();
-                runParams.put(AbilityKey.Attackers, ownAttackers);
-                runParams.put(AbilityKey.AttackingPlayer, attackingPlayer);
-                runParams.put(AbilityKey.AttackedTarget, attackedTarget);
-                game.getTriggerHandler().runTrigger(TriggerType.AttackersDeclared, runParams, false);
-            }
-        } else if (!combat.getAttackers().isEmpty()) {
+        // CR 805.10c: with several attacking players, a trigger keyed to an attacking player runs once for each of them,
+        // and any other trigger runs once for the whole attack
+        final PlayerCollection attackingPlayers = game.getPlayersInTurnOrder(playerTurn).filter(p -> combat.getAttackers().anyMatch(c -> p.equals(c.getController())));
+        final boolean team = attackingPlayers.size() > 1;
+        // a null run stands for the whole attack
+        final List<Player> runs = new ArrayList<>();
+        if (team) {
+            runs.add(null);
+        }
+        runs.addAll(attackingPlayers);
+        for (final Player attacker : runs) {
+            final CardCollection attackers = attacker == null ? combat.getAttackers() : CardLists.filterControlledBy(combat.getAttackers(), attacker);
             List<GameEntity> attackedTarget = new ArrayList<>();
             for (GameEntity ge : combat.getDefenders()) {
-                if (!combat.getAttackersOf(ge).isEmpty()) {
+                final CardCollection attackersOf = attacker == null ? combat.getAttackersOf(ge) : CardLists.filterControlledBy(combat.getAttackersOf(ge), attacker);
+                if (!attackersOf.isEmpty()) {
                     final Map<AbilityKey, Object> runParams = AbilityKey.newMap();
-                    runParams.put(AbilityKey.Attackers, combat.getAttackersOf(ge));
-                    runParams.put(AbilityKey.AttackingPlayer, combat.getAttackingPlayer());
+                    runParams.put(AbilityKey.Attackers, attackersOf);
+                    runParams.put(AbilityKey.AttackingPlayer, attacker == null ? playerTurn : attacker);
+                    if (team) {
+                        runParams.put(AbilityKey.OneOfAttackingTeam, attacker != null);
+                    }
                     runParams.put(AbilityKey.AttackedTarget, Collections.singletonList(ge));
                     attackedTarget.add(ge);
                     game.getTriggerHandler().runTrigger(TriggerType.AttackersDeclaredOneTarget, runParams, false);
                 }
             }
             final Map<AbilityKey, Object> runParams = AbilityKey.newMap();
-            runParams.put(AbilityKey.Attackers, combat.getAttackers());
-            runParams.put(AbilityKey.AttackingPlayer, combat.getAttackingPlayer());
+            runParams.put(AbilityKey.Attackers, attackers);
+            runParams.put(AbilityKey.AttackingPlayer, attacker == null ? playerTurn : attacker);
             runParams.put(AbilityKey.AttackedTarget, attackedTarget);
+            if (team) {
+                runParams.put(AbilityKey.OneOfAttackingTeam, attacker != null);
+            }
             game.getTriggerHandler().runTrigger(TriggerType.AttackersDeclared, runParams, false);
         }
 
@@ -958,48 +903,146 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         game.fireEvent(new GameEventCombatChanged());
     }
 
-    private void declareBlockersTurnBasedAction() {
-        // who is attacked, in turn order
-        final List<Player> defending = Lists.newArrayList();
-        Player next = playerTurn;
-        do {
-            next = game.getNextPlayerAfter(next);
-            if (next != null && combat.isPlayerAttacked(next)) {
-                defending.add(next);
-            }
-        } while (next != playerTurn && next != null);
+    /** May the player declare blockers (it can block, and no replacement effect such as Camouflage does it)? */
+    private boolean mayDeclareBlockers(final Player p) {
+        // Apply Odric's effect here
+        final Player whoDeclaresBlockers = Objects.requireNonNullElse(p.getDeclaresBlockers(), p);
+        if (!CombatUtil.canBlock(p, combat)) {
+            return false;
+        }
+        // Replacement effects (for Camouflage)
+        final Map<AbilityKey, Object> repRunParams = AbilityKey.mapFromAffected(p);
+        repRunParams.put(AbilityKey.Player, whoDeclaresBlockers);
+        final ReplacementResult repres = game.getReplacementHandler().run(ReplacementType.DeclareBlocker, repRunParams);
+        if (repres != ReplacementResult.NotReplaced) {
+            return false;
+        }
+        if (!game.getUndoManager().isOwner(whoDeclaresBlockers)) {
+            game.getUndoManager().barrier("Opponent declared blockers");
+        }
+        return true;
+    }
 
-        if (isSharedTeamTurns()) {
-            // team mates at their own screens block at the same time; then each one's blocks are checked
-            final List<Player> declaring = Lists.newArrayList();
-            for (final Player p : defending) {
-                if (mayDeclareBlockers(p)) {
-                    declaring.add(p);
+    private void declareBlockersFor(final Player p) {
+        // Apply Odric's effect here
+        Player whoDeclaresBlockers = Objects.requireNonNullElse(p.getDeclaresBlockers(), p);
+        if (CombatUtil.canBlock(p, combat)) {
+            // Replacement effects (for Camouflage)
+            final Map<AbilityKey, Object> repRunParams = AbilityKey.mapFromAffected(p);
+            repRunParams.put(AbilityKey.Player, whoDeclaresBlockers);
+            ReplacementResult repres = game.getReplacementHandler().run(ReplacementType.DeclareBlocker, repRunParams);
+            if (repres == ReplacementResult.NotReplaced) {
+                if (!game.getUndoManager().isOwner(whoDeclaresBlockers)) {
+                    game.getUndoManager().barrier("Opponent declared blockers");
                 }
-                if (game.isGameOver()) {
-                    return;
-                }
-            }
-            teamPriority().declareTogether(declaring, d -> Objects.requireNonNullElse(d.getDeclaresBlockers(), d),
-                    d -> Objects.requireNonNullElse(d.getDeclaresBlockers(), d).getController().declareBlockers(d, combat));
-            for (final Player p : defending) {
-                if (game.isGameOver()) { // they just like to close window at any moment
-                    return;
-                }
-                finishBlockers(p);
-            }
-        } else {
-            for (final Player p : defending) {
-                if (mayDeclareBlockers(p)) {
-                    // If not replaced, run normal declare blockers
-                    Objects.requireNonNullElse(p.getDeclaresBlockers(), p).getController().declareBlockers(p, combat);
-                }
-                if (game.isGameOver()) { // they just like to close window at any moment
-                    return;
-                }
-                finishBlockers(p);
+                // If not replaced, run normal declare blockers
+                whoDeclaresBlockers.getController().declareBlockers(p, combat);
             }
         }
+    }
+
+    private void declareBlockersTurnBasedAction() {
+        Player p = playerTurn;
+        final PlayerCollection declared = new PlayerCollection();
+
+        do {
+            p = game.getNextPlayerAfter(p);
+            if (!combat.isPlayerAttacked(p) || declared.contains(p)) {
+                continue;
+            }
+            // CR 805.10d: a defending team declares one combined block, and declares again until it is legal as a whole
+            final PlayerCollection defendingTeam = p.getSharedTeam();
+            declared.addAll(defendingTeam);
+            String teamError;
+            do {
+                if (actsTogether() && defendingTeam.size() > 1) {
+                    // Multi-Headed Giant: the heads at their own screens block at the same time
+                    final List<Player> declaring = new ArrayList<>();
+                    for (final Player defender : defendingTeam) {
+                        if (mayDeclareBlockers(defender)) {
+                            declaring.add(defender);
+                        }
+                    }
+                    teamPriority().declareTogether(declaring, d -> Objects.requireNonNullElse(d.getDeclaresBlockers(), d),
+                            d -> Objects.requireNonNullElse(d.getDeclaresBlockers(), d).getController().declareBlockers(d, combat));
+                    if (game.isGameOver()) { // they just like to close window at any moment
+                        return;
+                    }
+                } else {
+                    for (final Player defender : defendingTeam) {
+                        declareBlockersFor(defender);
+                        if (game.isGameOver()) { // they just like to close window at any moment
+                            return;
+                        }
+                    }
+                }
+                teamError = defendingTeam.size() > 1 ? CombatUtil.validateTeamBlock(combat, p) : null;
+                if (teamError != null) {
+                    for (final Player defender : defendingTeam) {
+                        Objects.requireNonNullElse(defender.getDeclaresBlockers(), defender).getController().notifyOfValue(null, null, teamError);
+                    }
+                }
+            } while (teamError != null);
+
+            // Handles removing cards like Mogg Flunkies from combat if group block didn't occur
+            for (Card blocker : CardLists.filterControlledBy(combat.getAllBlockers(), defendingTeam)) {
+                final List<Card> attackers = combat.getAttackersBlockedBy(blocker);
+                for (Card attacker : attackers) {
+                    boolean hasPaid = CombatUtil.payRequiredBlockCosts(game, blocker, attacker);
+
+                    if (!hasPaid) {
+                        combat.removeBlockAssignment(attacker, blocker);
+                    }
+                }
+            }
+
+            // We may need to do multiple iterations removing blockers, since removing one may invalidate
+            // others. The loop below is structured so that if no blockers were removed, no extra passes
+            // are needed.
+            boolean reachedSteadyState;
+            do {
+                reachedSteadyState = true;
+                List<Card> remainingBlockers = CardLists.filterControlledBy(combat.getAllBlockers(), defendingTeam);
+                for (Card c : remainingBlockers) {
+                    boolean removeBlocker = false;
+                    boolean cantBlockAlone = c.hasKeyword("CARDNAME can't attack or block alone.") || c.hasKeyword("CARDNAME can't block alone.");
+                    if (remainingBlockers.size() < 2 && cantBlockAlone) {
+                        removeBlocker = true;
+                    } else if (remainingBlockers.size() < 3 && c.hasKeyword("CARDNAME can't block unless at least two other creatures block.")) {
+                        removeBlocker = true;
+                    } else if (c.hasKeyword("CARDNAME can't block unless a creature with greater power also blocks.")) {
+                        removeBlocker = true;
+                        int power = c.getNetPower();
+                        // Note: This is O(n^2), but there shouldn't generally be many creatures with the above keyword.
+                        for (Card c2 : remainingBlockers) {
+                            if (c2.getNetPower() > power) {
+                                removeBlocker = false;
+                                break;
+                            }
+                        }
+                    }
+                    if (removeBlocker) {
+                        combat.undoBlockingAssignment(c);
+                        reachedSteadyState = false;
+                    }
+                }
+            } while (!reachedSteadyState);
+
+            // Team is done declaring blockers - redraw UI at this point
+
+            for (final Player defender : defendingTeam) {
+                // map: defender => (many) attacker => (many) blocker
+                Map<GameEntity, Multimap<Card, Card>> blockers = Maps.newHashMap();
+                for (GameEntity ge : combat.getDefendersControlledBy(defender)) {
+                    Multimap<Card, Card> protectThisDefender = MultimapBuilder.hashKeys().arrayListValues().build();
+                    for (Card att : combat.getAttackersOf(ge)) {
+                        protectThisDefender.putAll(att, combat.getBlockers(att).isEmpty() ? List.of(att) : combat.getBlockers(att));
+                    }
+                    blockers.put(ge, protectThisDefender);
+                }
+                game.fireEvent(new GameEventBlockersDeclared(defender, blockers));
+            }
+        } while (p != playerTurn);
 
         // CR 509.2
         combat.orderBlockersForDamageAssignment();
@@ -1094,88 +1137,6 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         turn = 0;
     }
 
-
-    /** May the player declare blockers (it can block, and no replacement effect such as Camouflage does it)? */
-    private boolean mayDeclareBlockers(final Player p) {
-        // Apply Odric's effect here
-        final Player whoDeclaresBlockers = Objects.requireNonNullElse(p.getDeclaresBlockers(), p);
-        if (!CombatUtil.canBlock(p, combat)) {
-            return false;
-        }
-        // Replacement effects (for Camouflage)
-        final Map<AbilityKey, Object> repRunParams = AbilityKey.mapFromAffected(p);
-        repRunParams.put(AbilityKey.Player, whoDeclaresBlockers);
-        final ReplacementResult repres = game.getReplacementHandler().run(ReplacementType.DeclareBlocker, repRunParams);
-        if (repres != ReplacementResult.NotReplaced) {
-            return false;
-        }
-        if (!game.getUndoManager().isOwner(whoDeclaresBlockers)) {
-            game.getUndoManager().barrier("Opponent declared blockers");
-        }
-        return true;
-    }
-
-    /** After a player declared blockers: block costs, blockers that can't block alone, and the event. */
-    private void finishBlockers(final Player p) {
-
-        // Handles removing cards like Mogg Flunkies from combat if group block didn't occur
-        for (Card blocker : CardLists.filterControlledBy(combat.getAllBlockers(), p)) {
-            final List<Card> attackers = combat.getAttackersBlockedBy(blocker);
-            for (Card attacker : attackers) {
-                boolean hasPaid = CombatUtil.payRequiredBlockCosts(game, blocker, attacker);
-
-                if (!hasPaid) {
-                    combat.removeBlockAssignment(attacker, blocker);
-                }
-            }
-        }
-
-        // We may need to do multiple iterations removing blockers, since removing one may invalidate
-        // others. The loop below is structured so that if no blockers were removed, no extra passes
-        // are needed.
-        boolean reachedSteadyState;
-        do {
-            reachedSteadyState = true;
-            List<Card> remainingBlockers = CardLists.filterControlledBy(combat.getAllBlockers(), p);
-            for (Card c : remainingBlockers) {
-                boolean removeBlocker = false;
-                boolean cantBlockAlone = c.hasKeyword("CARDNAME can't attack or block alone.") || c.hasKeyword("CARDNAME can't block alone.");
-                if (remainingBlockers.size() < 2 && cantBlockAlone) {
-                    removeBlocker = true;
-                } else if (remainingBlockers.size() < 3 && c.hasKeyword("CARDNAME can't block unless at least two other creatures block.")) {
-                    removeBlocker = true;
-                } else if (c.hasKeyword("CARDNAME can't block unless a creature with greater power also blocks.")) {
-                    removeBlocker = true;
-                    int power = c.getNetPower();
-                    // Note: This is O(n^2), but there shouldn't generally be many creatures with the above keyword.
-                    for (Card c2 : remainingBlockers) {
-                        if (c2.getNetPower() > power) {
-                            removeBlocker = false;
-                            break;
-                        }
-                    }
-                }
-                if (removeBlocker) {
-                    combat.undoBlockingAssignment(c);
-                    reachedSteadyState = false;
-                }
-            }
-        } while (!reachedSteadyState);
-
-        // Player is done declaring blockers - redraw UI at this point
-
-        // map: defender => (many) attacker => (many) blocker
-        Map<GameEntity, Multimap<Card, Card>> blockers = Maps.newHashMap();
-        for (GameEntity ge : combat.getDefendersControlledBy(p)) {
-            Multimap<Card, Card> protectThisDefender = MultimapBuilder.hashKeys().arrayListValues().build();
-            for (Card att : combat.getAttackersOf(ge)) {
-                protectThisDefender.putAll(att, combat.getBlockers(att).isEmpty() ? List.of(att) : combat.getBlockers(att));
-            }
-            blockers.put(ge, protectThisDefender);
-        }
-        game.fireEvent(new GameEventBlockersDeclared(p, blockers));
-    }
-
     private Player handleNextTurn() {
         game.getStack().onNextTurn();
 
@@ -1186,8 +1147,8 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
             next = getNextActivePlayer();
         }
 
-        for (final Player member : getTurnTeam(next)) {
-            game.getTriggerHandler().handlePlayerDefinedDelTriggers(member);
+        for (final Player taking : next.getSharedTeam()) {
+            game.getTriggerHandler().handlePlayerDefinedDelTriggers(taking);
         }
 
         for (final Card c : game.getCardsIncludePhasingIn(ZoneType.Battlefield)) {
@@ -1209,42 +1170,42 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
 
     private Player getNextActivePlayer() {
         ExtraTurn extraTurn = !extraTurns.isEmpty() ? extraTurns.pop() : null;
-        // with shared team turns a turn always belongs to a whole team, represented by its first member
-        Player nextPlayer = extraTurn != null ? getTurnLeader(extraTurn.getPlayer()) : getNextTurnPlayerAfter(playerTurn);
+        Player nextPlayer = extraTurn != null ? extraTurn.getPlayer() : nextTurnLead();
         // The bottom of the extra turn stack is the normal turn
         boolean isExtraTurn = !extraTurns.isEmpty();
-        final List<Player> nextTeam = getTurnTeam(nextPlayer);
 
-        boolean turnSkipped = false;
-        for (final Player member : nextTeam) {
-            member.setExtraTurnCount(getExtraTurnForPlayer(member));
+        for (final Player taking : nextPlayer.getSharedTeam()) {
+            taking.setExtraTurnCount(getExtraTurnForPlayer(taking));
+        }
 
-            final Map<AbilityKey, Object> repRunParams = AbilityKey.mapFromAffected(member);
+        // CR 805.8: a turn that any player of the team skips is skipped by the whole team
+        ReplacementResult repres = ReplacementResult.NotReplaced;
+        for (final Player taking : nextPlayer.getSharedTeam()) {
+            final Map<AbilityKey, Object> repRunParams = AbilityKey.mapFromAffected(taking);
             repRunParams.put(AbilityKey.ExtraTurn, isExtraTurn);
-            ReplacementResult repres = game.getReplacementHandler().run(ReplacementType.BeginTurn, repRunParams);
+            repres = game.getReplacementHandler().run(ReplacementType.BeginTurn, repRunParams);
             if (repres != ReplacementResult.NotReplaced) {
-                // if one head skips its turn, the team skips it
-                turnSkipped = true;
                 break;
             }
         }
-        if (turnSkipped) {
+        if (repres != ReplacementResult.NotReplaced) {
             if (extraTurn == null) {
                 setPlayerTurn(nextPlayer);
             }
             return getNextActivePlayer();
         }
 
-        for (final Player member : nextTeam) {
-            member.setExtraTurn(isExtraTurn);
+        // under shared team turns the whole team takes the (extra) turn
+        for (final Player taking : nextPlayer.getSharedTeam()) {
+            taking.setExtraTurn(isExtraTurn);
         }
         if (extraTurn != null) {
             for (Trigger deltrig : extraTurn.getDelayedTriggers()) {
                 game.getTriggerHandler().registerThisTurnDelayedTrigger(deltrig);
             }
             if (extraTurn.isSkipUntap()) {
-                for (final Player member : nextTeam) {
-                    SkipPhaseEffect.createSkipPhaseEffect(extraTurn.getSkipUntapSA(), member, null, null, "Untap");
+                for (final Player taking : nextPlayer.getSharedTeam()) {
+                    SkipPhaseEffect.createSkipPhaseEffect(extraTurn.getSkipUntapSA(), taking, null, null, "Untap");
                 }
             }
             if (extraTurn.isCantSetSchemesInMotion()) {
@@ -1254,30 +1215,30 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         return nextPlayer;
     }
 
-    public final synchronized boolean is(final PhaseType phase0, final Player player0) {
+    public final boolean is(final PhaseType phase0, final Player player0) {
         return phase == phase0 && isPlayerTurn(player0);
     }
-    public final synchronized boolean is(final PhaseType phase0) {
+    public final boolean is(final PhaseType phase0) {
         return phase == phase0;
     }
 
     public final Player getNextTurn() {
         if (extraTurns.isEmpty()) {
-            return getNextTurnPlayerAfter(playerTurn);
+            return nextTurnLead();
         }
-        return getTurnLeader(extraTurns.peek().getPlayer());
+        return extraTurns.peek().getPlayer();
     }
 
     public final ExtraTurn addExtraTurn(final Player player) {
         Player previous = null;
         // use a stack to handle extra turns, make sure the bottom of the stack restores original turn order
         if (extraTurns.isEmpty()) {
-            extraTurns.push(new ExtraTurn(getNextTurnPlayerAfter(playerTurn)));
+            extraTurns.push(new ExtraTurn(nextTurnLead()));
         } else {
             previous = extraTurns.peek().getPlayer();
         }
 
-        ExtraTurn result = extraTurns.push(new ExtraTurn(player));
+        ExtraTurn result = extraTurns.push(new ExtraTurn(teamLead(player)));
         for (final Player p : game.getPlayers()) {
             p.setExtraTurnCount(getExtraTurnForPlayer(p));
         }
@@ -1371,7 +1332,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
             throw new IllegalStateException("Turns already started, call this only once per game");
         }
 
-        setPlayerTurn(getTurnLeader(goesFirst));
+        setPlayerTurn(teamLead(goesFirst));
         advanceToNextPhase();
         onPhaseBegin();
 
@@ -1400,7 +1361,8 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
     }
 
     public void mainLoopStep() {
-        if (givePriorityToPlayer && isSharedTeamTurns() && getPriorityTeam(pPlayerPriority).size() > 1) {
+        if (givePriorityToPlayer && actsTogether() && getPriorityTeam(pPlayerPriority).size() > 1) {
+            // Multi-Headed Giant: the team's heads hold priority together, each at its own screen (see TeamPriority)
             if (!teamPriority().step()) {
                 return;
             }
@@ -1441,7 +1403,39 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                     System.out.print("... " + pPlayerPriority + " plays " + chosenSa);
                 }
 
-                playChosenSpellAbilities(chosenSa);
+                boolean rollback = false;
+                boolean acted = false;
+                for (SpellAbility sa : chosenSa) {
+                    Card saHost = sa.getHostCard();
+                    final Zone originZone = saHost.getZone();
+                    final CardZoneTable triggerList = new CardZoneTable(game.getLastStateBattlefield(), game.getLastStateGraveyard());
+
+                    if (pPlayerPriority.getController().playChosenSpellAbility(sa)) {
+                        // 117.3c If a player has priority when they cast a spell, activate an ability, [play a land]
+                        // that player receives priority afterward.
+                        acted = true;
+                    } else if (game.EXPERIMENTAL_RESTORE_SNAPSHOT) {
+                        rollback = true;
+                    }
+
+                    saHost = game.getCardState(saHost);
+                    final Zone currentZone = saHost.getZone();
+
+                    // Need to check if Zone did change
+                    if (currentZone != null && originZone != null && !currentZone.equals(originZone) && (sa.isSpell() || sa.isLandAbility())) {
+                        // currently there can be only one Spell put on the Stack at once, or Land Abilities be played
+                        triggerList.put(originZone.getZoneType(), currentZone.getZoneType(), saHost);
+                        triggerList.triggerChangesZoneAll(game, sa);
+                    }
+                }
+                if (acted) {
+                    // all opponents have to pass before stack is allowed to resolve; a team keeps priority (CR 805.5)
+                    setPriority(teamLead(pPlayerPriority));
+                }
+                // Don't copy last state if we're in the middle of rolling back a spell...
+                if (!rollback) {
+                    game.copyLastState();
+                }
                 loopCount++;
             } while (loopCount < 999 || !pPlayerPriority.getController().isAI());
 
@@ -1460,6 +1454,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
             System.out.print(" >> (no priority given to " + getPriorityPlayer() + ")\n");
         }
 
+        // (when a team acts together, the next team; otherwise the next player)
         Player nextPlayer = getNextPriorityPlayerAfter(getPriorityPlayer());
 
         if (game.isGameOver() || nextPlayer == null) {
@@ -1472,7 +1467,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         }
         boolean nobodyPassed = false;
         if (priorityUnitHasLeft(pFirstPriority)) {
-            // a player (with shared team turns: a whole team) who left never receives priority again, so the next takes their place as first
+            // a player (a whole team acting together) who left never receives priority again, so their successor takes their place as first
             pFirstPriority = getNextPriorityPlayerAfter(pFirstPriority);
             // if the holder left too and nobody between them remains, no player still in the game has passed
             nobodyPassed = priorityUnitHasLeft(pPlayerPriority) && isSamePriorityUnit(pFirstPriority, nextPlayer);
@@ -1510,7 +1505,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         }
     }
 
-    /** The priority player plays what it chose (CR 117.3c: it receives priority afterward). */
+    /** For TeamPriority: the priority player plays what it chose (CR 117.3c: it receives priority afterward). */
     void playChosenSpellAbilities(final List<SpellAbility> chosenSa) {
         boolean rollback = false;
         for (SpellAbility sa : chosenSa) {
@@ -1716,7 +1711,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
         int count = 0;
         // skip the first element
         for (final ExtraTurn et : extraTurns.subList(1, extraTurns.size())) {
-            if (!et.getPlayer().equals(p) && !(isSharedTeamTurns() && et.getPlayer().sameTeam(p))) {
+            if (!et.getPlayer().sharesTeamWith(p)) { // a team takes its extra turns together
                 break;
             }
             count += 1;

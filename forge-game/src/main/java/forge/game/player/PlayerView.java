@@ -115,8 +115,9 @@ public class PlayerView extends GameEntityView {
     public List<PlayerView> getOpponents() {
         return Objects.requireNonNullElse(get(TrackableProperty.Opponents), List.of());
     }
-    void updateOpponents(Player p) {
+    void updateOpponentsAndTeam(Player p) {
         set(TrackableProperty.Opponents, PlayerView.getCollection(p.getOpponents()));
+        set(TrackableProperty.SharedTeam, PlayerView.getCollection(p.getSharedTeam()));
     }
 
     /**
@@ -124,17 +125,20 @@ public class PlayerView extends GameEntityView {
      * turns (as in Two-Headed Giant, CR 810.6), nobody otherwise.
      */
     public boolean sharesHandWith(final PlayerView other) {
-        final TrackableCollection<PlayerView> col = get(TrackableProperty.HandSharedWith);
-        // indexOf, not contains: see CardView.mayPlayerLook
-        return col != null && other != null && col.indexOf(other) != -1;
-    }
-    void updateHandSharedWith(Player p) {
-        final List<Player> mates = p.getGame().getRules().hasSharedTeamTurns() ? p.getTeamMates(false) : List.of();
-        set(TrackableProperty.HandSharedWith, mates.isEmpty() ? null : PlayerView.getCollection(mates));
+        return other != null && !equals(other) && sharesTeamWith(other);
     }
 
     public boolean isOpponentOf(final PlayerView other) {
         return getOpponents().contains(other);
+    }
+
+    /** True for this player, and in Two-Headed Giant for its teammate, as {@link Player#sharesTeamWith}. */
+    public boolean sharesTeamWith(final PlayerView other) {
+        if (equals(other)) {
+            return true;
+        }
+        TrackableCollection<PlayerView> team = get(TrackableProperty.SharedTeam);
+        return team != null && other != null && team.indexOf(other) != -1; // indexOf, not contains: see CardView.mayPlayerLook
     }
 
     public final String getCommanderInfo(CardView v) {

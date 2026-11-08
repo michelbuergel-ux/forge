@@ -74,7 +74,7 @@ public class MulliganService {
     }
 
     private void runPlayerMulligans() {
-        if (game.getRules().hasSharedTeamTurns()) {
+        if (game.getRules().hasTeamActingTogether()) { // Multi-Headed Giant: a team decides together
             runTeamMulligans();
             return;
         }

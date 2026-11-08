@@ -1950,7 +1950,8 @@ public class GameAction {
             // then the rest have lost!
             reason = GameEndReason.WinsGameSpellEffect;
             for (Player pl : allPlayers) {
-                if (pl.equals(p)) {
+                // CR 810.8a: the winner's teammates win with them
+                if (p.getSharedTeam().contains(pl)) {
                     continue;
                 }
 
@@ -1977,15 +1978,20 @@ public class GameAction {
             }
         }
 
-        if (losers != null && game.getRules().hasSharedTeamTurns()) {
-            // shared team turns: if one head falls, the whole team loses
+        // CR 810.8a: a player who loses takes their team out with them
+        if (losers != null) {
             for (Player p : Lists.newArrayList(losers)) {
-                for (Player mate : p.getTeamMates(false)) {
+                for (Player mate : p.getSharedTeam()) {
                     if (losers.contains(mate) || mate.hasLost()) {
                         continue;
                     }
-                    mate.loseWithTeam(p);
-                    losers.add(mate);
+                    // CR 810.8b: a concession takes the team out at once
+                    if (p.conceded()) {
+                        mate.concede();
+                        losers.add(mate);
+                    } else if (mate.loseConditionMet(p.getOutcome().lossState, null)) {
+                        losers.add(mate);
+                    }
                 }
             }
         }
@@ -2383,6 +2389,11 @@ public class GameAction {
                 new MulliganService(first).perform();
             }
             if (game.isGameOver()) { break; } // conceded during "mulligan" prompt
+
+            // after the mulligans, which shuffle the hand away and redraw up to the maximum hand size
+            for (final Player p1 : game.getPlayers()) {
+                p1.runStartGameScripts();
+            }
 
             game.setAge(GameStage.Play);
 

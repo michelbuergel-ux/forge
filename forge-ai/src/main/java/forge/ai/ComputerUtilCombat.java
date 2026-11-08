@@ -299,13 +299,7 @@ public class ComputerUtilCombat {
         int damage = 0;
 
         if (ai.canLoseLife()) {
-            final List<Card> attackers = Lists.newArrayList(combat.getAttackersOf(ai));
-            if (ai.getGame().getRules().hasSharedTeamTurns()) {
-                // shared life total: damage to any head of the team counts
-                for (final Player mate : ai.getTeamMates(false)) {
-                    attackers.addAll(combat.getAttackersOf(mate));
-                }
-            }
+            final List<Card> attackers = attackersOfTeam(ai, combat);
             final List<Card> unblocked = Lists.newArrayList();
 
             for (final Card attacker : attackers) {
@@ -346,7 +340,7 @@ public class ComputerUtilCombat {
 
         int poison = 0;
 
-        final List<Card> attackers = combat.getAttackersOf(ai);
+        final List<Card> attackers = attackersOfTeam(ai, combat);
         final List<Card> unblocked = Lists.newArrayList();
 
         for (final Card attacker : attackers) {
@@ -369,6 +363,15 @@ public class ComputerUtilCombat {
         poison += sumPoisonIfUnblocked(unblocked, ai);
 
         return ai.getPoisonCounters() + poison;
+    }
+
+    /** The attackers whose damage reaches this player's life total: those attacking them, and in Two-Headed Giant those attacking a teammate (CR 810.4). */
+    private static List<Card> attackersOfTeam(final Player ai, final Combat combat) {
+        final CardCollection attackers = new CardCollection();
+        for (final Player p : ai.getSharedTeam()) {
+            attackers.addAll(combat.getAttackersOf(p));
+        }
+        return attackers;
     }
 
     public static List<Card> getLifeThreateningCommanders(final Player ai, final Combat combat) {
@@ -411,7 +414,7 @@ public class ComputerUtilCombat {
     }
     public static boolean lifeInDanger(final Player ai, final Combat combat, final int payment) {
         // life in danger only cares about the player's life. Not Planeswalkers' life
-        if (ai.cantLose() || combat == null || combat.getAttackingPlayer() == ai) {
+        if (ai.cantLose() || combat == null || ai.sharesTeamWith(combat.getAttackingPlayer())) {
             return false;
         }
 
@@ -428,7 +431,7 @@ public class ComputerUtilCombat {
         }
 
         // check for creatures that must be blocked
-        final List<Card> attackers = combat.getAttackersOf(ai);
+        final List<Card> attackers = attackersOfTeam(ai, combat);
 
         final List<Card> threateningCommanders = getLifeThreateningCommanders(ai, combat);
 
@@ -494,7 +497,7 @@ public class ComputerUtilCombat {
         final List<Card> threateningCommanders = getLifeThreateningCommanders(ai, combat);
 
         // check for creatures that must be blocked
-        final List<Card> attackers = combat.getAttackersOf(ai);
+        final List<Card> attackers = attackersOfTeam(ai, combat);
 
         for (final Card attacker : attackers) {
             final List<Card> blockers = combat.getBlockers(attacker);

@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.Predicate;
 
 import com.google.common.collect.Maps;
 
@@ -30,7 +31,6 @@ import forge.game.ability.ApiType;
 import forge.game.card.Card;
 import forge.game.card.CardCollection;
 import forge.game.card.CardLists;
-import forge.game.card.CardPredicates;
 import forge.game.card.CardZoneTable;
 import forge.game.keyword.Keyword;
 import forge.game.keyword.KeywordInterface;
@@ -70,17 +70,15 @@ public class Untap extends Phase {
     public void executeAt() {
         super.executeAt();
 
-        // more than one player only with shared team turns
-        final List<Player> actors = game.getPhaseHandler().getPhaseActors();
-        for (final Player actor : actors) {
-            doPhasing(actor);
+        for (final Player active : game.getPhaseHandler().getActivePlayers()) {
+            doPhasing(active);
         }
         doDayTime(game.getPhaseHandler().getPreviousPlayerTurn());
 
         game.getAction().checkStaticAbilities();
 
-        for (final Player actor : actors) {
-            doUntap(actor);
+        for (final Player active : game.getPhaseHandler().getActivePlayers()) {
+            doUntap(active);
         }
     }
 
@@ -259,14 +257,12 @@ public class Untap extends Phase {
         }
         final Game game = previous.getGame();
         List<Card> casted = game.getStack().getSpellsCastLastTurn();
-        // with shared team turns the previous turn belonged to the whole team of that player
-        final java.util.function.Predicate<Card> castByActive = game.getRules().hasSharedTeamTurns()
-                ? c -> c.getController() != null && c.getController().sameTeam(previous)
-                : CardPredicates.isController(previous);
+        // under shared team turns the previous active player is the whole team
+        final Predicate<Card> castByPrevious = c -> previous.sharesTeamWith(c.getController());
 
-        if (game.isDay() && casted.stream().noneMatch(castByActive)) {
+        if (game.isDay() && casted.stream().noneMatch(castByPrevious)) {
             game.setDayTime(true);
-        } else if (game.isNight() && casted.stream().filter(castByActive).count() > 1) {
+        } else if (game.isNight() && CardLists.count(casted, castByPrevious) > 1) {
             game.setDayTime(false);
         }
     }

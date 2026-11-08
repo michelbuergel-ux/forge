@@ -22,6 +22,7 @@ import forge.game.GameEntity;
 import forge.game.GameEntityView;
 import forge.game.card.Card;
 import forge.game.card.CardCollectionView;
+import forge.game.card.CardLists;
 import forge.game.card.CardView;
 import forge.game.combat.AttackingBand;
 import forge.game.combat.Combat;
@@ -87,18 +88,7 @@ public class InputAttack extends InputSyncronizedBase {
 
     //determine whether currently attackers can be called back (undeclared)
     private boolean canCallBackAttackers() {
-        return !getOwnAttackers().isEmpty();
-    }
-
-    /** The attackers this player declared. With shared team turns team mates attack in the same combat. */
-    private List<Card> getOwnAttackers() {
-        final List<Card> own = new ArrayList<>();
-        for (final Card c : combat.getAttackers()) {
-            if (c.getController() == playerAttacks) {
-                own.add(c);
-            }
-        }
-        return own;
+        return !CardLists.filterControlledBy(combat.getAttackers(), playerAttacks).isEmpty();
     }
 
     private void updatePrompt() {
@@ -133,8 +123,7 @@ public class InputAttack extends InputSyncronizedBase {
         //either alpha strike or undeclare all attackers based on whether any attackers have been declared
         if (canCallBackAttackers()) {
             //undeclare all attackers
-            List<Card> attackers = getOwnAttackers(); //a copy, since combat will be modified
-            for (Card c : attackers) {
+            for (Card c : CardLists.filterControlledBy(combat.getAttackers(), playerAttacks)) {
                 undeclareAttacker(c);
             }
         } else {

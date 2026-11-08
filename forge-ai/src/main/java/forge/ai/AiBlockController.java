@@ -186,24 +186,24 @@ public class AiBlockController {
             return attackers;
         }
 
+        // CR 805.10d: under shared team turns the AI defends its whole team
+        final Predicate<Player> defends = ai::sharesTeamWith;
         // TODO Add creatures attacking Planeswalkers in order of which we want to protect
         // defend planeswalkers with more loyalty before planeswalkers with less loyalty,
         // defend battles with fewer defense counters before battles with more defense counters,
         // if planeswalker/battle will be too difficult to defend don't even bother
         for (GameEntity defender : defenders) {
-            if ((defender instanceof Card card1 && card1.getController().equals(ai))
-                    || (defender instanceof Card card2 && card2.isBattle() && card2.getProtectingPlayer().equals(ai))) {
+            if ((defender instanceof Card card1 && defends.test(card1.getController()))
+                    || (defender instanceof Card card2 && card2.isBattle() && defends.test(card2.getProtectingPlayer()))) {
                 final CardCollection ccAttackers = combat.getAttackersOf(defender);
                 // Begin with the attackers that pose the biggest threat
                 CardLists.sortByPowerDesc(ccAttackers);
                 sortedAttackers.addAll(ccAttackers);
-            } else if (defender instanceof Player && (defender.equals(ai)
-                    || (ai.getGame().getRules().hasSharedTeamTurns() && ai.sameTeam((Player) defender)))) {
-                // (with shared team turns several heads can be attacked, keep all of their attackers)
+            } else if (defender instanceof Player p && defends.test(p)) {
                 firstAttacker.addAll(combat.getAttackersOf(defender));
-                CardLists.sortByPowerDesc(firstAttacker);
             }
         }
+        CardLists.sortByPowerDesc(firstAttacker);
 
         if (!sortedAttackers.isEmpty() && !firstAttacker.isEmpty() && ComputerUtilCombat.lifeInDanger(ai, combat)) {
             // add creatures attacking the Player to the front of the list

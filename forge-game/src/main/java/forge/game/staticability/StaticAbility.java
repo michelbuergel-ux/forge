@@ -409,7 +409,7 @@ public class StaticAbility extends CardTraitBase implements IIdentifiable, Clone
 
         if (hasParam("PlayerTurn")) {
             List<Player> players = AbilityUtils.getDefinedPlayers(hostCard, getParam("PlayerTurn"), this);
-            if (!ph.isPlayerTurnOfAny(players)) {
+            if (players.stream().noneMatch(ph::isPlayerTurn)) {
                 return false;
             }
         }

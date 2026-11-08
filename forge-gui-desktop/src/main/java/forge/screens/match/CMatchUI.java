@@ -979,20 +979,22 @@ public final class CMatchUI
 
     @Override
     public void updatePhase(boolean saveState) {
-        final PlayerView p = getGameView().getPlayerTurn();
         final PhaseType ph = getGameView().getPhase();
-        // this should never happen, but I've seen it periodically... so, need to get to the bottom of it
-        PhaseLabel lbl = null;
-        if (ph != null) {
-            lbl = p == null ? null : getFieldViewFor(p).getPhaseIndicator().getLabelFor(ph);
-        } else {
-            // not sure what debugging information would help here, log for now
+        if (ph == null) {
+            // this should never happen, but I've seen it periodically... so, need to get to the bottom of it
             System.err.println("getGameView().getPhase() returned 'null'");
         }
 
         resetAllPhaseButtons();
-        if (lbl != null) {
-            lbl.setActive(true);
+        if (ph != null) {
+            // a team that shares its turns shows the phase on each of its players
+            final PlayerView turnPlayer = getGameView().getPlayerTurn();
+            for (final PlayerView p : getGameView().getPlayers()) {
+                final PhaseLabel lbl = p.sharesTeamWith(turnPlayer) ? getFieldViewFor(p).getPhaseIndicator().getLabelFor(ph) : null;
+                if (lbl != null) {
+                    lbl.setActive(true);
+                }
+            }
         }
         // shared team turns: light up the phase on the fields of all heads whose turn it is
         final FCollectionView<PlayerView> activePlayers = getGameView().getActivePlayers();

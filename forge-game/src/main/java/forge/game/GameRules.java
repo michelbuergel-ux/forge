@@ -51,7 +51,7 @@ public class GameRules {
     }
 
     public int getPoisonCountersToLose() {
-        return poisonCountersToLose;
+        return hasAppliedVariant(GameType.TwoHeadedGiant) ? 15 : poisonCountersToLose; // 810.8d
     }
     public void setPoisonCountersToLose(final int amount) {
         this.poisonCountersToLose = amount;
@@ -131,6 +131,7 @@ public class GameRules {
                 || appliedVariants.contains(GameType.Brawl);
     }
 
+
     public boolean useGrayText() {
         return useGrayText;
     }
@@ -154,11 +155,20 @@ public class GameRules {
     }
 
     /**
-     * Shared team turns ("Multi-Headed Giant"): all members of a team take their turn together,
-     * share one life total and lose together.
+     * Teams take turns and hold priority together (CR 805), share one life total and lose together: Two-Headed Giant,
+     * and Multi-Headed Giant (teams of any size, see {@link #hasTeamActingTogether()}).
      */
     public boolean hasSharedTeamTurns() {
-        return sharedTeamTurns || appliedVariants.contains(GameType.MultiHeadedGiant);
+        return sharedTeamTurns || appliedVariants.contains(GameType.TwoHeadedGiant) || appliedVariants.contains(GameType.MultiHeadedGiant);
+    }
+
+    /**
+     * Multi-Headed Giant (and the shared team turns a game sets up itself, as the Hex Campaign's fights): the heads of
+     * a team hold priority, declare attackers and blockers and answer at the same time, each at its own screen,
+     * instead of one after the other as in Two-Headed Giant.
+     */
+    public boolean hasTeamActingTogether() {
+        return hasSharedTeamTurns() && (sharedTeamTurns || appliedVariants.contains(GameType.MultiHeadedGiant));
     }
 
     public void setSharedTeamTurns(final boolean sharedTeamTurns) {

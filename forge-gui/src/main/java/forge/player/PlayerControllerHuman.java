@@ -1837,7 +1837,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
             if (concurrentChoice) {
                 // team mates are prompted at the same time: there is no single history to rewind
                 undo.barrier("Team mates act at the same time");
-            } else if (UndoManager.OWN_TURN_ONLY && getGame().getPhaseHandler().getPlayerTurn() != player) {
+            } else if (UndoManager.OWN_TURN_ONLY && !getGame().getPhaseHandler().isPlayerTurn(player)) {
                 undo.barrier("Opponent's turn");
             } else {
                 undo.checkpoint(getGame(), player);      // must come BEFORE the prompt is built
@@ -2668,6 +2668,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         List<SpellAbility> orderedSAs = orderSimultaneousSa(activePlayerSAs);
         for (int i = orderedSAs.size() - 1; i >= 0; i--) {
             final SpellAbility next = orderedSAs.get(i);
+            if (playedByTeammate(next)) {
+                continue;
+            }
             if (next.isTrigger() && !next.isCopied()) {
                 PlaySpellAbility.playSpellAbility(this, player, next);
             } else {
@@ -3988,15 +3991,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         if (player != null) {
             player.concede();
             getGame().getAction().checkGameOverCondition();
-            // Remote-client controllers on the server have no FControlGameEventHandler,
-            // so their input queues won't be released by the normal event path.
-            // Iterate registered players (not getPlayers(), which excludes the
-            // conceding player after onPlayerLost removes them from ingamePlayers).
-            for (Player p : getGame().getRegisteredPlayers()) {
-                if (!p.isInGame() && p.getController() instanceof PlayerControllerHuman pch) {
-                    pch.getInputQueue().onGameOver(true);
-                }
-            }
+            DrawOfferCoordinator.releaseInputQueues(getGame());
         }
     }
 
@@ -4220,17 +4215,22 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         if (macros != null && macros.isReplaying()) {
             return false;
         }
-        // Shared team turns: the turn belongs to the whole team, so in its team's turn every head
-        // uses the phase stops of its own field, not those it set for the head that leads the turn.
-        PlayerView turnPlayer = turnPlayer0;
+        final PlayerView turnPlayer = turnPlayer0;
         final Player me = getPlayer();
-        if (me != null && turnPlayer0 != null && getGame() != null && getGame().getRules().hasSharedTeamTurns()
-                && !turnPlayer0.equals(me.getView())) {
-            final Player turnOwner = getGame().getPlayer(turnPlayer0);
-            if (turnOwner != null && turnOwner.sameTeam(me)) {
-                turnPlayer = me.getView();
-            }
+        if (me != null && turnPlayer != null && getGame() != null && getGame().getRules().hasTeamActingTogether()) {
+            // Multi-Headed Giant: the turn belongs to the whole team, so in its team's turn every head uses the
+            // phase stops of its own field, not those it set for the head that leads the turn
+            final Player turnOwner = getGame().getPlayer(turnPlayer);
+            return playerSkipsPhase(turnOwner != null && turnOwner.sameTeam(me) ? me.getView() : turnPlayer, phase);
         }
+        // a team that shares its turns stops where any of its players has a stop
+        if (getGui().getGameView() != null && turnPlayer != null) {
+            return getGui().getGameView().getPlayers().stream().filter(turnPlayer::sharesTeamWith).allMatch(p -> playerSkipsPhase(p, phase));
+        }
+        return playerSkipsPhase(turnPlayer, phase);
+    }
+
+    private boolean playerSkipsPhase(final PlayerView turnPlayer, final PhaseType phase) {
         if (isRemoteClient()) {
             return yieldController.isSkippingPhase(turnPlayer, phase);
         }
