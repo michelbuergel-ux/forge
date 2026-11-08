@@ -61,6 +61,8 @@ final class HexNewCampaignPage extends JPanel {
     /** What the page was filled in with. */
     record Settings(String name, int companions, int goldMultiplier, HexDifficulty difficulty, boolean host, boolean teamPermanents) { }
 
+    /** The gold a new campaign starts with chosen: five times the normal. */
+    static final int DEFAULT_GOLD = 5;
     private static final int PLATE_W = 640;
     private static final int TEXT_W = PLATE_W - 64;
 
@@ -227,11 +229,11 @@ final class HexNewCampaignPage extends JPanel {
         onCancel = onCancel0;
     }
 
-    /** Fills the page anew: a free name, no companions, normal gold, and friends only if this computer hosts already. */
+    /** Fills the page anew: a free name, no companions, five times the gold, and friends only if this computer hosts already. */
     void open(final String defaultName) {
         txtName.setText(defaultName);
         companions = 0;
-        goldChoice = 0;
+        goldChoice = Math.max(0, java.util.Arrays.stream(HexCampaign.GOLD_MULTIPLIERS).boxed().toList().indexOf(DEFAULT_GOLD));
         difficulty = HexDifficulty.NORMAL;
         teamPermanents = false;
         host = HostingServer.isHosting();
