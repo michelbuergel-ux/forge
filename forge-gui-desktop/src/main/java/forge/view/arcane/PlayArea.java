@@ -167,7 +167,11 @@ public class PlayArea extends CardPanelContainer implements CardPanelMouseListen
             final String initial = owner.getName() == null || owner.getName().isEmpty() ? "?" : owner.getName().substring(0, 1).toUpperCase();
             final int r = Math.max(7, panel.getCardWidth() / 9);
             final int cx = panel.getCardX() + r + 2;
-            final int cy = panel.getCardY() + panel.getCardHeight() - r - 2;
+            // untapped: the bottom left corner. Tapped, the card lies on its side (turned around the bottom of its
+            // left half) and its power and toughness are there: the badge goes to its top left corner instead
+            final boolean tapped = panel.getTappedAngle() > Math.PI / 4;
+            final int cy = tapped ? panel.getCardY() + panel.getCardHeight() - panel.getCardWidth() + r + 2
+                    : panel.getCardY() + panel.getCardHeight() - r - 2;
             g2.setColor(new Color(0, 0, 0, 140));
             g2.fillOval(cx - r - 1, cy - r - 1, 2 * r + 2, 2 * r + 2);
             g2.setColor(headColor(head));

@@ -356,7 +356,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         voteTimer.start();
         HexNet.setFightInfo(() -> fightInfo(getCampaign()));
         HexNet.setFightHooks(
-                () -> fightOnScreen || (session != null && session.isGuest() && HexNet.isGuest() && session.getCampaign() != null),
+                () -> !forge.gamemodes.hexcrawl.HexPractice.isRunning()
+                        && (fightOnScreen || (session != null && session.isGuest() && HexNet.isGuest() && session.getCampaign() != null)),
                 () -> SwingUtilities.invokeLater(() -> {
                     fightOnScreen = false;
                     if (getCampaign() != null && !isShowing()) {
@@ -642,7 +643,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         } catch (final RuntimeException e) {
             e.printStackTrace();
         }
-        SwingUtilities.invokeLater(() -> {
+        SwingUtilities.invokeLater(() -> endPractice(false, () -> {
             try {
                 showBossIntroIfNew(); // the archmage speaks before the fight begins
                 fightOnScreen = true;
@@ -660,7 +661,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 fightOnScreen = false;
                 s.fightAborted();
             }
-        });
+        }));
     }
 
     /**
@@ -1863,13 +1864,105 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         // the others see who is still in the shops, and the window shows who wants to move on
         session.setShopping(true);
+        final HexTownDialog town = new HexTownDialog(session).describingVotes(key -> describeVote(getCampaign(), key));
         try {
-            new HexTownDialog(session).describingVotes(key -> describeVote(getCampaign(), key))
-                    .show(refresher -> shopRefresher = refresher);
+            town.show(refresher -> shopRefresher = refresher);
         } finally {
             session.setShopping(false);
         }
         refresh();
+        if (town.practiceOpponent() != null) {
+            startPractice(town.practiceHead(), town.practiceOpponent());
+        }
+    }
+
+    // ------------------------------------------------------------------ practice ground
+
+    /** Watches a practice game: once the party moves on (out of the town, into a fight), the practice ends. */
+    private final Timer practiceWatch = new Timer(1000, e -> watchPractice());
+    private boolean endingPractice;
+
+    /** A game for fun against the AI while the others shop (see HexPractice). */
+    private void startPractice(final String head, final forge.gamemodes.hexcrawl.HexPractice.Opponent opponent) {
+        final HexCampaign campaign = getCampaign();
+        if (campaign == null || !campaign.inTown() || session == null || session.isFightRunning()
+                || forge.gamemodes.hexcrawl.HexPractice.isRunning()) {
+            return;
+        }
+        try {
+            forge.gamemodes.hexcrawl.HexPractice.start(campaign, head, opponent);
+            practiceWatch.start();
+        } catch (final RuntimeException e) {
+            e.printStackTrace();
+            forge.gamemodes.hexcrawl.HexPractice.forget();
+            FOptionPane.showMessageDialog(t("lblHexPracticeFailed"), t("lblHexPractice"));
+        }
+    }
+
+    private void watchPractice() {
+        if (endingPractice) {
+            return;
+        }
+        if (!forge.gamemodes.hexcrawl.HexPractice.isRunning()) { // played to the end and closed
+            forge.gamemodes.hexcrawl.HexPractice.forget();
+            practiceWatch.stop();
+            return;
+        }
+        final HexCampaign campaign = getCampaign();
+        final boolean fight = session != null && session.isFightRunning();
+        if (campaign == null || !campaign.inTown() || campaign.pendingEncounter != null || fight) {
+            endPractice(!fight, null); // a fight that starts says enough
+        }
+    }
+
+    /**
+     * Ends the practice game (as a draw) and closes its screen, then goes on. Nothing of it counts.
+     * @param tell whether to say why the game ended (the party moved on)
+     * @param then what to do afterwards (on the screen thread), or null
+     */
+    private void endPractice(final boolean tell, final Runnable then) {
+        final HostedMatch match = forge.gamemodes.hexcrawl.HexPractice.current();
+        if (match == null || match.getGame() == null) {
+            forge.gamemodes.hexcrawl.HexPractice.forget();
+            practiceWatch.stop();
+            if (then != null) {
+                then.run();
+            }
+            return;
+        }
+        endingPractice = true;
+        final Thread ender = new Thread(() -> {
+            forge.gamemodes.hexcrawl.HexPractice.endGame(); // waits for the game to stop
+            SwingUtilities.invokeLater(() -> {
+                forge.gui.SOverlayUtils.hideOverlay(); // its result screen
+                if (match.getGame() != null) {
+                    match.endCurrentGame(); // closes its screen
+                }
+                forge.gamemodes.hexcrawl.HexPractice.forget();
+                practiceWatch.stop();
+                endingPractice = false;
+                // a result screen that came up a moment late goes too
+                final Timer late = new Timer(600, e -> {
+                    if (!forge.gamemodes.hexcrawl.HexPractice.isRunning() && HexFight.current() == null && !fightOnScreen) {
+                        forge.gui.SOverlayUtils.hideOverlay();
+                    }
+                });
+                late.setRepeats(false);
+                late.start();
+                if (tell) {
+                    if (getCampaign() != null && !isShowing()) {
+                        CHomeUI.SINGLETON_INSTANCE.itemClick(EDocID.HOME_HEXCRAWL);
+                    }
+                    refresh();
+                    FOptionPane.showMessageDialog(t("lblHexPracticeEnded"), t("lblHexPractice"));
+                }
+                if (then != null) {
+                    then.run();
+                }
+            });
+        }, "Hex practice end");
+        ender.setDaemon(true);
+        ender.start();
     }
 
     /** What makes an enemy harder than its life total says: its followers and what it starts with. */

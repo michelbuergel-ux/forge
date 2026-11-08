@@ -97,6 +97,7 @@ final class HexTownDialog {
     private static final String TAB_QUESTS = "QUESTS";
     private static final String TAB_SELL = "SELL";
     private static final String TAB_TRADE = "TRADE";
+    private static final String TAB_PRACTICE = "PRACTICE";
     private static final String PAGE_CARDS = "cards";
     private static final int SIDEBAR_W = 228;
     private static final int PREVIEW_W = 290;
@@ -174,6 +175,11 @@ final class HexTownDialog {
     // notice board
     private JPanel pnlQuests;
     private final JLabel lblQuestActive = label(" ", body(Font.PLAIN, 13f), MUTED);
+    private final JLabel lblPracticeDeck = label(" ", body(Font.PLAIN, 14f), TEXT_BRIGHT);
+    private final java.util.List<GoldButton> practiceButtons = new ArrayList<>();
+    /** The practice game asked for when the window closed (whom against, for which head); null for none. */
+    private forge.gamemodes.hexcrawl.HexPractice.Opponent practiceOpponent;
+    private String practiceHead;
     private String questsShown = "";
 
     // selling cards
@@ -343,6 +349,7 @@ final class HexTownDialog {
         body.add(buildQuestPage(), TAB_QUESTS);
         body.add(buildSellPage(), TAB_SELL);
         body.add(buildTradePage(), TAB_TRADE);
+        body.add(buildPracticePage(), TAB_PRACTICE);
         main.add(body, "wmin 0, hmin 0");
         lblMessage.setFont(body(Font.PLAIN, 13f));
         final JPanel messageRow = transparent(new MigLayout("insets 0, gap 12, fillx, hidemode 3", "[grow, fill][]", "[26!]"));
@@ -449,6 +456,7 @@ final class HexTownDialog {
         if (campaign().players.size() > 1) {
             addNav(side, TAB_TRADE, t("lblHexTabTrade"), GOLD);
         }
+        addNav(side, TAB_PRACTICE, t("lblHexPractice"), GOLD);
         return side;
     }
 
@@ -487,7 +495,8 @@ final class HexTownDialog {
     }
 
     private boolean isCardShop() {
-        return !TAB_QUESTS.equals(tab) && !TAB_SELL.equals(tab) && !TAB_TRADE.equals(tab) && !HexShopType.RELIC.name().equals(tab);
+        return !TAB_QUESTS.equals(tab) && !TAB_SELL.equals(tab) && !TAB_TRADE.equals(tab) && !TAB_PRACTICE.equals(tab)
+                && !HexShopType.RELIC.name().equals(tab);
     }
 
     /** The offers of one shop of this town in one section (theme tab). Read only, so it is safe on a guest's copy too. */
@@ -511,7 +520,7 @@ final class HexTownDialog {
     }
 
     private String navCount(final HexCampaign c, final String key) {
-        if (TAB_SELL.equals(key) || TAB_TRADE.equals(key)) {
+        if (TAB_SELL.equals(key) || TAB_TRADE.equals(key) || TAB_PRACTICE.equals(key)) {
             return "";
         }
         if (TAB_QUESTS.equals(key)) {
@@ -765,6 +774,8 @@ final class HexTownDialog {
                 fillQuests(c);
             } else if (TAB_TRADE.equals(tab)) {
                 fillTrade(p);
+            } else if (TAB_PRACTICE.equals(tab)) {
+                fillPractice(p);
             } else {
                 fillDeck(p);
             }
@@ -1274,6 +1285,63 @@ final class HexTownDialog {
     }
 
     // ------------------------------------------------------------------ tasks
+
+    // ------------------------------------------------------------------ practice ground
+
+    /** The practice game asked for when the window was closed for it, or null. */
+    forge.gamemodes.hexcrawl.HexPractice.Opponent practiceOpponent() {
+        return practiceOpponent;
+    }
+
+    /** The head that practises (with practiceOpponent()). */
+    String practiceHead() {
+        return practiceHead;
+    }
+
+    /** The practice ground: a game for fun against a training dummy or a sparring partner, while the others shop. */
+    private JPanel buildPracticePage() {
+        final JPanel page = transparent(new MigLayout("insets 0, gap 0, wrap 1, fillx", "[grow, fill]", "[]10[]6[]18[]18[]"));
+        page.add(title(t("lblHexPractice")));
+        page.add(wrapped(t("lblHexPracticeIntro"), body(Font.PLAIN, 15f), TEXT_BRIGHT, pageW - 20));
+        page.add(lblPracticeDeck);
+        final JPanel options = transparent(new MigLayout("insets 0, gap " + GAP, "[" + questW + "!, fill][" + questW + "!, fill]", "[top]"));
+        options.add(practiceOption(forge.gamemodes.hexcrawl.HexPractice.Opponent.DUMMY, "lblHexPracticeDummy", "lblHexPracticeDummyText",
+                String.valueOf(forge.gamemodes.hexcrawl.HexPractice.DUMMY_LIFE)), "growy");
+        options.add(practiceOption(forge.gamemodes.hexcrawl.HexPractice.Opponent.SPARRING, "lblHexPracticeSparring", "lblHexPracticeSparringText",
+                String.valueOf(forge.gamemodes.hexcrawl.HexPractice.LIFE)), "growy");
+        page.add(options);
+        page.add(wrapped(t("lblHexPracticeNote"), body(Font.PLAIN, 13f), MUTED, pageW - 20));
+        return page;
+    }
+
+    private JComponent practiceOption(final forge.gamemodes.hexcrawl.HexPractice.Opponent opponent, final String nameKey, final String textKey,
+            final String life) {
+        final GildedPanel panel = new GildedPanel(palette, new MigLayout("insets 20 20 26 20, gap 0, wrap 1, fill", "[grow, fill]", "[]10[grow, top]14[]"));
+        panel.add(label(t(nameKey), display(19f), TEXT_BRIGHT));
+        panel.add(wrapped(t(textKey, life), body(Font.PLAIN, 14f), MUTED, questW - 44));
+        final GoldButton start = new GoldButton(t("lblHexPracticeStart"), GoldButton.Kind.GOLD, 13f);
+        start.addActionListener(e -> {
+            final HexPlayer p = head();
+            if (p == null || session.isFightRunning()) {
+                return;
+            }
+            practiceOpponent = opponent;
+            practiceHead = p.name;
+            dialog.setVisible(false); // the game starts once the window is closed
+        });
+        practiceButtons.add(start);
+        panel.add(start, "h 44!");
+        return panel;
+    }
+
+    private void fillPractice(final HexPlayer p) {
+        final String name = p.deckName(p.activeDeckIndex());
+        lblPracticeDeck.setText(t("lblHexPracticeDeck", name == null ? t("lblHexDeckMain") : name, String.valueOf(p.deck.size())));
+        final boolean may = !session.isFightRunning() && dialog != null;
+        for (final GoldButton b : practiceButtons) {
+            b.setEnabled(may);
+        }
+    }
 
     private JPanel buildQuestPage() {
         final JPanel page = transparent(new MigLayout("insets 0, gap 0, wrap 1, fill", "[grow, fill]", "[]14[grow, fill]"));
