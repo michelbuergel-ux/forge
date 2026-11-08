@@ -617,6 +617,33 @@ final class HexTownDialog {
         fillThemes(head());
     }
 
+    /** Where a section starts on the page (the first one at the very top). */
+    private int sectionTop(final int section) {
+        final JComponent head = sectionHeads.get(section);
+        return head == null || section == HexCampaign.TAB_TOWN ? 0 : head.getY();
+    }
+
+    /** Scrolls the page to a section and so far down in it, but not past its end. */
+    private void scrollInto(final int section, final int down) {
+        if (tilesScroll == null || !sectionHeads.containsKey(section)) {
+            return;
+        }
+        final int top = sectionTop(section);
+        int end = pnlTiles.getHeight();
+        for (final Map.Entry<Integer, JComponent> e : sectionHeads.entrySet()) {
+            if (e.getKey() > section) {
+                end = e.getValue().getY();
+                break;
+            }
+        }
+        final int y = top + Math.min(down, Math.max(0, end - top - 160)); // some of the section stays in sight
+        tilesScroll.getViewport().setViewPosition(new Point(0, Math.max(0, Math.min(y,
+                pnlTiles.getHeight() - tilesScroll.getViewport().getHeight()))));
+        sectionInView = section;
+        spySection();
+        fillThemes(head());
+    }
+
     /** Which section is at the top of the page: the last one whose heading has scrolled past the top. */
     private void spySection() {
         if (tilesScroll == null || sectionHeads.isEmpty()) {
@@ -899,6 +926,16 @@ final class HexTownDialog {
         showPreview(type, previewSection, preview);
         if (!shown.toString().equals(tilesShown)) {
             final boolean newShop = !tilesShown.startsWith(type.name() + "/");
+            // another merchant: the same section, as far down in it as before (where the new one's section reaches)
+            int keep = -1;
+            int keepOffset = 0;
+            if (newShop && !tilesShown.isEmpty() && !tilesShown.startsWith("?") && tilesScroll != null
+                    && sectionHeads.containsKey(sectionInView)) {
+                keep = sectionInView;
+                keepOffset = Math.max(0, tilesScroll.getViewport().getViewPosition().y - sectionTop(sectionInView));
+            }
+            final int keepSection = keep;
+            final int keepDown = keepOffset;
             tilesShown = shown.toString();
             pnlTiles.removeAll();
             sectionHeads.clear();
@@ -930,9 +967,14 @@ final class HexTownDialog {
             scrollToSection = -1;
             if (newShop || target >= 0) { // another shop starts at its top; a theme just picked is shown
                 SwingUtilities.invokeLater(() -> {
+                    if (tilesScroll != null) {
+                        tilesScroll.validate(); // the page at its new height first
+                    }
                     pnlTiles.validate();
                     if (target >= 0) {
                         scrollTo(target);
+                    } else if (keepSection >= 0) {
+                        scrollInto(keepSection, keepDown);
                     } else if (tilesScroll != null) {
                         tilesScroll.getViewport().setViewPosition(new Point(0, 0));
                     }

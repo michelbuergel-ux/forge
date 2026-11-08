@@ -177,6 +177,10 @@ public final class HexTheme {
         all.add(mechanic("haste", r -> mentions(r, HexTheme.HASTE) || hints(r, DeckHints.Type.KEYWORD, "Haste")));
         all.add(mechanic("deathtouch", r -> mentions(r, HexTheme.DEATHTOUCH) || hints(r, DeckHints.Type.KEYWORD, "Deathtouch")));
         all.add(mechanic("burn", r -> mentions(r, HexTheme.BURN)));
+        // drawing cards; milling (a library into its graveyard); Alchemy, the digital cards of MTG Arena
+        all.add(mechanic("carddraw", r -> mentions(r, HexTheme.DRAW)));
+        all.add(mechanic("mill", r -> mentions(r, HexTheme.MILL) || hints(r, DeckHints.Type.ABILITY, "Mill")));
+        all.add(new HexTheme("alchemy", "lblHexTheme_alchemy", null, HexTheme::alchemy, true));
         ALL = Collections.unmodifiableList(all);
     }
 
@@ -195,6 +199,40 @@ public final class HexTheme {
             "\\bdeals? (?:\\d+|x|that much|twice that much|three times that much|damage equal to [^.]*?) (?:damage )?to "
             + "(?:any|up to|another target|target|each|that player|defending player|its controller|that creature's controller"
             + "|that permanent's controller)\\b");
+
+    private static final java.util.regex.Pattern DRAW = java.util.regex.Pattern.compile(
+            "\\bdraws? (?:a|an|one|two|three|four|five|six|seven|x|that many|a number of)(?: additional)? cards?\\b"
+            + "|\\bdraws? cards equal to\\b");
+    private static final java.util.regex.Pattern MILL = java.util.regex.Pattern.compile("\\bmill(?:s|ed)?\\b");
+    /** The mechanics only MTG Arena's cards have. */
+    private static final java.util.regex.Pattern DIGITAL = java.util.regex.Pattern.compile(
+            "\\bperpetually\\b|\\bseeks? (?:a|an|two|three|x)\\b|\\bconjures? (?:a|an|two|three|x)\\b|\\bspellbook\\b"
+            + "|\\bspecialize\\b|\\bdouble team\\b|\\bintensity\\b|\\bincorporate\\b");
+    private static final java.util.Map<String, Boolean> ALCHEMY = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Alchemy, MTG Arena's digital cards: those first printed in an Alchemy set (Alchemy: Innistrad, Alchemy Horizons:
+     * Baldur's Gate, ...), the rebalanced "A-" cards, and any with a mechanic only Arena has (perpetually, seek, conjure, ...).
+     */
+    private static boolean alchemy(final CardRules r) {
+        return ALCHEMY.computeIfAbsent(r.getName(), name -> {
+            if (name.startsWith("A-") || mentions(r, DIGITAL)) {
+                return true;
+            }
+            final forge.StaticData data = forge.StaticData.instance();
+            if (data == null) {
+                return false;
+            }
+            forge.card.CardEdition first = null;
+            for (final forge.item.PaperCard card : data.getCommonCards().getAllCards(name)) {
+                final forge.card.CardEdition ed = data.getEditions().get(card.getEdition());
+                if (ed != null && ed.getDate() != null && (first == null || ed.getDate().before(first.getDate()))) {
+                    first = ed;
+                }
+            }
+            return first != null && first.getName().startsWith("Alchemy");
+        });
+    }
 
     /** Rules text (all faces, lower case) that matches. */
     private static boolean mentions(final CardRules r, final java.util.regex.Pattern pattern) {

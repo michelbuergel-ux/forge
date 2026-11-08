@@ -96,6 +96,32 @@ public class HexWorldsTest extends AITest {
         AssertJUnit.assertEquals(48, HexTheme.indexOf("marvel"));
         AssertJUnit.assertEquals(59, HexTheme.indexOf("universesbeyond"));
         AssertJUnit.assertEquals(62, HexTheme.indexOf("burn"));
-        AssertJUnit.assertEquals(HexTheme.all().size() - 1, HexTheme.indexOf("burn"));
+        AssertJUnit.assertEquals(65, HexTheme.indexOf("alchemy"));
+        AssertJUnit.assertEquals(HexTheme.all().size() - 1, HexTheme.indexOf("alchemy"));
+    }
+
+    @Test
+    public void testCardDrawMillAndAlchemy() {
+        AssertJUnit.assertTrue(fits("carddraw", "Divination"));
+        AssertJUnit.assertTrue(fits("carddraw", "Harmonize"));
+        AssertJUnit.assertTrue("draws a card", fits("carddraw", "Elvish Visionary"));
+        AssertJUnit.assertTrue("cards equal to", fits("carddraw", "Collective Unconscious"));
+        AssertJUnit.assertFalse(fits("carddraw", "Grizzly Bears"));
+        AssertJUnit.assertTrue(fits("mill", "Thought Scour"));
+        AssertJUnit.assertTrue(fits("mill", "Hedron Crab"));
+        AssertJUnit.assertFalse(fits("mill", "Grizzly Bears"));
+        AssertJUnit.assertTrue("an Alchemy card", fits("alchemy", "Angel of Eternal Dawn"));
+        AssertJUnit.assertTrue("an Alchemy card", fits("alchemy", "Captain Eberhart"));
+        AssertJUnit.assertFalse(fits("alchemy", "Lightning Bolt"));
+        AssertJUnit.assertFalse(fits("alchemy", "Grizzly Bears"));
+        AssertJUnit.assertTrue(HexTheme.get("alchemy").isStrict());
+        for (final String id : new String[] { "carddraw", "mill", "alchemy" }) {
+            AssertJUnit.assertEquals(HexTheme.Group.PLAY, HexTheme.get(id).group());
+            final StringBuilder towns = new StringBuilder();
+            for (final HexColor color : HexColor.values()) {
+                towns.append(' ').append(color).append('=').append(HexContent.get().themeCardCount(color, HexTheme.get(id)));
+            }
+            System.out.println("theme " + id + ":" + towns);
+        }
     }
 }
