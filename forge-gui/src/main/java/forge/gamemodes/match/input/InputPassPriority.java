@@ -485,9 +485,16 @@ public class InputPassPriority extends InputSyncronizedBase {
             }
             showNormalPrompt(); // acting takes the pass back
         }
+        // no OK for a team mate's spell while the player chooses what to play
+        final boolean partnerWaiting = partner.item() != null && !partner.isHeld();
         partner.hold();
 
         final SpellAbility ability = getController().getAbilityToPlay(card, abilities, triggerEvent);
+        if (ability == null && partnerWaiting && !isFinished()) {
+            // nothing chosen after all: the team mate's spell is OK'd by itself again (and so is an OK taken back)
+            partner.release();
+            showNormalPrompt();
+        }
         if (ability != null) {
             chosenSa = new ArrayList<>();
             chosenSa.add(ability);

@@ -20,6 +20,8 @@ final class PartnerPrompt {
     /** The running countdown for a team mate's stack item, if any. */
     private ScheduledFuture<?> countdown;
     private int secondsLeft;
+    /** The team mate's stack item the countdown runs for. */
+    private SpellAbilityStackInstance counted;
     /** The player pressed Hold (or started to act): no countdown for this prompt any more. */
     private volatile boolean held;
 
@@ -86,9 +88,12 @@ final class PartnerPrompt {
             inp.getController().getGui().updateButtons(inp.getOwner(), loc.getMessage("lblOK"), loc.getMessage("lblHold"), true, false, true);
         } else if (alwaysOk()) {
             inp.getController().getGui().updateButtons(inp.getOwner(), loc.getMessage("lblOK"), loc.getMessage("lblHold"), true, true, true);
-            start(0);
+            start(0, item);
+        } else if (!countsDown(item)) {
+            start(InputPassPriority.PARTNER_AUTO_OK_SECONDS, item);
         } else {
-            start(InputPassPriority.PARTNER_AUTO_OK_SECONDS);
+            // shown again (a mate's state changed, say): the countdown goes on, it does not start over
+            showCountdownButtons();
         }
         inp.getController().getGui().alertUser();
     }
@@ -97,8 +102,14 @@ final class PartnerPrompt {
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
-    private synchronized void start(final int seconds) {
+    /** Is the countdown running for this item? */
+    synchronized boolean countsDown(final SpellAbilityStackInstance item) {
+        return countdown != null && item != null && item == counted;
+    }
+
+    private synchronized void start(final int seconds, final SpellAbilityStackInstance item) {
         cancel();
+        counted = item;
         secondsLeft = seconds;
         if (seconds <= 0) {
             countdown = ThreadUtil.delay(0, this::tick);
@@ -138,6 +149,7 @@ final class PartnerPrompt {
             countdown.cancel(false);
             countdown = null;
         }
+        counted = null;
     }
 
     /** The player starts to act (picks a card or an ability): the countdown must not pass for them. */
@@ -148,8 +160,9 @@ final class PartnerPrompt {
 
     /** "Always OK my partner" was switched on while a team mate's item waits: OK it now. */
     void onAlwaysOkChanged() {
-        if (!inp.isFinished() && !held && alwaysOk() && item() != null) {
-            start(0);
+        final SpellAbilityStackInstance item = item();
+        if (!inp.isFinished() && !held && alwaysOk() && item != null) {
+            start(0, item);
         }
     }
 }
