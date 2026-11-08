@@ -99,7 +99,12 @@ public final class HexContent {
     public static final int ARZAKON_GOLD = 1000;
     /** In play on his side from the start: the planeswalker himself; in the command zone his presence and his awakening. */
     public static final String ARZAKON_CARD = "Arzakon";
+    /** His presence in the first cycle: it conjures Arzakon's Platinum Angel each of his turns when he has none. */
     private static final String ARZAKON_PRESENCE = "Arzakon's Presence";
+    /** In the second cycle: Arzakon's Darksteel Angel instead (indestructible, and no poison for him). */
+    private static final String ARZAKON_DREAD_PRESENCE = "Arzakon's Dread Presence";
+    /** From the third cycle on: Arzakon's Blightsteel Angel (infect, and it attacks). */
+    private static final String ARZAKON_BLIGHTED_PRESENCE = "Arzakon's Blighted Presence";
     private static final String ARZAKON_PHASE_TWO = "Arzakon Unleashed";
     /** The key of his trophy (the others are keyed by their boss's colour). */
     public static final String ARZAKON_TROPHY = "ARZAKON";
@@ -216,6 +221,9 @@ public final class HexContent {
             }
             if (needsCommander(rules)) {
                 continue; // the campaign has no commanders: such cards would do nothing
+            }
+            if (rules.isCustom()) {
+                continue; // the Adventure mode's and the campaign's own cards (Arzakon's angels): never in a shop or a reward
             }
             final CardType type = rules.getType();
             sortIntoShop(card, rules);
@@ -591,6 +599,7 @@ public final class HexContent {
         final HexEncounter enc = toEncounter(arzakon, HexColor.COLORLESS);
         enc.boss = true;
         enc.secretBoss = true;
+        enc.archenemy = true; // alone against the party, with schemes; his life stays his own (see HexCampaign#enemyLife)
         enc.gold = ARZAKON_GOLD;
         if (findStartCard(ARZAKON_CARD) != null) {
             enc.startCards.add(ARZAKON_CARD);
@@ -599,6 +608,25 @@ public final class HexContent {
         enc.intro = loc.getMessage("lblHexArzakonIntro");
         enc.insult = loc.getMessage("lblHexArzakonInsult");
         return enc;
+    }
+
+    /** Arzakon's angels by cycle (the last for every later one), and what each is worth. */
+    private static final String[] ARZAKON_ANGELS = { "Arzakon's Platinum Angel", "Arzakon's Darksteel Angel", "Arzakon's Blightsteel Angel" };
+    private static final int[] ARZAKON_ANGEL_PRICES = { 1000, 2000, 3000 };
+
+    /** The angel Arzakon conjures in this cycle; beating him gives every head one. */
+    public static String arzakonAngel(final int cycle) {
+        return ARZAKON_ANGELS[Math.max(1, Math.min(ARZAKON_ANGELS.length, cycle)) - 1];
+    }
+
+    /** One of Arzakon's angels: a reward for beating him only (never in a shop, never lost in a fight). */
+    public static boolean isArzakonAngel(final String cardName) {
+        return java.util.Arrays.asList(ARZAKON_ANGELS).contains(cardName);
+    }
+
+    /** Arzakon's presence in this cycle: its angel grows stronger from cycle to cycle. */
+    static String arzakonPresence(final int cycle) {
+        return cycle >= 3 ? ARZAKON_BLIGHTED_PRESENCE : cycle == 2 ? ARZAKON_DREAD_PRESENCE : ARZAKON_PRESENCE;
     }
 
     /** A boss's words before the fight: its own line, or one of the Adventure mode's general ones. */
@@ -626,7 +654,7 @@ public final class HexContent {
         if (!enc.boss || enc.color == null) {
             return result;
         }
-        String presence = enc.secretBoss ? ARZAKON_PRESENCE : BOSS_PRESENCE.get(enc.color);
+        String presence = enc.secretBoss ? arzakonPresence(cycle) : BOSS_PRESENCE.get(enc.color);
         if (!enc.secretBoss && enc.color == HexColor.COLORLESS && cycle > 1) {
             presence = EMRAKUL_HARD_PRESENCE;
         }
@@ -1049,6 +1077,10 @@ public final class HexContent {
     }
 
     public int price(final String cardName) {
+        final int angel = java.util.Arrays.asList(ARZAKON_ANGELS).indexOf(cardName);
+        if (angel >= 0) {
+            return ARZAKON_ANGEL_PRICES[angel];
+        }
         final Integer listed = listedPrices.get(cardName);
         if (listed != null) {
             return listed;

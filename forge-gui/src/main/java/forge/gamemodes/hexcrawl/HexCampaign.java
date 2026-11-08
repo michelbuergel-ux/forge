@@ -1036,7 +1036,7 @@ public class HexCampaign {
                     t.enemy.roaming = true;
                 }
             } else if (first && rnd.nextInt(100) < EVENT_CHANCE) {
-                t.event = HexEvent.values()[rnd.nextInt(HexEvent.values().length)].name();
+                t.event = HexEvent.random(rnd).name();
             }
         }
     }
@@ -1426,6 +1426,15 @@ public class HexCampaign {
                 if (enc.boss) {
                     reward.trophy = awardTrophy(p, enc.secretBoss ? HexContent.ARZAKON_TROPHY : enc.color.name());
                 }
+                if (enc.secretBoss) {
+                    // the angel he conjured in this cycle, for every head (into the sideboard)
+                    final String angel = HexContent.arzakonAngel(cycle);
+                    if (content.getCard(angel) != null) {
+                        p.sideboard.add(angel);
+                        reward.bossCard = angel;
+                        log(msg("lblHexJournalBossCard", p.name, angel));
+                    }
+                }
                 if (room != null && enc.isGuardian()) {
                     openChest(p, reward, dungeon.roomColor(room), chestRandom, treasures, dungeon.multicolor);
                 } else if (treasure) {
@@ -1554,7 +1563,7 @@ public class HexCampaign {
         final List<Integer> candidates = new ArrayList<>();
         for (int i = 0; i < p.deck.size(); i++) {
             final String card = p.deck.get(i);
-            if (!content.isBasicLand(card) && content.price(card) < maxPrice) {
+            if (!content.isBasicLand(card) && content.price(card) < maxPrice && !HexContent.isArzakonAngel(card)) {
                 candidates.add(i);
             }
         }
@@ -1761,6 +1770,7 @@ public class HexCampaign {
                 break;
             case RUINED_SHRINE:
             case CARAVAN:
+            case MIRROR:
                 // every head decides for itself; companions leave it
                 for (final HexPlayer p : players) {
                     if (!p.ai) {
@@ -1787,20 +1797,28 @@ public class HexCampaign {
         final HexPlayer p = player(playerName);
         final HexEvent event = p == null ? null : HexEvent.of(p.eventOffer);
         final HexContent content = HexContent.get();
-        if (event == null || card == null || content.isBasicLand(card)) {
+        if (event == null || !canPickForEvent(event, card)) {
             return false;
         }
-        if (fromSideboard ? !p.sideboard.contains(card) : p.deck.size() <= MIN_DECK_SIZE || !p.deck.contains(card)) {
+        if (fromSideboard ? !p.sideboard.contains(card) : event.takesCard() && p.deck.size() <= MIN_DECK_SIZE || !p.deck.contains(card)) {
             return false;
         }
-        (fromSideboard ? p.sideboard : p.deck).remove(card);
+        if (event.takesCard()) {
+            (fromSideboard ? p.sideboard : p.deck).remove(card);
+        }
         final Random rnd = random();
         // the trade, shown on the head's screen
         p.giftGiven = card;
         p.gifts = new ArrayList<>();
         p.giftRelic = null;
         p.giftGold = 0;
-        if (event == HexEvent.RUINED_SHRINE) {
+        p.giftEvent = event.name();
+        if (event == HexEvent.MIRROR) {
+            // the head keeps its card; the copy goes into the sideboard
+            p.sideboard.add(card);
+            p.gifts.add(card);
+            log(msg("lblHexJournalMirror", p.name, card));
+        } else if (event == HexEvent.RUINED_SHRINE) {
             final List<HexRelic> free = new ArrayList<>();
             for (final HexRelic relic : content.ordinaryRelics(cycle)) {
                 if (!p.relics.contains(relic.name) && relicInSlot(p, relic.slot) == null) {
@@ -1833,6 +1851,17 @@ public class HexCampaign {
         p.eventOffer = null;
         p.eventColor = null;
         return true;
+    }
+
+    /**
+     * May a head pick this card at the event? Never a basic land; and the mirror copies no card that only beating
+     * Arzakon gives.
+     */
+    public static boolean canPickForEvent(final HexEvent event, final String card) {
+        if (card == null || HexContent.get().isBasicLand(card)) {
+            return false;
+        }
+        return event != HexEvent.MIRROR || !HexContent.isArzakonAngel(card);
     }
 
     /** A head leaves the shrine or caravan alone. */
@@ -2527,8 +2556,8 @@ public class HexCampaign {
     public int enemyLife(final HexEncounter enc) {
         // the level scales the enemy's own life; the bonuses below are the same on every level
         int life = Math.max(1, (int) Math.round(enc.life * difficulty().enemyLifePercent / 100.0)) + ENEMY_EXTRA_LIFE[Math.max(1, Math.min(ENEMY_EXTRA_LIFE.length, players.size())) - 1] + boostEnemyLife + cycleLife();
-        if (enc.archenemy) {
-            life += ARCHENEMY_LIFE_PER_MISSING_HEAD * (enemyHeads() - 1); // alone instead of with heads
+        if (enc.archenemy && !enc.secretBoss) {
+            life += ARCHENEMY_LIFE_PER_MISSING_HEAD * (enemyHeads() - 1); // alone instead of with heads (Arzakon keeps his own)
         }
         if (enc.siege) {
             life += SIEGE_LIFE_PER_HEAD * players.size(); // a besieger is tougher than a wanted enemy

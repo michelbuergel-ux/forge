@@ -25,6 +25,8 @@ public class HexPlayer {
     public String giftGiven;
     public String giftRelic;
     public int giftGold;
+    /** The event of that trade (HexEvent name; null in older saves: a shrine or a caravan). */
+    public String giftEvent;
     /**
      * The cards the head bought during this visit of a town (the town's field and the party's step count), with what
      * it paid: sold back, each brings that again.

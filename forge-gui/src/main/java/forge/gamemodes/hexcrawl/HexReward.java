@@ -10,6 +10,8 @@ public class HexReward {
     public java.util.List<String> cards = new java.util.ArrayList<>();
     /** A beaten boss's trophy the head won with the fight (a relic name), or null. Not a choice: it is the head's already. */
     public String trophy;
+    /** Arzakon beaten: his angel of this cycle, in the head's sideboard already (else null). */
+    public String bossCard;
     /** A dungeon's chest, opened for the head already: a very valuable card (in its sideboard), gold and a relic. */
     public String chestCard;
     public int chestGold;

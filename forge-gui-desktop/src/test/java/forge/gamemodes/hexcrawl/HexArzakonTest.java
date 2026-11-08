@@ -85,6 +85,37 @@ public class HexArzakonTest extends AITest {
     }
 
     @Test
+    public void heFightsAloneWithSchemesAndKeepsHisLife() {
+        final HexCampaign c = HexCampaign.create("Arzakon alone", 31L, 7, Arrays.asList(new HexPlayer("Ann", false),
+                new HexPlayer("Bob", false), new HexPlayer("Cid", false)));
+        final HexEncounter enc = HexContent.get().arzakonEncounter();
+        AssertJUnit.assertTrue("archenemy style", enc.archenemy);
+        AssertJUnit.assertEquals("one head, whatever the party", 1, c.enemyHeads(enc));
+        int enemies = 0;
+        for (final forge.game.player.RegisteredPlayer rp : HexBattle.createPlayers(c, enc, true)) {
+            if (rp.getTeamNumber() == HexBattle.ENEMY_TEAM) {
+                enemies++;
+                AssertJUnit.assertTrue("with schemes", rp.getSchemes() != null && rp.getSchemes().iterator().hasNext());
+            }
+        }
+        AssertJUnit.assertEquals(1, enemies);
+        // his life as it was with his heads: an archenemy's extra life for the missing heads is not his
+        final HexEncounter withHeads = HexContent.get().arzakonEncounter();
+        withHeads.archenemy = false;
+        AssertJUnit.assertEquals(c.enemyLife(withHeads), c.enemyLife(enc));
+        // his angel by the cycle: Platinum, Darksteel, then Blightsteel
+        final List<String> first = new java.util.ArrayList<>();
+        HexContent.get().bossCommandCards(enc, 1).forEach(card -> first.add(card.getName()));
+        final List<String> later = new java.util.ArrayList<>();
+        HexContent.get().bossCommandCards(enc, 2).forEach(card -> later.add(card.getName()));
+        AssertJUnit.assertTrue(first.toString(), first.contains("Arzakon's Presence"));
+        AssertJUnit.assertTrue(later.toString(), later.contains("Arzakon's Dread Presence"));
+        final List<String> third = new java.util.ArrayList<>();
+        HexContent.get().bossCommandCards(enc, 3).forEach(card -> third.add(card.getName()));
+        AssertJUnit.assertTrue(third.toString(), third.contains("Arzakon's Blighted Presence"));
+    }
+
+    @Test
     public void withoutTheFiveColourDungeonEmrakulEndsTheCycle() {
         final HexCampaign c = beforeTheCentre(false);
         beatEmrakul(c);
@@ -108,7 +139,19 @@ public class HexArzakonTest extends AITest {
         // he is the next fight on the centre
         AssertJUnit.assertEquals(HexCampaign.MoveResult.ENCOUNTER, c.moveTo(centre.q, centre.r));
         AssertJUnit.assertTrue(c.pendingEncounter.secretBoss);
-        fight(c, HexBattle.Result.WON);
+        final HexFightSummary summary = new HexFightSummary();
+        summary.enemyName = c.pendingEncounter.enemyName;
+        summary.result = HexBattle.Result.WON.name();
+        summary.partyLife = 10;
+        c.recordFight(summary);
+        c.resolveBattle(HexBattle.Result.WON);
+        // every head gets the angel he conjured in this cycle, in its sideboard
+        for (final HexReward reward : c.pendingRewards) {
+            AssertJUnit.assertEquals("Arzakon's Platinum Angel", reward.bossCard);
+            AssertJUnit.assertTrue(c.player(reward.playerName).sideboard.contains("Arzakon's Platinum Angel"));
+        }
+        AssertJUnit.assertEquals(c.players.size(), c.pendingRewards.size());
+        c.pendingRewards.clear();
         AssertJUnit.assertTrue("the true ending", c.won);
         AssertJUnit.assertTrue(c.arzakonBeaten);
         AssertJUnit.assertFalse(c.arzakonAwake);
@@ -117,6 +160,35 @@ public class HexArzakonTest extends AITest {
             AssertJUnit.assertEquals("his trophy", Integer.valueOf(1), p.trophies.get(HexContent.ARZAKON_TROPHY));
             AssertJUnit.assertNotNull(c.ownedTrophy(p, HexContent.ARZAKON_TROPHY));
         }
+    }
+
+    @Test
+    public void hisAngelsAreARewardOnly() throws Exception {
+        final HexContent content = HexContent.get();
+        AssertJUnit.assertEquals("Arzakon's Platinum Angel", HexContent.arzakonAngel(1));
+        AssertJUnit.assertEquals("Arzakon's Darksteel Angel", HexContent.arzakonAngel(2));
+        AssertJUnit.assertEquals("Arzakon's Blightsteel Angel", HexContent.arzakonAngel(3));
+        AssertJUnit.assertEquals("and from then on", "Arzakon's Blightsteel Angel", HexContent.arzakonAngel(7));
+        for (int cycle = 1; cycle <= 3; cycle++) {
+            final String angel = HexContent.arzakonAngel(cycle);
+            AssertJUnit.assertNotNull("a card of the campaign: " + angel, content.getCard(angel));
+            AssertJUnit.assertEquals("worth something", 1000 * cycle, content.price(angel));
+        }
+        // never in a shop
+        final HexCampaign c = beforeTheCentre(false);
+        for (final HexShopOffer offer : c.shop()) {
+            AssertJUnit.assertFalse(String.valueOf(offer.card), HexContent.isArzakonAngel(offer.card));
+        }
+        // never lost in a fight, whatever the level lets go
+        final HexPlayer ann = c.player("Ann");
+        ann.deck.clear();
+        for (int i = 0; i < 3; i++) {
+            ann.deck.add("Arzakon's Darksteel Angel");
+        }
+        final java.lang.reflect.Method lose = HexCampaign.class.getDeclaredMethod("loseRandomCard", HexPlayer.class, int.class);
+        lose.setAccessible(true);
+        AssertJUnit.assertNull("nothing to lose", lose.invoke(c, ann, Integer.MAX_VALUE));
+        AssertJUnit.assertEquals(3, java.util.Collections.frequency(ann.deck, "Arzakon's Darksteel Angel"));
     }
 
     @Test

@@ -254,6 +254,73 @@ public class HexBattleFeelTest extends AITest {
     }
 
     @Test
+    public void testTheMirrorCopiesACardOfYourChoice() {
+        final HexCampaign c = HexCampaign.create("Test", 17L, 4, Arrays.asList(new HexPlayer("Ann", false), new HexPlayer("Cid", true)));
+        c.encounterChance = 0;
+        c.encounterChanceExplored = 0;
+        final HexTile t = emptyNeighbour(c);
+        t.event = HexEvent.MIRROR.name();
+        c.moveTo(t.q, t.r);
+        final HexPlayer ann = c.player("Ann");
+        AssertJUnit.assertEquals(HexEvent.MIRROR.name(), ann.eventOffer);
+        AssertJUnit.assertNull("companions leave it", c.player("Cid").eventOffer);
+        AssertJUnit.assertTrue(HexEvent.MIRROR.isChoice());
+
+        // no basic land, and none of Arzakon's angels (a reward for beating him only)
+        AssertJUnit.assertFalse(c.chooseEvent("Ann", HexColor.RED.getBasicLand(), false));
+        ann.sideboard.add("Arzakon's Platinum Angel");
+        AssertJUnit.assertFalse(c.chooseEvent("Ann", "Arzakon's Platinum Angel", true));
+
+        // a card of the deck, even at the deck's minimum size: it stays, the copy goes into the sideboard
+        while (ann.deck.size() > HexCampaign.MIN_DECK_SIZE) {
+            ann.deck.remove(0);
+        }
+        String card = null;
+        for (final String d : ann.deck) {
+            if (!HexContent.get().isBasicLand(d)) {
+                card = d;
+                break;
+            }
+        }
+        AssertJUnit.assertNotNull(card);
+        final int inDeck = java.util.Collections.frequency(ann.deck, card);
+        final int inSideboard = java.util.Collections.frequency(ann.sideboard, card);
+        final int deckSize = ann.deck.size();
+        final int gifts = ann.giftSerial;
+        AssertJUnit.assertTrue(c.chooseEvent("Ann", card, false));
+        AssertJUnit.assertEquals("kept", inDeck, java.util.Collections.frequency(ann.deck, card));
+        AssertJUnit.assertEquals(deckSize, ann.deck.size());
+        AssertJUnit.assertEquals("the copy", inSideboard + 1, java.util.Collections.frequency(ann.sideboard, card));
+        // shown to Ann once
+        AssertJUnit.assertEquals(gifts + 1, ann.giftSerial);
+        AssertJUnit.assertEquals(HexEvent.MIRROR.name(), ann.giftEvent);
+        AssertJUnit.assertEquals(card, ann.giftGiven);
+        AssertJUnit.assertEquals(Arrays.asList(card), ann.gifts);
+        AssertJUnit.assertNull(ann.eventOffer);
+        AssertJUnit.assertFalse("only once", c.chooseEvent("Ann", card, false));
+    }
+
+    @Test
+    public void testTheMirrorIsRare() {
+        final java.util.Map<HexEvent, Integer> seen = new java.util.EnumMap<>(HexEvent.class);
+        final java.util.Random rnd = new java.util.Random(5);
+        final int rolls = 90000;
+        for (int i = 0; i < rolls; i++) {
+            seen.merge(HexEvent.random(rnd), 1, Integer::sum);
+        }
+        final int mirrors = seen.getOrDefault(HexEvent.MIRROR, 0);
+        AssertJUnit.assertTrue("it comes: " + seen, mirrors > 0);
+        // a quarter of an even share: about one event in 36
+        final int share = rolls / HexEvent.values().length;
+        AssertJUnit.assertTrue("rare: " + seen, mirrors < share / 3);
+        for (final HexEvent e : HexEvent.values()) {
+            if (e != HexEvent.MIRROR) {
+                AssertJUnit.assertTrue("the others as before: " + seen, seen.getOrDefault(e, 0) > share * 9 / 10);
+            }
+        }
+    }
+
+    @Test
     public void testACampShowsTheCardsItGives() {
         final HexCampaign c = HexCampaign.create("Test", 17L, 4, Arrays.asList(new HexPlayer("Ann", false), new HexPlayer("Bo", false)));
         c.encounterChance = 0;

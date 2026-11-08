@@ -6,4 +6,6 @@ SVar:TrigLoyalty:DB$ PutCounterAll | ValidCards$ Planeswalker.YouCtrl | CounterT
 T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ Opponent | TriggerZones$ Command | Execute$ TrigDrain | TriggerDescription$ At the beginning of each opponent's upkeep, that player loses 1 life and you gain 1 life.
 SVar:TrigDrain:DB$ LoseLife | Defined$ TriggeredPlayer | LifeAmount$ 1 | SubAbility$ DBGain
 SVar:DBGain:DB$ GainLife | Defined$ You | LifeAmount$ 1
-Oracle:At the beginning of your upkeep, put a loyalty counter on each planeswalker you control.\nAt the beginning of each opponent's upkeep, that player loses 1 life and you gain 1 life.
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | IsPresent$ Creature.namedArzakon's_Platinum_Angel+YouCtrl | PresentCompare$ EQ0 | Execute$ TrigAngel | TriggerDescription$ At the beginning of your upkeep, if you control no creature named Arzakon's Platinum Angel, create a token copy of Arzakon's Platinum Angel.
+SVar:TrigAngel:DB$ CopyPermanent | DefinedName$ Arzakon's Platinum Angel
+Oracle:At the beginning of your upkeep, put a loyalty counter on each planeswalker you control.\nAt the beginning of each opponent's upkeep, that player loses 1 life and you gain 1 life.\nAt the beginning of your upkeep, if you control no creature named Arzakon's Platinum Angel, create a token copy of Arzakon's Platinum Angel.

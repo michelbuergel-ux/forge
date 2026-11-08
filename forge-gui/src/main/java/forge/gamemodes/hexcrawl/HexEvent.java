@@ -23,7 +23,15 @@ public enum HexEvent {
     /** A ruined shrine: every head may give up a card for a relic (a choice of each head). */
     RUINED_SHRINE,
     /** A merchant caravan: every head may trade a card for two cards of the field's colour (a choice of each head). */
-    CARAVAN;
+    CARAVAN,
+    /**
+     * A magic mirror, rare: every head may copy one of its cards (it keeps the card, the copy goes into the
+     * sideboard; a choice of each head). See {@link #MIRROR_ODDS}.
+     */
+    MIRROR;
+
+    /** Of the fields a mirror would stand on, only one in this many gets it; the others get another event. */
+    public static final int MIRROR_ODDS = 4;
 
     public static final int SHRINE_LIFE = 5;
     public static final int CHEST_GOLD = 25;
@@ -37,9 +45,24 @@ public enum HexEvent {
         return Localizer.getInstance().getMessage("lblHexEventDesc_" + name());
     }
 
-    /** Does every head decide for itself (give a card, or leave it)? */
+    /** Does every head decide for itself (pick a card, or leave it)? */
     public boolean isChoice() {
-        return this == RUINED_SHRINE || this == CARAVAN;
+        return this == RUINED_SHRINE || this == CARAVAN || this == MIRROR;
+    }
+
+    /** Does the head give up the card it picks (a shrine, a caravan), or keep it (the mirror copies it)? */
+    public boolean takesCard() {
+        return this != MIRROR;
+    }
+
+    /** The event of a new field: any of them alike, but the mirror is rare. */
+    public static HexEvent random(final java.util.Random rnd) {
+        final HexEvent[] all = values();
+        final HexEvent event = all[rnd.nextInt(all.length)];
+        if (event == MIRROR && rnd.nextInt(MIRROR_ODDS) != 0) {
+            return all[rnd.nextInt(all.length - 1)]; // one of the others (the mirror is the last)
+        }
+        return event;
     }
 
     public static HexEvent of(final String name) {

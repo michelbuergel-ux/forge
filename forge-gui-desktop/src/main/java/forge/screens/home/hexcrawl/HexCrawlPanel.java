@@ -575,6 +575,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         shownGiftSerial = mine.giftSerial;
         final List<JComponent> got = new ArrayList<>();
         final String message;
+        final boolean mirror = forge.gamemodes.hexcrawl.HexEvent.MIRROR.name().equals(mine.giftEvent);
         if (mine.giftRelic != null) {
             // a relic has no card: its name on a blank card, its effects in the text
             got.add(HexRewardCards.card(null, mine.giftRelic, false));
@@ -588,7 +589,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             for (final String card : mine.gifts) {
                 got.add(HexRewardCards.card(HexContent.get().getCard(card), null, false));
             }
-            message = t("lblHexGiftReceived", mine.name, String.valueOf(mine.giftGiven));
+            message = mirror ? t("lblHexMirrorCopied", mine.name, String.valueOf(mine.giftGiven))
+                    : t("lblHexGiftReceived", mine.name, String.valueOf(mine.giftGiven));
         }
         if (got.isEmpty()) {
             return;
@@ -598,7 +600,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         pictures.setOpaque(false);
         final PaperCard given = mine.giftGiven == null ? null : HexContent.get().getCard(mine.giftGiven);
         if (given != null) {
-            pictures.add(HexRewardCards.captioned(t("lblHexTradeGave"), HexRewardCards.card(given, null, false), GIFT_W, GIFT_H));
+            pictures.add(HexRewardCards.captioned(t(mirror ? "lblHexMirrorOriginal" : "lblHexTradeGave"), HexRewardCards.card(given, null, false),
+                    GIFT_W, GIFT_H));
             pictures.add(label("\u2192", display(40f), GOLD_LIGHT));
         }
         final JPanel received = new JPanel(new MigLayout("insets 0, gap 12"));
@@ -608,7 +611,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         final JPanel column = new JPanel(new MigLayout("insets 0, gap 0, wrap 1"));
         column.setOpaque(false);
-        column.add(label(caps(t("lblHexTradeGot")), tracked(display(12f), 0.16f), GOLD_LIGHT), "alignx center");
+        column.add(label(caps(t(mirror ? "lblHexMirrorCopy" : "lblHexTradeGot")), tracked(display(12f), 0.16f), GOLD_LIGHT), "alignx center");
         column.add(received);
         pictures.add(column);
         FOptionPane.showOptionDialog(message, t("lblHexEventTitle"), null, pictures, Arrays.asList(t("lblHexClose")), 0);
@@ -1583,6 +1586,16 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 message += "\n\n" + t(worn ? "lblHexRewardTrophyWorn" : "lblHexRewardTrophy", trophy.name) + "\n"
                         + relicEffects(trophy, campaign.cycle).trim();
             }
+            final PaperCard bossCard = reward.bossCard == null ? null : HexContent.get().getCard(reward.bossCard);
+            if (bossCard != null) {
+                // Arzakon's angel: the head's already, it stands first, apart from the choice
+                message += "\n\n" + t("lblHexRewardBossCard", reward.bossCard, String.valueOf(HexContent.get().price(reward.bossCard)));
+                pictures.add(HexRewardCards.captioned(HexContent.ARZAKON, HexRewardCards.card(bossCard, null, false),
+                        HexRewardCards.W, HexRewardCards.H), 0);
+                if (!clickable.isEmpty()) {
+                    pictures.add(new JLabel(), 1); // a gap between the angel and the choice
+                }
+            }
             if (reward.chestCard != null || reward.chestRelic != null || reward.chestGold > 0) {
                 // a dungeon's chest, opened already: its card stands first, apart from the choice
                 message += "\n";
@@ -1634,7 +1647,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         promptEvent();
     }
 
-    /** A ruined shrine or a caravan: this person picks a card of their own to give, or leaves it. */
+    /** A ruined shrine, a caravan or a mirror: this person picks a card of their own to give (or copy), or leaves it. */
     private void promptEvent() {
         final HexCampaign campaign = getCampaign();
         final HexPlayer mine = campaign == null ? null : campaign.player(session.getMyHead());
@@ -1644,17 +1657,18 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         eventPromptOpen = true;
         try {
-            // the cards that may be given: no basic lands; deck cards only while the deck is above its minimum
+            // the cards that may be given: no basic lands; deck cards only while the deck is above its minimum (the
+            // mirror takes nothing, so any deck card)
             final List<String> names = new ArrayList<>();
             final List<Boolean> fromSideboard = new ArrayList<>();
             final List<String> lines = new ArrayList<>();
-            final boolean deckOk = mine.deck.size() > HexCampaign.MIN_DECK_SIZE;
+            final boolean deckOk = !event.takesCard() || mine.deck.size() > HexCampaign.MIN_DECK_SIZE;
             for (final boolean side : new boolean[] { false, true }) {
                 if (!side && !deckOk) {
                     continue;
                 }
                 for (final String card : new java.util.TreeSet<>(side ? mine.sideboard : mine.deck)) {
-                    if (!HexContent.get().isBasicLand(card)) {
+                    if (HexCampaign.canPickForEvent(event, card)) {
                         names.add(card);
                         fromSideboard.add(side);
                         lines.add((side ? t("lblHexSideboardMark") + " " : "") + card);

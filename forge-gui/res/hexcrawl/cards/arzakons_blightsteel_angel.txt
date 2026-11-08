@@ -1,0 +1,14 @@
+Name:Arzakon's Blightsteel Angel
+ManaCost:11
+Types:Artifact Creature Angel
+PT:4/4
+K:Infect
+K:Flying
+K:Indestructible
+S:Mode$ CantPutCounter | ValidPlayer$ You | CounterType$ POISON | Description$ You can't get poison counters.
+R:Event$ GameLoss | ActiveZones$ Battlefield | ValidPlayer$ You | Layer$ CantHappen | Description$ You can't lose the game and your opponents can't win the game.
+R:Event$ GameWin | ActiveZones$ Battlefield | ValidPlayer$ Opponent | Layer$ CantHappen | Secondary$ True | Description$ You can't lose the game and your opponents can't win the game.
+S:Mode$ CantPutCounter | ValidCard$ Creature.YouCtrl | CounterType$ M1M1 | Description$ Creatures you control can't have -1/-1 counters put on them.
+T:Mode$ ChangesController | ValidCard$ Card.Self | TriggerZones$ Battlefield | Execute$ TrigExile | TriggerDescription$ When a player other than this creature's owner controls it, exile it.
+SVar:TrigExile:DB$ ChangeZone | Defined$ Self | Origin$ Battlefield | Destination$ Exile | ConditionDefined$ Self | ConditionPresent$ Card.OwnerDoesntControl
+Oracle:Infect, flying, indestructible\nYou can't get poison counters.\nYou can't lose the game and your opponents can't win the game.\nCreatures you control can't have -1/-1 counters put on them.\nWhen a player other than this creature's owner controls it, exile it.
