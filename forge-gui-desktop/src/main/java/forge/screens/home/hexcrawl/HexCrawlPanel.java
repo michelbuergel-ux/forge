@@ -554,12 +554,24 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             // the cards the heads found, each under its head's name
             final JPanel pictures = new JPanel(new MigLayout("insets 0, gap 12"));
             pictures.setOpaque(false);
+            final List<String[]> mine = new ArrayList<>(); // (head, card) of the heads this person plays
             for (int i = 0; i < cards.size(); i++) {
                 final String owner = i < campaign.lastEventOwners.size() ? campaign.lastEventOwners.get(i) : "";
                 pictures.add(HexRewardCards.captioned(owner, HexRewardCards.card(HexContent.get().getCard(cards.get(i)), null, false),
                         GIFT_W, GIFT_H));
+                if (session != null && session.mayActFor(session.getMyHead(), owner)) {
+                    mine.add(new String[] { owner, cards.get(i) });
+                }
             }
-            FOptionPane.showOptionDialog(campaign.lastEvent, t("lblHexEventTitle"), null, pictures, Arrays.asList(t("lblHexClose")), 0);
+            // found cards lie in the sideboard: this person may put their heads' ones into the deck
+            final boolean ask = !mine.isEmpty() && !campaign.deckLocked();
+            final int choice = FOptionPane.showOptionDialog(campaign.lastEvent, t("lblHexEventTitle"), null, pictures,
+                    ask ? foundCardButtons() : Arrays.asList(t("lblHexClose")), 0);
+            if (ask && choice == 1) {
+                for (final String[] found : mine) {
+                    session.moveCard(found[0], found[1], false);
+                }
+            }
         }
     }
 
@@ -619,7 +631,15 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         column.add(label(caps(t(mirror ? "lblHexMirrorCopy" : "lblHexTradeGot")), tracked(display(12f), 0.16f), GOLD_LIGHT), "alignx center");
         column.add(received);
         pictures.add(column);
-        FOptionPane.showOptionDialog(message, t("lblHexEventTitle"), null, pictures, Arrays.asList(t("lblHexClose")), 0);
+        // cards that came back lie in the sideboard: they may go into the deck
+        final boolean ask = mine.giftRelic == null && mine.giftGold <= 0 && !mine.gifts.isEmpty() && !campaign.deckLocked();
+        final int choice = FOptionPane.showOptionDialog(message, t("lblHexEventTitle"), null, pictures,
+                ask ? foundCardButtons() : Arrays.asList(t("lblHexClose")), 0);
+        if (ask && choice == 1) {
+            for (final String card : mine.gifts) {
+                session.moveCard(mine.name, card, false);
+            }
+        }
     }
 
     private void broadcast() {
@@ -1635,15 +1655,63 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 }
             }
             final boolean shown = pictures.getComponentCount() > 0;
+            // new cards (the one chosen, a chest's, Arzakon's angel): into the deck or the sideboard
+            final boolean newCards = !cards.isEmpty() || reward.chestCard != null || reward.bossCard != null;
+            JComponent body = shown ? pictures : null;
+            if (newCards) {
+                final JPanel box = new JPanel(new MigLayout("insets 0, gap 0, wrap 1", "[center]"));
+                box.setOpaque(false);
+                if (shown) {
+                    box.add(pictures);
+                }
+                box.add(newCardsSwitch(), "gaptop 14, alignx center");
+                body = box;
+            }
             final List<String> buttons = onlyTake ? Arrays.asList(t("lblHexRewardTakeTreasure")) : Collections.<String>emptyList();
-            final int choice = HexRewardCards.choose(message, campaign.name, shown ? pictures : null, clickable, buttons);
+            final int choice = HexRewardCards.choose(message, campaign.name, body, clickable, buttons);
             if (onlyTake ? choice == 0 : choice >= 0 && choice < picks.size()) {
-                session.chooseReward(onlyTake ? -1 : picks.get(choice));
+                session.chooseReward(onlyTake ? -1 : picks.get(choice), rewardToSideboard);
             }
         } finally {
             rewardPromptOpen = false;
         }
         promptPerkIfWaiting();
+    }
+
+    /** Where the cards of a reward go (the deck or the sideboard): the choice is kept while Forge runs. */
+    private static boolean rewardToSideboard;
+
+    /** "New cards to: Deck | Sideboard", for the reward window. */
+    private static JComponent newCardsSwitch() {
+        final JPanel row = new JPanel(new MigLayout("insets 0, gap 10, aligny center", "[][]", "[36!]"));
+        row.setOpaque(false);
+        row.add(label(Localizer.getInstance().getMessage("lblHexBuyInto"), body(java.awt.Font.PLAIN, 13f), MUTED));
+        final HexTownStyle.PillTray tray = new HexTownStyle.PillTray();
+        final List<HexTownStyle.Pill> pills = new ArrayList<>();
+        for (final boolean side : new boolean[] { false, true }) {
+            final HexTownStyle.Pill pill = new HexTownStyle.Pill(Localizer.getInstance().getMessage(side ? "lblHexBuyIntoSide" : "lblHexBuyIntoDeck"));
+            pill.addActionListener(e -> {
+                rewardToSideboard = side;
+                for (int i = 0; i < pills.size(); i++) {
+                    pills.get(i).setActive((i == 1) == rewardToSideboard);
+                }
+            });
+            pills.add(pill);
+            tray.add(pill, "h 28!");
+        }
+        for (int i = 0; i < pills.size(); i++) {
+            pills.get(i).setActive((i == 1) == rewardToSideboard);
+        }
+        row.add(tray);
+        return row;
+    }
+
+    /**
+     * Cards found at an event lie in the sideboard: the window that shows them asks whether they go into the deck.
+     * Returns the buttons of that window (keep them in the sideboard first).
+     */
+    private List<String> foundCardButtons() {
+        return Arrays.asList(t("lblHexKeepInSideboard"), t("lblHexPutInDeck"));
     }
 
     // ------------------------------------------------------------------ perks

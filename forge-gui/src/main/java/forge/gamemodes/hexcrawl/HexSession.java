@@ -174,6 +174,16 @@ public class HexSession {
         act(new HexActionEvent(HexActionEvent.REWARD, cardIndex, 0, null, cardIndex >= 0, null));
     }
 
+    /** Takes the reward card with this index, or the gold (-1); its new cards go into the deck or the sideboard. */
+    public void chooseReward(final int cardIndex, final boolean toSideboard) {
+        act(new HexActionEvent(HexActionEvent.REWARD, cardIndex, toSideboard ? REWARD_TO_SIDEBOARD : REWARD_TO_DECK, null,
+                cardIndex >= 0, null));
+    }
+
+    /** REWARD's second number: where the new cards go (0, as sent by older builds: the card to the deck, treasure to the sideboard). */
+    static final int REWARD_TO_DECK = 1;
+    static final int REWARD_TO_SIDEBOARD = 2;
+
     /** A chest's relic whose slot is taken: keep the new one (the worn one is sold), or the worn one. */
     public void chooseChestRelic(final boolean takeNew) {
         act(new HexActionEvent(HexActionEvent.CHEST_RELIC, 0, 0, null, takeNew, null));
@@ -398,7 +408,12 @@ public class HexSession {
                 campaign.chooseChestRelic(head, action.getFlag());
             } else if (HexActionEvent.REWARD.equals(type)) {
                 if (campaign.pendingEncounter == null) {
-                    campaign.chooseReward(head, action.getFlag() ? Math.max(0, action.getQ()) : -1);
+                    final int pick = action.getFlag() ? Math.max(0, action.getQ()) : -1;
+                    if (action.getR() == REWARD_TO_DECK || action.getR() == REWARD_TO_SIDEBOARD) {
+                        campaign.chooseReward(head, pick, action.getR() == REWARD_TO_SIDEBOARD);
+                    } else {
+                        campaign.chooseReward(head, pick);
+                    }
                 }
             } else if (HexActionEvent.PERK.equals(type)) {
                 campaign.choosePerk(head, action.getText());

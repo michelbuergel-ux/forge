@@ -77,7 +77,10 @@ public final class HexActionEvent implements NetEvent {
     public int getR() { return r; }
     /** A card or relic name (BUY, SELL, SELL_RELIC, MOVE) or a colour (LAND). */
     public String getText() { return text; }
-    /** REWARD: take the card; SELL: from the sideboard; MOVE: to the sideboard; BUY: into the sideboard (else the deck). */
+    /**
+     * REWARD: take the card (its second number: 1 the new cards into the deck, 2 into the sideboard); SELL: from the
+     * sideboard; MOVE: to the sideboard; BUY: into the sideboard (else the deck).
+     */
     public boolean getFlag() { return flag; }
     /** The head the action is for; null means the sender's own head. */
     public String getHead() { return head; }

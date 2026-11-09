@@ -1598,8 +1598,23 @@ public class HexCampaign {
         chooseReward(playerName, takeCard ? 0 : -1);
     }
 
-    /** A head takes its reward: the card with this index among those on offer, or the gold (index -1). */
+    /**
+     * A head takes its reward: the card with this index among those on offer, or the gold (index -1). The card goes
+     * into the deck; the reward's treasure cards (a chest's card, Arzakon's angel) stay in the sideboard.
+     */
     public void chooseReward(final String playerName, final int cardIndex) {
+        chooseReward(playerName, cardIndex, false, true);
+    }
+
+    /**
+     * A head takes its reward, as {@link #chooseReward(String, int)}, and says where its new cards go: the card chosen
+     * and the reward's treasure cards (a chest's card, Arzakon's angel) into the deck or the sideboard.
+     */
+    public void chooseReward(final String playerName, final int cardIndex, final boolean toSideboard) {
+        chooseReward(playerName, cardIndex, toSideboard, toSideboard);
+    }
+
+    private void chooseReward(final String playerName, final int cardIndex, final boolean cardToSideboard, final boolean treasureToSideboard) {
         final HexReward reward = pendingReward(playerName);
         final HexPlayer p = player(playerName);
         if (reward == null || p == null) {
@@ -1608,8 +1623,16 @@ public class HexCampaign {
         chooseChestRelic(playerName, false); // not chosen: the worn relic stays
         pendingRewards.remove(reward);
         final List<String> options = reward.options();
+        if (!treasureToSideboard) {
+            // the treasure cards were put into the sideboard when found: into the deck now
+            for (final String treasure : new String[] { reward.chestCard, reward.bossCard }) {
+                if (treasure != null && p.sideboard.remove(treasure)) {
+                    p.deck.add(treasure);
+                }
+            }
+        }
         if (cardIndex >= 0 && cardIndex < options.size()) {
-            p.deck.add(options.get(cardIndex));
+            (cardToSideboard ? p.sideboard : p.deck).add(options.get(cardIndex));
             log(msg("lblHexJournalRewardCard", p.name, options.get(cardIndex)));
         } else {
             earn(p, reward.gold);
