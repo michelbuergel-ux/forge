@@ -308,6 +308,31 @@ public class HexMovementTest extends AITest {
     }
 
     @Test
+    public void testAFightWaitingInALoadedCampaignWaitsForTheFriends() {
+        final HexCampaign c = newCampaign();
+        final HexEncounter enc = enemy();
+        c.pendingEncounter = enc; // saved standing before an enemy (in a dungeon, say), then opened again
+        final AtomicInteger fights = new AtomicInteger();
+        final HexSession s = new HexSession(c);
+        s.setListener(new HexSession.Listener() {
+            @Override public void sessionChanged() { }
+            @Override public void startFight() { fights.incrementAndGet(); }
+        });
+        AssertJUnit.assertFalse(s.isFightRunning());
+        // the host starts hosting and the first friend sits down: the fight does not start without the others
+        s.setGuests(Collections.singletonList("Bob"));
+        AssertJUnit.assertFalse("friends can still join", s.isFightRunning());
+        AssertJUnit.assertEquals(0, fights.get());
+        s.handle("Bob", new HexActionEvent(HexActionEvent.PING, c.partyQ, c.partyR, null, false, null));
+        AssertJUnit.assertFalse(s.isFightRunning());
+        AssertJUnit.assertSame(enc, c.pendingEncounter);
+        // once the table is complete, somebody presses Fight
+        s.handle("Ann", new HexActionEvent(HexActionEvent.FIGHT, 0, 0, null, true, null));
+        AssertJUnit.assertTrue(s.isFightRunning());
+        AssertJUnit.assertEquals(1, fights.get());
+    }
+
+    @Test
     public void testABrokenOffFightWaitsForFightAndTheHostMayResetAHangingOne() {
         final HexCampaign c = newCampaign();
         final AtomicInteger fights = new AtomicInteger();

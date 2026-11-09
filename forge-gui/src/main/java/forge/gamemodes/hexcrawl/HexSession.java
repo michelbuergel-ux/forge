@@ -86,6 +86,9 @@ public class HexSession {
         }
         hostHead = myHead;
         present.add(myHead);
+        // a campaign opened with a fight waiting (saved before it, in a dungeon too): the fight does not start by
+        // itself, so friends can join the table first; it starts once somebody presses Fight
+        fightHeld = campaign.pendingEncounter != null;
     }
 
     private HexSession() {
