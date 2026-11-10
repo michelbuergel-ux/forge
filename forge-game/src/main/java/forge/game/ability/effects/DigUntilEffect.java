@@ -201,7 +201,11 @@ public class DigUntilEffect extends SpellAbilityEffect {
                 }
             }
 
-            if (revealed.size() > 0) {
+            // a Hex fight shows no window for cards that all go into the graveyard: they can be seen there
+            final boolean allMilled = digSite == ZoneType.Library && ZoneType.Graveyard.equals(revealedDest)
+                    && !sa.hasParam("NoMoveRevealed") && !sa.hasParam("NoneFoundDestination")
+                    && (foundDest == null || ZoneType.Graveyard.equals(foundDest));
+            if (revealed.size() > 0 && !(allMilled && game.getRules().hasStreamlinedPriority())) {
                 game.getAction().reveal(revealed, p, false);
             }
 
