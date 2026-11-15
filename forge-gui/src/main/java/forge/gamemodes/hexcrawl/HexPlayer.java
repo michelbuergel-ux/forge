@@ -23,6 +23,16 @@ public class HexPlayer {
     public String eventOffer;
     public HexColor eventColor;
     /**
+     * What that event offers the head: the cards (a camp's to choose from, a caravan's stall), the relics (a ruined
+     * shrine) and the gold (a camp's, instead of a card). Empty in older saves: then the event does what it did.
+     */
+    public List<String> eventCards = new ArrayList<>();
+    public List<String> eventRelics = new ArrayList<>();
+    public int eventGold;
+    /** What a ley line gave the head for the next fight: cards more in its opening hand, lands of its deck in play. */
+    public int boostHand;
+    public int boostDeckLand;
+    /**
      * The head's last trade at an event, shown on its screen once (a counter for it): the card it gave, and the
      * cards (a caravan), the relic or the gold (a ruined shrine) it got for it.
      */
@@ -31,6 +41,8 @@ public class HexPlayer {
     public String giftGiven;
     public String giftRelic;
     public int giftGold;
+    /** The gold the head paid at a caravan's stall, on top of its card. */
+    public int giftPaid;
     /** The event of that trade (HexEvent name; null in older saves: a shrine or a caravan). */
     public String giftEvent;
     /**

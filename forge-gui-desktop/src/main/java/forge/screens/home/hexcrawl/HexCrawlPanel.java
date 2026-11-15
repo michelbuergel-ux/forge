@@ -36,6 +36,7 @@ import forge.gamemodes.hexcrawl.HexCampaignIO;
 import forge.gamemodes.hexcrawl.HexColor;
 import forge.gamemodes.hexcrawl.HexContent;
 import forge.gamemodes.hexcrawl.HexEncounter;
+import forge.gamemodes.hexcrawl.HexEvent;
 import forge.gamemodes.hexcrawl.HexFight;
 import forge.gamemodes.hexcrawl.HexMap;
 import forge.gamemodes.hexcrawl.HexNet;
@@ -153,6 +154,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     /** The fight whose deck this person was asked for (once per fight), and whether the question is open. */
     private String deckPromptShown;
     private boolean deckPromptOpen;
+    /** Arzakon's warning (one try a cycle), shown once each time the party steps onto his field. */
+    private boolean arzakonPromptOpen;
+    private String arzakonPromptShown;
     /** The last event (see HexCampaign.eventSerial) already shown on this screen. */
     private int shownEventSerial = -1;
     /** The last cards this person's head got for one of its own (see HexPlayer.giftSerial) already shown. */
@@ -446,6 +450,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             promptRewardIfWaiting();
             promptPerkIfWaiting();
             promptEventIfWaiting();
+            promptArzakonIfWaiting();
             promptDeckIfWaiting();
         });
     }
@@ -595,7 +600,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         final boolean mirror = forge.gamemodes.hexcrawl.HexEvent.MIRROR.name().equals(mine.giftEvent);
         if (mine.giftRelic != null) {
             // a relic has no card: its name on a blank card, its effects in the text
-            got.add(HexRewardCards.card(null, mine.giftRelic, false));
+            got.add(relicCard(HexContent.get().getRelic(mine.giftRelic), mine.giftRelic, campaign.cycle, false));
             final HexRelic relic = HexContent.get().getRelic(mine.giftRelic);
             message = t("lblHexTradeShrineRelic", mine.name, String.valueOf(mine.giftGiven), mine.giftRelic)
                     + (relic == null ? "" : "\n" + relicEffects(relic, campaign.cycle).trim());
@@ -607,6 +612,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 got.add(HexRewardCards.card(HexContent.get().getCard(card), null, false));
             }
             message = mirror ? t("lblHexMirrorCopied", mine.name, String.valueOf(mine.giftGiven))
+                    : mine.giftPaid > 0 ? t("lblHexStallTraded", mine.name, String.valueOf(mine.giftGiven), String.valueOf(mine.giftPaid))
                     : t("lblHexGiftReceived", mine.name, String.valueOf(mine.giftGiven));
         }
         if (got.isEmpty()) {
@@ -1460,7 +1466,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         if (!campaign.canEnter(target)) {
             if (campaign.isAdjacent(target)) {
-                final String why = campaign.won ? "lblHexJournalVictory" : campaign.isBusy() ? "lblHexBusy" : "lblHexCenterLocked";
+                final String why = campaign.won ? "lblHexJournalVictory" : campaign.isHeld() ? "lblHexBusy" : "lblHexCenterLocked";
                 FOptionPane.showMessageDialog(t(why), campaign.name);
             }
             return; // only neighbouring fields can be entered; they are outlined on the map
@@ -1549,8 +1555,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         pictures.setOpaque(false);
         final List<JComponent> clickable = new ArrayList<>();
         for (final HexRelic relic : new HexRelic[] { worn, found }) {
-            final JComponent card = HexRewardCards.card(null, relic.name, true);
-            card.setToolTipText(relicEffects(relic, campaign.cycle).trim());
+            final JComponent card = relicCard(relic, relic.name, campaign.cycle, true);
             clickable.add(card);
             final String caption = t(relic == worn ? "lblHexChestRelicWorn" : "lblHexChestRelicFound",
                     String.valueOf(content.relicSellPrice(relic.name)));
@@ -1730,11 +1735,48 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
      * Before every fight (in a dungeon too) a person whose head has several decks says which one it fights with; the
      * fight waits for that. Once per fight: closed, the Fight button starts it with the deck played.
      */
+    /**
+     * The party stepped onto Arzakon's field: everybody is told that there is one try a cycle, so that they bring their
+     * strongest deck, and that they may still walk away. His fight starts once every head has pressed Fight.
+     */
+    private void promptArzakonIfWaiting() {
+        final HexCampaign campaign = getCampaign();
+        final String me = session == null ? null : session.getMyHead();
+        if (campaign == null || me == null || arzakonPromptOpen || deckPromptOpen || eventPromptOpen || perkPromptOpen || rewardPromptOpen
+                || !isShowing() || !campaign.arzakonWaitsForParty() || session.isFightRunning() || session.getFightReady().contains(me)) {
+            return;
+        }
+        final HexEncounter enc = campaign.pendingEncounter;
+        final String key = enc.q + "," + enc.r + "," + campaign.fights() + "," + campaign.cycle + "," + campaign.steps;
+        if (key.equals(arzakonPromptShown)) {
+            return;
+        }
+        arzakonPromptShown = key;
+        arzakonPromptOpen = true;
+        try {
+            final int choice = FOptionPane.showOptionDialog(t("lblHexArzakonOneTry", enc.enemyName) + "\n\n" + describe(enc), campaign.name,
+                    FOptionPane.WARNING_ICON, Arrays.asList(t("lblHexFight"), t("lblHexDeckFirst"), t("lblHexLater")), 0);
+            if (choice == 0) {
+                if (!session.mustChooseDeck(me)) {
+                    session.readyToFight(); // with several decks, the question of the deck comes next and says Fight
+                }
+            } else {
+                deckPromptShown = key; // not now: the question of the deck waits for the Fight button as well
+                if (choice == 1) {
+                    showDeck();
+                }
+            }
+        } finally {
+            arzakonPromptOpen = false;
+        }
+        refresh();
+    }
+
     private void promptDeckIfWaiting() {
         final HexCampaign campaign = getCampaign();
         final String me = session == null ? null : session.getMyHead();
-        if (campaign == null || me == null || deckPromptOpen || eventPromptOpen || perkPromptOpen || rewardPromptOpen || !isShowing()
-                || !session.mustChooseDeck(me)) {
+        if (campaign == null || me == null || deckPromptOpen || arzakonPromptOpen || eventPromptOpen || perkPromptOpen || rewardPromptOpen
+                || !isShowing() || !session.mustChooseDeck(me)) {
             return;
         }
         final HexEncounter enc = campaign.pendingEncounter;
@@ -1775,64 +1817,228 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     private void promptEvent() {
         final HexCampaign campaign = getCampaign();
         final HexPlayer mine = campaign == null ? null : campaign.player(session.getMyHead());
-        final forge.gamemodes.hexcrawl.HexEvent event = mine == null ? null : forge.gamemodes.hexcrawl.HexEvent.of(mine.eventOffer);
+        final HexEvent event = mine == null ? null : HexEvent.of(mine.eventOffer);
         if (event == null || eventPromptOpen) {
             return;
         }
         eventPromptOpen = true;
         try {
-            // the cards that may be given: no basic lands; deck cards only while the deck is above its minimum (the
-            // mirror takes nothing, so any deck card)
-            final List<String> names = new ArrayList<>();
-            final List<Boolean> fromSideboard = new ArrayList<>();
-            final List<String> lines = new ArrayList<>();
-            final boolean deckOk = !event.takesCard() || mine.deck.size() > HexCampaign.MIN_DECK_SIZE;
-            for (final boolean side : new boolean[] { false, true }) {
-                if (!side && !deckOk) {
-                    continue;
-                }
-                for (final String card : new java.util.TreeSet<>(side ? mine.sideboard : mine.deck)) {
-                    if (HexCampaign.canPickForEvent(event, card)) {
-                        names.add(card);
-                        fromSideboard.add(side);
-                        lines.add((side ? t("lblHexSideboardMark") + " " : "") + card);
-                    }
-                }
-            }
-            final javax.swing.DefaultListModel<String> model = new javax.swing.DefaultListModel<>();
-            lines.forEach(model::addElement);
-            final forge.toolbox.FList<String> list = new forge.toolbox.FList<>(model);
-            list.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
-            final CardPicturePanel pic = new CardPicturePanel();
-            pic.setOpaque(false);
-            list.addListSelectionListener(e -> {
-                final int i = list.getSelectedIndex();
-                final PaperCard card = i >= 0 && i < names.size() ? HexContent.get().getCard(names.get(i)) : null;
-                if (card != null) {
-                    pic.setItem(card);
-                }
-            });
-            if (!names.isEmpty()) {
-                list.setSelectedIndex(0);
-            }
-            final JPanel panel = new JPanel(new net.miginfocom.swing.MigLayout("insets 0, gap 12", "[300!, fill][200!, fill]", "[top]"));
-            panel.setOpaque(false);
-            panel.add(new forge.toolbox.FScrollPane(list, true), "h 280!");
-            panel.add(pic, "h 280!");
-            final List<String> options = new ArrayList<>();
-            options.add(t("lblHexEventGive_" + event.name()));
-            options.add(t("lblHexEventLeave"));
-            options.add(t("lblHexLater"));
-            final int choice = FOptionPane.showOptionDialog(event.getLabel() + ": " + event.getDescription(), campaign.name,
-                    FOptionPane.QUESTION_ICON, panel, options, 0);
-            final int i = list.getSelectedIndex();
-            if (choice == 0 && i >= 0 && i < names.size()) {
-                session.chooseEvent(mine.name, names.get(i), fromSideboard.get(i));
-            } else if (choice == 1) {
-                session.skipEvent(mine.name);
+            if (event == HexEvent.CAMP && !mine.eventCards.isEmpty()) {
+                promptCamp(campaign, mine);
+            } else if (event == HexEvent.LEY_LINE) {
+                promptLeyLine(campaign, mine);
+            } else if (event == HexEvent.CARAVAN && !mine.eventCards.isEmpty()) {
+                promptStall(campaign, mine);
+            } else if (event == HexEvent.RUINED_SHRINE && !mine.eventRelics.isEmpty()) {
+                promptShrineRelic(campaign, mine);
+            } else if (event.needsCard()) {
+                promptOwnCard(campaign, mine, event, event.getLabel() + ": " + event.getDescription(), 0, null);
+            } else {
+                session.skipEvent(mine.name); // an offer this build cannot show (from an older save): gone
             }
         } finally {
             eventPromptOpen = false;
+        }
+    }
+
+    /** A camp: one of its cards (into the deck or the sideboard, as the switch says), or its gold. */
+    private void promptCamp(final HexCampaign campaign, final HexPlayer mine) {
+        final List<JComponent> clickable = new ArrayList<>();
+        final int choice = HexRewardCards.choose(t("lblHexCampChoose", mine.name), campaign.name, campBody(campaign, mine, clickable), clickable,
+                Arrays.asList(t("lblHexLater")));
+        if (choice == 0) {
+            session.chooseEvent(mine.name, null, false, HexEvent.PICK_GOLD);
+        } else if (choice >= 1 && choice <= mine.eventCards.size()) {
+            session.chooseEvent(mine.name, null, rewardToSideboard, choice);
+        }
+    }
+
+    /** The camp's window: its gold and its cards (each one clickable, in this order), and where a card goes. */
+    JComponent campBody(final HexCampaign campaign, final HexPlayer mine, final List<JComponent> clickable) {
+        final JPanel pictures = new JPanel(new MigLayout("insets 0, gap 12"));
+        pictures.setOpaque(false);
+        final JComponent gold = HexRewardCards.card(HexRewardCards.goldToken(), t("lblHexTakeGold", String.valueOf(mine.eventGold)), true);
+        clickable.add(gold);
+        pictures.add(HexRewardCards.captioned(t("lblHexCampGoldCaption"), gold, GIFT_W, GIFT_H));
+        for (final String name : mine.eventCards) {
+            final JComponent card = HexRewardCards.card(HexContent.get().getCard(name), null, true);
+            clickable.add(card);
+            pictures.add(HexRewardCards.captioned(t("lblHexEventCardWorth", String.valueOf(HexContent.get().price(name))), card, GIFT_W, GIFT_H));
+        }
+        final JPanel box = new JPanel(new MigLayout("insets 0, gap 0, wrap 1", "[center]"));
+        box.setOpaque(false);
+        box.add(pictures);
+        if (!campaign.deckLocked()) {
+            box.add(newCardsSwitch(), "gaptop 14, alignx center");
+        }
+        return box;
+    }
+
+    /** A ley line: a card more in the opening hand, or a land of the deck in play, for the next fight. */
+    private void promptLeyLine(final HexCampaign campaign, final HexPlayer mine) {
+        final int choice = FOptionPane.showOptionDialog(t("lblHexLeyLineChoose", mine.name), campaign.name, FOptionPane.QUESTION_ICON,
+                Arrays.asList(t("lblHexLeyLineHand"), t("lblHexLeyLineLand"), t("lblHexLater")), 0);
+        if (choice == 0) {
+            session.chooseEvent(mine.name, null, false, HexEvent.PICK_HAND);
+        } else if (choice == 1) {
+            session.chooseEvent(mine.name, null, false, HexEvent.PICK_LAND);
+        }
+    }
+
+    /** A caravan's stall: a card of it, then the card given for it (its price counts, the rest is paid in gold). */
+    private void promptStall(final HexCampaign campaign, final HexPlayer mine) {
+        final List<JComponent> clickable = new ArrayList<>();
+        final int choice = HexRewardCards.choose(t("lblHexStallChoose", mine.name, String.valueOf(mine.gold)), campaign.name,
+                stallBody(mine, clickable), clickable, Arrays.asList(t("lblHexEventLeave"), t("lblHexLater")));
+        if (choice >= 0 && choice < mine.eventCards.size()) {
+            final String stallCard = mine.eventCards.get(choice);
+            promptOwnCard(campaign, mine, HexEvent.CARAVAN, t("lblHexStallGive", stallCard, String.valueOf(HexContent.get().price(stallCard)),
+                    String.valueOf(mine.gold)), choice + 1, stallCard);
+        } else if (choice == mine.eventCards.size()) {
+            session.skipEvent(mine.name);
+        }
+    }
+
+    /** The stall's window: its cards with their prices, each one clickable. */
+    JComponent stallBody(final HexPlayer mine, final List<JComponent> clickable) {
+        final JPanel pictures = new JPanel(new MigLayout("insets 0, gap 12"));
+        pictures.setOpaque(false);
+        for (final String name : mine.eventCards) {
+            final JComponent card = HexRewardCards.card(HexContent.get().getCard(name), null, true);
+            clickable.add(card);
+            pictures.add(HexRewardCards.captioned(t("lblHexEventCardWorth", String.valueOf(HexContent.get().price(name))), card, GIFT_W, GIFT_H));
+        }
+        return pictures;
+    }
+
+    /** A ruined shrine: one of its relics, then the card given up for it. */
+    private void promptShrineRelic(final HexCampaign campaign, final HexPlayer mine) {
+        final List<JComponent> clickable = new ArrayList<>();
+        final JComponent pictures = relicsBody(campaign, mine, clickable);
+        final int choice = HexRewardCards.choose(relicsMessage(campaign, mine), campaign.name, pictures, clickable,
+                Arrays.asList(t("lblHexEventLeave"), t("lblHexLater")));
+        if (choice >= 0 && choice < mine.eventRelics.size()) {
+            promptOwnCard(campaign, mine, HexEvent.RUINED_SHRINE, t("lblHexShrineGive", mine.eventRelics.get(choice)), choice + 1, null);
+        } else if (choice == mine.eventRelics.size()) {
+            session.skipEvent(mine.name);
+        }
+    }
+
+    /** The shrine's relics, each a clickable blank card with its name. */
+    JComponent relicsBody(final HexCampaign campaign, final HexPlayer mine, final List<JComponent> clickable) {
+        final JPanel pictures = new JPanel(new MigLayout("insets 0, gap 24"));
+        pictures.setOpaque(false);
+        for (final String name : mine.eventRelics) {
+            final JComponent card = relicCard(HexContent.get().getRelic(name), name, campaign.cycle, true);
+            clickable.add(card);
+            pictures.add(card, "w " + HexRewardCards.W + "!, h " + HexRewardCards.H + "!");
+        }
+        return pictures;
+    }
+
+    /** What the shrine says: choose a relic (what each one does stands on its card). */
+    String relicsMessage(final HexCampaign campaign, final HexPlayer mine) {
+        return t("lblHexShrineChoose", mine.name);
+    }
+
+    /** A relic as a card: its name, its slot, what it does and the rules of the cards it puts into play. */
+    static JComponent relicCard(final HexRelic relic, final String name, final int cycle, final boolean clickable) {
+        if (relic == null) {
+            return HexRewardCards.card(null, name, clickable);
+        }
+        return HexRewardCards.relic(relic.name, relic.slot == null ? null : Localizer.getInstance().getMessage("lblHexSlot" + relic.slot),
+                relicCardText(relic, cycle), clickable);
+    }
+
+    /** What a relic's card says: its effects, then each card it puts into play (for the head or the enemy) with its rules. */
+    static String relicCardText(final HexRelic relic, final int cycle) {
+        final StringBuilder sb = new StringBuilder(relicEffects(relic, cycle).trim());
+        final java.util.Set<String> seen = new java.util.HashSet<>();
+        final List<String> ids = new ArrayList<>(relic.battlefield);
+        ids.addAll(relic.enemyBattlefield);
+        for (final String id : ids) {
+            final forge.item.IPaperCard card = HexContent.get().findStartCard(id);
+            if (card == null || card.getRules() == null || !seen.add(card.getName())) {
+                continue;
+            }
+            String oracle = forge.util.CardTranslation.getTranslatedOracle(card.getName());
+            if (oracle == null || oracle.isEmpty()) {
+                oracle = card.getRules().getOracleText();
+            }
+            oracle = oracle == null ? "" : oracle.replace("\\n", " ").replace("\n", " ").replaceAll("\\s*\\([^)]*\\)", "").trim();
+            if (!oracle.isEmpty()) {
+                sb.append("\n").append(card.getName()).append(": ").append(oracle);
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * The card this person's head gives (or the mirror copies): no basic lands; deck cards only while the deck is above
+     * its minimum (the mirror takes nothing, so any deck card). At a caravan's stall (stallCard) each card says what is
+     * paid on top, and only cards the head can pay that for are listed.
+     */
+    private void promptOwnCard(final HexCampaign campaign, final HexPlayer mine, final HexEvent event, final String message, final int pick,
+            final String stallCard) {
+        final List<String> names = new ArrayList<>();
+        final List<Boolean> fromSideboard = new ArrayList<>();
+        final List<String> lines = new ArrayList<>();
+        final boolean deckOk = !event.takesCard() || mine.deck.size() > HexCampaign.MIN_DECK_SIZE;
+        for (final boolean side : new boolean[] { false, true }) {
+            if (!side && !deckOk) {
+                continue;
+            }
+            for (final String card : new java.util.TreeSet<>(side ? mine.sideboard : mine.deck)) {
+                if (!HexCampaign.canPickForEvent(event, card)) {
+                    continue;
+                }
+                String line = (side ? t("lblHexSideboardMark") + " " : "") + card;
+                if (stallCard != null) {
+                    final int pay = HexCampaign.stallSurcharge(stallCard, card);
+                    if (pay > mine.gold) {
+                        continue;
+                    }
+                    line += "  ·  " + (pay > 0 ? t("lblHexStallPay", String.valueOf(pay)) : t("lblHexStallEven"));
+                }
+                names.add(card);
+                fromSideboard.add(side);
+                lines.add(line);
+            }
+        }
+        if (names.isEmpty() && stallCard != null) {
+            FOptionPane.showMessageDialog(t("lblHexStallTooDear", stallCard), campaign.name);
+            return;
+        }
+        final javax.swing.DefaultListModel<String> model = new javax.swing.DefaultListModel<>();
+        lines.forEach(model::addElement);
+        final forge.toolbox.FList<String> list = new forge.toolbox.FList<>(model);
+        list.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
+        final CardPicturePanel pic = new CardPicturePanel();
+        pic.setOpaque(false);
+        list.addListSelectionListener(e -> {
+            final int i = list.getSelectedIndex();
+            final PaperCard card = i >= 0 && i < names.size() ? HexContent.get().getCard(names.get(i)) : null;
+            if (card != null) {
+                pic.setItem(card);
+            }
+        });
+        if (!names.isEmpty()) {
+            list.setSelectedIndex(0);
+        }
+        final JPanel panel = new JPanel(new net.miginfocom.swing.MigLayout("insets 0, gap 12", "[340!, fill][200!, fill]", "[top]"));
+        panel.setOpaque(false);
+        panel.add(new forge.toolbox.FScrollPane(list, true), "h 280!");
+        panel.add(pic, "h 280!");
+        final List<String> options = new ArrayList<>();
+        options.add(t("lblHexEventGive_" + event.name()));
+        options.add(t("lblHexEventLeave"));
+        options.add(t("lblHexLater"));
+        final int choice = FOptionPane.showOptionDialog(message, campaign.name, FOptionPane.QUESTION_ICON, panel, options, 0);
+        final int i = list.getSelectedIndex();
+        if (choice == 0 && i >= 0 && i < names.size()) {
+            session.chooseEvent(mine.name, names.get(i), fromSideboard.get(i), pick);
+        } else if (choice == 1) {
+            session.skipEvent(mine.name);
         }
     }
 
@@ -2097,10 +2303,15 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     }
 
     private static String cardNames(final HexContent content, final List<String> ids) {
-        final List<String> names = new ArrayList<>();
+        // the same card more than once: "3× Goblin Construct Token"
+        final java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
         for (final String id : ids) {
             final forge.item.IPaperCard card = content.findStartCard(id);
-            names.add(card == null ? id : card.getName());
+            counts.merge(card == null ? id : card.getName(), 1, Integer::sum);
+        }
+        final List<String> names = new ArrayList<>();
+        for (final java.util.Map.Entry<String, Integer> e : counts.entrySet()) {
+            names.add(e.getValue() > 1 ? e.getValue() + "× " + e.getKey() : e.getKey());
         }
         return String.join(", ", names);
     }

@@ -209,6 +209,86 @@ public class HexArzakonTest extends AITest {
     }
 
     @Test
+    public void thePartyMayWalkAwayFromHim() {
+        final HexCampaign c = beforeTheCentre(true);
+        c.encounterChance = 0; // no enemy turns up on the way by itself
+        c.encounterChanceExplored = 0;
+        final HexTile centre = centre(c);
+        beatEmrakul(c);
+        final HexTile before = c.tile();
+        AssertJUnit.assertEquals(HexCampaign.MoveResult.ENCOUNTER, c.moveTo(centre.q, centre.r));
+        AssertJUnit.assertTrue(c.arzakonWaitsForParty());
+        AssertJUnit.assertTrue("still a fight to deal with", c.isBusy());
+        AssertJUnit.assertFalse("but the party is not held", c.isHeld());
+        AssertJUnit.assertTrue(c.canEnter(before));
+        AssertJUnit.assertNotSame(HexCampaign.MoveResult.BUSY, c.moveTo(before.q, before.r));
+        AssertJUnit.assertSame(before, c.tile());
+        AssertJUnit.assertNull("no fight", c.pendingEncounter);
+        AssertJUnit.assertTrue("he still waits, and the try is not spent", c.arzakonAwake);
+        AssertJUnit.assertTrue(c.arzakonWaits(centre));
+        AssertJUnit.assertFalse(c.won);
+        // and back again
+        AssertJUnit.assertEquals(HexCampaign.MoveResult.ENCOUNTER, c.moveTo(centre.q, centre.r));
+        AssertJUnit.assertTrue(c.pendingEncounter.secretBoss);
+    }
+
+    @Test
+    public void anOrdinaryEnemyStillHoldsTheParty() {
+        final HexCampaign c = beforeTheCentre(false);
+        final HexTile here = c.tile();
+        c.pendingEncounter = HexContent.get().randomEncounter(HexColor.RED, 0.5, new java.util.Random(1));
+        AssertJUnit.assertTrue(c.isHeld());
+        for (final HexTile n : c.map.neighbors(here)) {
+            AssertJUnit.assertFalse(c.canEnter(n));
+            AssertJUnit.assertEquals(HexCampaign.MoveResult.BUSY, c.moveTo(n.q, n.r));
+        }
+    }
+
+    @Test
+    public void hisFightWaitsForEverybodyAndTheyMayLeave() {
+        final HexCampaign c = beforeTheCentre(true);
+        c.encounterChance = 0; // no enemy turns up on the way by itself
+        c.encounterChanceExplored = 0;
+        final HexTile centre = centre(c);
+        beatEmrakul(c);
+        final HexTile before = c.tile();
+        final java.util.concurrent.atomic.AtomicInteger fights = new java.util.concurrent.atomic.AtomicInteger();
+        final HexSession s = new HexSession(c);
+        s.setListener(new HexSession.Listener() {
+            @Override public void sessionChanged() { }
+            @Override public void startFight() { fights.incrementAndGet(); }
+        });
+        s.setGuests(java.util.Collections.singletonList("Bob"));
+        final forge.gamemodes.net.event.HexActionEvent toCentre = new forge.gamemodes.net.event.HexActionEvent(
+                forge.gamemodes.net.event.HexActionEvent.VOTE, centre.q, centre.r, null, false, null);
+        s.handle("Ann", toCentre);
+        s.handle("Bob", toCentre);
+        AssertJUnit.assertTrue(c.arzakonWaitsForParty());
+        AssertJUnit.assertFalse("not before everybody presses Fight", s.isFightRunning());
+        s.handle("Ann", new forge.gamemodes.net.event.HexActionEvent(forge.gamemodes.net.event.HexActionEvent.FIGHT, 0, 0, null, true, null));
+        AssertJUnit.assertFalse(s.isFightRunning());
+
+        // they think better of it and walk away
+        final forge.gamemodes.net.event.HexActionEvent away = new forge.gamemodes.net.event.HexActionEvent(
+                forge.gamemodes.net.event.HexActionEvent.VOTE, before.q, before.r, null, false, null);
+        s.handle("Ann", away);
+        s.handle("Bob", away);
+        AssertJUnit.assertSame(before, c.tile());
+        AssertJUnit.assertNull(c.pendingEncounter);
+        AssertJUnit.assertTrue(c.arzakonAwake);
+        AssertJUnit.assertEquals(0, fights.get());
+
+        // back, and both press Fight
+        s.handle("Ann", toCentre);
+        s.handle("Bob", toCentre);
+        s.handle("Ann", new forge.gamemodes.net.event.HexActionEvent(forge.gamemodes.net.event.HexActionEvent.FIGHT, 0, 0, null, true, null));
+        AssertJUnit.assertFalse("Bob has not pressed it yet", s.isFightRunning());
+        s.handle("Bob", new forge.gamemodes.net.event.HexActionEvent(forge.gamemodes.net.event.HexActionEvent.FIGHT, 0, 0, null, true, null));
+        AssertJUnit.assertTrue(s.isFightRunning());
+        AssertJUnit.assertEquals(1, fights.get());
+    }
+
+    @Test
     public void aGuestSeesHimWaiting() {
         final HexCampaign c = beforeTheCentre(true);
         beatEmrakul(c);

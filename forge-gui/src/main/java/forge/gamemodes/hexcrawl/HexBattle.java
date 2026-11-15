@@ -233,13 +233,15 @@ public final class HexBattle {
     private static void applyPerksAndEvents(final HexCampaign campaign, final HexPlayer p, final RegisteredPlayer rp) {
         // New Game Plus: the region's rule (forest: a land, island: a card)
         final HexBiomeRule biome = HexBiomeRule.forFight(campaign, campaign.pendingEncounter);
-        final int hand = HexPerk.EXTRA_CARD.count(p) + campaign.boostHand + (biome == null ? 0 : biome.partyHand)
+        final int hand = HexPerk.EXTRA_CARD.count(p) + campaign.boostHand + p.boostHand + (biome == null ? 0 : biome.partyHand)
                 + campaign.dungeonBuff("HAND");
         if (hand != 0) {
             rp.setStartingHand(Math.max(1, rp.getStartingHand() + hand));
         }
         int lands = HexPerk.START_LAND.count(p) + (campaign.boostLand ? 1 : 0) + (biome == null ? 0 : biome.partyLands)
                 + campaign.dungeonBuff("LAND");
+        // a ley line: a land of the head's own deck, taken out of its library (a basic land, as above, if it has none)
+        lands += landsOfDeckInPlay(campaign, p, rp);
         if (lands > 0) {
             // the basic land the deck has most of
             final Map<String, Integer> basics = new HashMap<>();
@@ -265,6 +267,36 @@ public final class HexBattle {
                 rp.addExtraCardsOnBattlefield(inPlay);
             }
         }
+    }
+
+    /** Puts the lands of a ley line onto the battlefield: random lands of the deck, out of it. Returns how many it had none for. */
+    private static int landsOfDeckInPlay(final HexCampaign campaign, final HexPlayer p, final RegisteredPlayer rp) {
+        if (p.boostDeckLand <= 0 || rp.getDeck() == null) {
+            return Math.max(0, p.boostDeckLand);
+        }
+        final forge.deck.CardPool main = rp.getDeck().getMain();
+        final List<forge.item.IPaperCard> inPlay = new ArrayList<>();
+        final java.util.Random rnd = campaign.random();
+        int missing = 0;
+        for (int n = 0; n < p.boostDeckLand; n++) {
+            final List<forge.item.PaperCard> lands = new ArrayList<>();
+            for (final forge.item.PaperCard card : main.toFlatList()) {
+                if (card.getRules().getType().isLand()) {
+                    lands.add(card);
+                }
+            }
+            if (lands.isEmpty()) {
+                missing++;
+                continue;
+            }
+            final forge.item.PaperCard land = lands.get(rnd.nextInt(lands.size()));
+            main.remove(land);
+            inPlay.add(land);
+        }
+        if (!inPlay.isEmpty()) {
+            rp.addExtraCardsOnBattlefield(inPlay);
+        }
+        return missing;
     }
 
     /** Some relics also put something onto the enemy's side. */

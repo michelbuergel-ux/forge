@@ -322,16 +322,19 @@ public class HexBattleFeelTest extends AITest {
 
     @Test
     public void testACampShowsTheCardsItGives() {
-        final HexCampaign c = HexCampaign.create("Test", 17L, 4, Arrays.asList(new HexPlayer("Ann", false), new HexPlayer("Bo", false)));
+        final HexCampaign c = HexCampaign.create("Test", 17L, 4, Arrays.asList(new HexPlayer("Ann", false), new HexPlayer("Bo", true),
+                new HexPlayer("Cy", true)));
         c.encounterChance = 0;
         c.encounterChanceExplored = 0;
         final HexTile t = emptyNeighbour(c);
         t.event = HexEvent.CAMP.name();
         c.moveTo(t.q, t.r);
-        AssertJUnit.assertEquals(Arrays.asList("Ann", "Bo"), c.lastEventOwners);
+        // the companions take a card at once, and everybody sees it; a person chooses (see HexEventOffersTest)
+        AssertJUnit.assertEquals(Arrays.asList("Bo", "Cy"), c.lastEventOwners);
         AssertJUnit.assertEquals(2, c.lastEventCards.size());
-        AssertJUnit.assertTrue(c.player("Ann").sideboard.contains(c.lastEventCards.get(0)));
-        AssertJUnit.assertTrue(c.player("Bo").sideboard.contains(c.lastEventCards.get(1)));
+        AssertJUnit.assertTrue(c.player("Bo").sideboard.contains(c.lastEventCards.get(0)));
+        AssertJUnit.assertTrue(c.player("Cy").sideboard.contains(c.lastEventCards.get(1)));
+        AssertJUnit.assertEquals(HexEvent.CAMP.name(), c.player("Ann").eventOffer);
     }
 
     // ------------------------------------------------------------------ region rules

@@ -2660,7 +2660,7 @@
   },
   {
     "name": "Xira's Fancy Hat",
-    "slot": "Neck",
+    "slot": "Head",
     "price": 200,
     "life": 2,
     "battlefield": [
@@ -2669,7 +2669,7 @@
   },
   {
     "name": "Xira's Fancy Hat II",
-    "slot": "Neck",
+    "slot": "Head",
     "price": 450,
     "tier": 2,
     "base": "Xira's Fancy Hat",
@@ -2681,7 +2681,7 @@
   },
   {
     "name": "Xira's Fancy Hat III",
-    "slot": "Neck",
+    "slot": "Head",
     "price": 1013,
     "tier": 3,
     "base": "Xira's Fancy Hat",
@@ -2721,6 +2721,315 @@
       "Helm of Awakening",
       "Helm of Awakening",
       "Helm of Awakening"
+    ]
+  },
+  {
+    "name": "Horned Helm",
+    "slot": "Head",
+    "price": 60,
+    "battlefield": [
+      "Horned Helm"
+    ]
+  },
+  {
+    "name": "Horned Helm II",
+    "slot": "Head",
+    "price": 135,
+    "tier": 2,
+    "base": "Horned Helm",
+    "battlefield": [
+      "Horned Helm",
+      "Horned Helm"
+    ]
+  },
+  {
+    "name": "Horned Helm III",
+    "slot": "Head",
+    "price": 304,
+    "tier": 3,
+    "base": "Horned Helm",
+    "battlefield": [
+      "Horned Helm",
+      "Horned Helm",
+      "Horned Helm"
+    ]
+  },
+  {
+    "name": "Thinking Cap",
+    "slot": "Head",
+    "price": 40,
+    "battlefield": [
+      "Thinking Cap"
+    ]
+  },
+  {
+    "name": "Thinking Cap II",
+    "slot": "Head",
+    "price": 90,
+    "tier": 2,
+    "base": "Thinking Cap",
+    "battlefield": [
+      "Thinking Cap",
+      "Thinking Cap"
+    ]
+  },
+  {
+    "name": "Thinking Cap III",
+    "slot": "Head",
+    "price": 202,
+    "tier": 3,
+    "base": "Thinking Cap",
+    "battlefield": [
+      "Thinking Cap",
+      "Thinking Cap",
+      "Thinking Cap"
+    ]
+  },
+  {
+    "name": "Gorgon's Head",
+    "slot": "Head",
+    "price": 80,
+    "battlefield": [
+      "Gorgon's Head"
+    ]
+  },
+  {
+    "name": "Gorgon's Head II",
+    "slot": "Head",
+    "price": 180,
+    "tier": 2,
+    "base": "Gorgon's Head",
+    "battlefield": [
+      "Gorgon's Head",
+      "Gorgon's Head"
+    ]
+  },
+  {
+    "name": "Gorgon's Head III",
+    "slot": "Head",
+    "price": 405,
+    "tier": 3,
+    "base": "Gorgon's Head",
+    "battlefield": [
+      "Gorgon's Head",
+      "Gorgon's Head",
+      "Gorgon's Head"
+    ]
+  },
+  {
+    "name": "Helm of the Gods",
+    "slot": "Head",
+    "price": 60,
+    "battlefield": [
+      "Helm of the Gods"
+    ]
+  },
+  {
+    "name": "Helm of the Gods II",
+    "slot": "Head",
+    "price": 135,
+    "tier": 2,
+    "base": "Helm of the Gods",
+    "battlefield": [
+      "Helm of the Gods",
+      "Helm of the Gods"
+    ]
+  },
+  {
+    "name": "Helm of the Gods III",
+    "slot": "Head",
+    "price": 304,
+    "tier": 3,
+    "base": "Helm of the Gods",
+    "battlefield": [
+      "Helm of the Gods",
+      "Helm of the Gods",
+      "Helm of the Gods"
+    ]
+  },
+  {
+    "name": "Mask of Memory",
+    "slot": "Head",
+    "price": 100,
+    "battlefield": [
+      "Mask of Memory"
+    ]
+  },
+  {
+    "name": "Mask of Memory II",
+    "slot": "Head",
+    "price": 225,
+    "tier": 2,
+    "base": "Mask of Memory",
+    "battlefield": [
+      "Mask of Memory",
+      "Mask of Memory"
+    ]
+  },
+  {
+    "name": "Mask of Memory III",
+    "slot": "Head",
+    "price": 506,
+    "tier": 3,
+    "base": "Mask of Memory",
+    "battlefield": [
+      "Mask of Memory",
+      "Mask of Memory",
+      "Mask of Memory"
+    ]
+  },
+  {
+    "name": "Grafted Skullcap",
+    "slot": "Head",
+    "price": 150,
+    "battlefield": [
+      "Grafted Skullcap"
+    ]
+  },
+  {
+    "name": "Grafted Skullcap II",
+    "slot": "Head",
+    "price": 338,
+    "tier": 2,
+    "base": "Grafted Skullcap",
+    "battlefield": [
+      "Grafted Skullcap",
+      "Grafted Skullcap"
+    ]
+  },
+  {
+    "name": "Grafted Skullcap III",
+    "slot": "Head",
+    "price": 759,
+    "tier": 3,
+    "base": "Grafted Skullcap",
+    "battlefield": [
+      "Grafted Skullcap",
+      "Grafted Skullcap",
+      "Grafted Skullcap"
+    ]
+  },
+  {
+    "name": "Ornate Kanzashi",
+    "slot": "Head",
+    "price": 250,
+    "battlefield": [
+      "Ornate Kanzashi"
+    ]
+  },
+  {
+    "name": "Ornate Kanzashi II",
+    "slot": "Head",
+    "price": 562,
+    "tier": 2,
+    "base": "Ornate Kanzashi",
+    "battlefield": [
+      "Ornate Kanzashi",
+      "Ornate Kanzashi"
+    ]
+  },
+  {
+    "name": "Ornate Kanzashi III",
+    "slot": "Head",
+    "price": 1266,
+    "tier": 3,
+    "base": "Ornate Kanzashi",
+    "battlefield": [
+      "Ornate Kanzashi",
+      "Ornate Kanzashi",
+      "Ornate Kanzashi"
+    ]
+  },
+  {
+    "name": "Crown of Gondor",
+    "slot": "Head",
+    "price": 200,
+    "battlefield": [
+      "Crown of Gondor"
+    ]
+  },
+  {
+    "name": "Crown of Gondor II",
+    "slot": "Head",
+    "price": 450,
+    "tier": 2,
+    "base": "Crown of Gondor",
+    "life": 2,
+    "battlefield": [
+      "Crown of Gondor"
+    ]
+  },
+  {
+    "name": "Crown of Gondor III",
+    "slot": "Head",
+    "price": 1012,
+    "tier": 3,
+    "base": "Crown of Gondor",
+    "life": 4,
+    "battlefield": [
+      "Crown of Gondor"
+    ]
+  },
+  {
+    "name": "Helm of Possession",
+    "slot": "Head",
+    "price": 300,
+    "battlefield": [
+      "Helm of Possession"
+    ]
+  },
+  {
+    "name": "Helm of Possession II",
+    "slot": "Head",
+    "price": 675,
+    "tier": 2,
+    "base": "Helm of Possession",
+    "battlefield": [
+      "Helm of Possession",
+      "Helm of Possession"
+    ]
+  },
+  {
+    "name": "Helm of Possession III",
+    "slot": "Head",
+    "price": 1519,
+    "tier": 3,
+    "base": "Helm of Possession",
+    "battlefield": [
+      "Helm of Possession",
+      "Helm of Possession",
+      "Helm of Possession"
+    ]
+  },
+  {
+    "name": "Helm of the Host",
+    "slot": "Head",
+    "price": 600,
+    "fromCycle": 2,
+    "battlefield": [
+      "Helm of the Host"
+    ]
+  },
+  {
+    "name": "Helm of the Host II",
+    "slot": "Head",
+    "price": 1350,
+    "tier": 2,
+    "base": "Helm of the Host",
+    "life": 2,
+    "battlefield": [
+      "Helm of the Host"
+    ]
+  },
+  {
+    "name": "Helm of the Host III",
+    "slot": "Head",
+    "price": 3038,
+    "tier": 3,
+    "base": "Helm of the Host",
+    "life": 4,
+    "battlefield": [
+      "Helm of the Host"
     ]
   },
   {

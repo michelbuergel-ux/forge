@@ -6,6 +6,7 @@ import java.io.Reader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -885,6 +886,227 @@ public final class HexContent {
             result.addAll(rest.subList(0, Math.min(rest.size(), wanted - result.size())));
         }
         return result;
+    }
+
+    // ------------------------------------------------------------------ cards of events
+
+    /** How likely an event's card is uncommon, rare or mythic (in this order): the caravan's stall. */
+    public static final int[] EVENT_RARITIES = { 55, 35, 10 };
+    /** The camp: rares and mythics only. */
+    public static final int[] CAMP_RARITIES = { 0, 75, 25 };
+    private static final CardRarity[] EVENT_RARITY_ORDER = { CardRarity.Uncommon, CardRarity.Rare, CardRarity.MythicRare };
+    /** The weights of an event's card: a coloured card, a colourless one, and what a picked theme or a kind of the deck adds. */
+    private static final int EVENT_WEIGHT_COLOURED = 4;
+    private static final int EVENT_WEIGHT_COLOURLESS = 2;
+    private static final int EVENT_WEIGHT_THEME = 16;
+    private static final int EVENT_WEIGHT_KIND = 2;
+
+    /** The colours of a deck: those of its cards that are no lands (0 for a colourless deck). */
+    public byte deckColors(final List<String> deck) {
+        byte bits = 0;
+        for (final String name : new HashSet<>(deck)) {
+            final PaperCard card = getCard(name);
+            if (card != null && !card.getRules().getType().isLand()) {
+                bits |= card.getRules().getColor().getColor();
+            }
+        }
+        return bits;
+    }
+
+    /**
+     * Does a card fit a head's deck, found on a field of this colour? Colourless cards always; others must be of the
+     * deck's colours only, and of the field's colour where the deck plays it (else of any of the deck's colours).
+     */
+    private static boolean fitsDeck(final byte cardBits, final byte deckBits, final HexColor field) {
+        if (cardBits == 0) {
+            return true;
+        }
+        final byte fieldBit = field == null ? 0 : bitOf(field);
+        final byte deck = deckBits == 0 ? fieldBit : deckBits; // a colourless deck: the field's colour
+        if (deck == 0 || (cardBits & ~deck) != 0) {
+            return false;
+        }
+        final byte wanted = (fieldBit & deck) != 0 ? fieldBit : deck;
+        return (cardBits & wanted) != 0;
+    }
+
+    /** How much an event wants to offer this card to the head: its colour, the head's two shop themes, the kinds its deck plays. */
+    private static int eventWeight(final CardRules rules, final byte cardBits, final List<HexTheme> themes, final Set<HexCardGroups.Kind> kinds) {
+        int weight = cardBits == 0 ? EVENT_WEIGHT_COLOURLESS : EVENT_WEIGHT_COLOURED;
+        for (final HexTheme theme : themes) {
+            if (theme.fits(rules)) {
+                weight += EVENT_WEIGHT_THEME;
+            }
+        }
+        if (kinds.contains(HexCardGroups.kindOf(rules))) {
+            weight += EVENT_WEIGHT_KIND;
+        }
+        return weight;
+    }
+
+    private static List<HexTheme> themesOf(final HexPlayer p) {
+        final List<HexTheme> result = new ArrayList<>();
+        for (final String id : p.themes) {
+            final HexTheme theme = id == null ? null : HexTheme.get(id);
+            if (theme != null) {
+                result.add(theme);
+            }
+        }
+        return result;
+    }
+
+    private Set<HexCardGroups.Kind> kindsOf(final List<String> deck) {
+        final Set<HexCardGroups.Kind> kinds = EnumSet.noneOf(HexCardGroups.Kind.class);
+        for (final String name : new HashSet<>(deck)) {
+            final PaperCard card = getCard(name);
+            if (card != null && !card.getRules().getType().isBasicLand()) {
+                kinds.add(HexCardGroups.kindOf(card.getRules()));
+            }
+        }
+        return kinds;
+    }
+
+    /**
+     * Cards an event offers a head (a camp, a caravan): of the colours of its deck (the field's colour where the deck
+     * plays it) or colourless, more likely when they fit its shop themes or the kinds of cards its deck plays, of the
+     * rarities given (uncommon, rare, mythic: see {@link #EVENT_RARITIES}). Cards the head owns and those excluded are
+     * left out while there are others. Different cards, at most count of them, in a stable order for a seed.
+     */
+    public List<String> eventCards(final HexPlayer p, final HexColor field, final int[] rarities, final int count,
+            final java.util.Collection<String> exclude, final Random rnd) {
+        final byte deckBits = deckColors(p.deck);
+        final List<HexTheme> themes = themesOf(p);
+        final Set<HexCardGroups.Kind> kinds = kindsOf(p.deck);
+        final Set<String> owned = new HashSet<>(p.ownedCards());
+        // the candidates of each rarity, with their weights (fresh ones, and as a fallback the ones the head owns)
+        final List<List<String>> names = new ArrayList<>();
+        final List<List<Integer>> weights = new ArrayList<>();
+        final List<List<String>> ownedNames = new ArrayList<>();
+        final List<List<Integer>> ownedWeights = new ArrayList<>();
+        for (int i = 0; i < EVENT_RARITY_ORDER.length; i++) {
+            names.add(new ArrayList<>());
+            weights.add(new ArrayList<>());
+            ownedNames.add(new ArrayList<>());
+            ownedWeights.add(new ArrayList<>());
+        }
+        final Set<String> seen = new HashSet<>();
+        final java.util.function.BiConsumer<HexShopType, PaperCard> consider = (shop, card) -> {
+            final CardRules rules = card.getRules();
+            final int r = java.util.Arrays.asList(EVENT_RARITY_ORDER).indexOf(card.getRarity());
+            if (r < 0 || rarities[r] <= 0 || rules.getType().isBasicLand() || !seen.add(card.getName())
+                    || exclude != null && exclude.contains(card.getName())) {
+                return;
+            }
+            final byte bits = colorBits(shop, rules);
+            if (!fitsDeck(bits, deckBits, field)) {
+                return;
+            }
+            final boolean mine = owned.contains(card.getName());
+            (mine ? ownedNames : names).get(r).add(card.getName());
+            (mine ? ownedWeights : weights).get(r).add(eventWeight(rules, bits, themes, kinds));
+        };
+        for (final HexShopType shop : HexShopType.CARD_SHOPS) {
+            final Map<HexColor, Map<CardRarity, List<PaperCard>>> byColor = cardsByShop.get(shop);
+            if (byColor != null) {
+                for (final Map<CardRarity, List<PaperCard>> byRarity : byColor.values()) {
+                    for (final List<PaperCard> cards : byRarity.values()) {
+                        for (final PaperCard card : cards) {
+                            consider.accept(shop, card);
+                        }
+                    }
+                }
+            }
+            for (final PaperCard card : goldByShop.getOrDefault(shop, Collections.emptyList())) {
+                consider.accept(shop, card);
+            }
+        }
+        final List<String> result = new ArrayList<>();
+        for (int n = 0; n < count; n++) {
+            String pick = drawEventCard(names, weights, rarities, rnd);
+            if (pick == null) {
+                pick = drawEventCard(ownedNames, ownedWeights, rarities, rnd);
+            }
+            if (pick == null) {
+                break;
+            }
+            result.add(pick);
+        }
+        return result;
+    }
+
+    /** One card of the candidates: first its rarity (of those that have any), then the card by its weight; it is taken out. */
+    private static String drawEventCard(final List<List<String>> names, final List<List<Integer>> weights, final int[] rarities, final Random rnd) {
+        int total = 0;
+        for (int r = 0; r < names.size(); r++) {
+            if (!names.get(r).isEmpty()) {
+                total += rarities[r];
+            }
+        }
+        if (total <= 0) {
+            return null;
+        }
+        int roll = rnd.nextInt(total);
+        int r = 0;
+        for (; r < names.size(); r++) {
+            if (!names.get(r).isEmpty()) {
+                roll -= rarities[r];
+                if (roll < 0) {
+                    break;
+                }
+            }
+        }
+        final List<String> list = names.get(r);
+        final List<Integer> w = weights.get(r);
+        int sum = 0;
+        for (final int x : w) {
+            sum += x;
+        }
+        int pick = rnd.nextInt(sum);
+        int i = 0;
+        for (; i < w.size() - 1; i++) {
+            pick -= w.get(i);
+            if (pick < 0) {
+                break;
+            }
+        }
+        w.remove(i);
+        return list.remove(i);
+    }
+
+    /**
+     * A dungeon's treasure card for a head: one of the valuable cards of the colour (see {@link #treasureCards}), one that
+     * fits the head's deck where there is such a card (more likely when it fits its shop themes or the kinds its deck
+     * plays). Null if none is left.
+     */
+    public String treasureCardFor(final HexPlayer p, final HexColor color, final int wanted, final java.util.Collection<String> taken,
+            final Random rnd) {
+        final List<String> pool = new ArrayList<>(treasureCards(color, wanted));
+        pool.removeAll(taken);
+        if (pool.isEmpty()) {
+            return null;
+        }
+        final byte deckBits = deckColors(p.deck);
+        final List<HexTheme> themes = themesOf(p);
+        final Set<HexCardGroups.Kind> kinds = kindsOf(p.deck);
+        final List<String> fitting = new ArrayList<>();
+        final List<Integer> weights = new ArrayList<>();
+        for (final String name : pool) {
+            final PaperCard card = getCard(name);
+            if (card == null) {
+                continue;
+            }
+            final CardRules rules = card.getRules();
+            final byte bits = rules.getType().isLand() ? rules.getColorIdentity().getColor() : rules.getColor().getColor();
+            if (fitsDeck(bits, deckBits, color)) {
+                fitting.add(name);
+                weights.add(eventWeight(rules, bits, themes, kinds));
+            }
+        }
+        if (fitting.isEmpty()) {
+            return pool.get(rnd.nextInt(pool.size())); // nothing of the deck's colours: any of them, as before
+        }
+        final List<List<String>> names = new ArrayList<>(Collections.singletonList(fitting));
+        return drawEventCard(names, new ArrayList<>(Collections.singletonList(weights)), new int[] { 1 }, rnd);
     }
 
     /** How many schemes an archenemy brings (the size of an Archenemy scheme deck). */

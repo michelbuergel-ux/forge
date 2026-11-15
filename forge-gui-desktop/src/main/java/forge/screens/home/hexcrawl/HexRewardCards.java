@@ -80,6 +80,27 @@ final class HexRewardCards {
         return stack;
     }
 
+    /**
+     * A relic as a card: its name and slot at the top, below it what it does (text: paragraphs separated by line
+     * breaks). A clickable one glows under the mouse and is taken by a click (see choose).
+     */
+    static JComponent relic(final String name, final String slot, final String text, final boolean clickable) {
+        final JPanel stack = new JPanel() {
+            @Override
+            public boolean isOptimizedDrawingEnabled() {
+                return false;
+            }
+        };
+        stack.setLayout(new OverlayLayout(stack));
+        stack.setOpaque(false);
+        final Overlay face = new Overlay(true, null, clickable);
+        face.title = name;
+        face.slot = slot;
+        face.detail = text;
+        stack.add(face);
+        return stack;
+    }
+
     /** A card picture with a caption above it (the head that got it). */
     static JComponent captioned(final String caption, final JComponent card, final int w, final int h) {
         final JPanel column = new JPanel(new MigLayout("insets 0, gap 0, wrap 1"));
@@ -122,6 +143,10 @@ final class HexRewardCards {
         private final String text;
         private final boolean clickable;
         private boolean hover;
+        /** A relic's face (see relic): its name, its slot and what it does; null on other cards. */
+        private String title;
+        private String slot;
+        private String detail;
 
         Overlay(final boolean blank, final String text, final boolean clickable) {
             this.blank = blank;
@@ -178,6 +203,9 @@ final class HexRewardCards {
                 g.setStroke(new BasicStroke(2f));
                 g.drawRoundRect(2, 2, w - 5, h - 5, arc, arc);
             }
+            if (blank && title != null) {
+                paintRelic(g, w, h);
+            }
             if (text != null) {
                 // the amount on a dark band across the middle of the card
                 float size = Math.max(16f, w / 8.5f);
@@ -211,6 +239,96 @@ final class HexRewardCards {
                 }
             }
             g.dispose();
+        }
+
+        /** A relic's face: the name (up to two lines), the slot, a rule, and what it does in the largest font that fits. */
+        private void paintRelic(final Graphics2D g, final int w, final int h) {
+            final int m = Math.max(10, w / 14);
+            final int inner = w - 2 * m;
+            // the name
+            float size = Math.max(12f, w / 11f);
+            g.setFont(display(size).deriveFont(Font.BOLD));
+            List<String> name = wrap(g.getFontMetrics(), title, inner);
+            while (size > 10f && name.size() > 2) {
+                size -= 1f;
+                g.setFont(display(size).deriveFont(Font.BOLD));
+                name = wrap(g.getFontMetrics(), title, inner);
+            }
+            FontMetrics fm = g.getFontMetrics();
+            int y = m + fm.getAscent();
+            for (final String line : name) {
+                g.setColor(new Color(0, 0, 0, 200));
+                g.drawString(line, (w - fm.stringWidth(line)) / 2 + 1, y + 1);
+                g.setColor(GOLD_LIGHT);
+                g.drawString(line, (w - fm.stringWidth(line)) / 2, y);
+                y += fm.getHeight();
+            }
+            // the slot
+            if (slot != null) {
+                g.setFont(HexTownStyle.body(Font.PLAIN, Math.max(9f, w / 21f)));
+                fm = g.getFontMetrics();
+                g.setColor(GOLD);
+                g.drawString(slot, (w - fm.stringWidth(slot)) / 2, y - fm.getDescent() + 2);
+                y += fm.getHeight() - fm.getDescent();
+            }
+            g.setColor(new Color(GOLD.getRed(), GOLD.getGreen(), GOLD.getBlue(), 150));
+            g.drawLine(m, y, w - m, y);
+            y += m / 2;
+            if (detail == null || detail.trim().isEmpty()) {
+                return;
+            }
+            // what it does: the largest font with which all of it fits
+            final int bottom = h - m;
+            float bodySize = Math.max(9f, w / 16f);
+            List<List<String>> paragraphs;
+            while (true) {
+                g.setFont(HexTownStyle.body(Font.PLAIN, bodySize));
+                fm = g.getFontMetrics();
+                paragraphs = new java.util.ArrayList<>();
+                int needed = 0;
+                for (final String paragraph : detail.trim().split("\n")) {
+                    if (paragraph.trim().isEmpty()) {
+                        continue;
+                    }
+                    final List<String> lines = wrap(fm, paragraph.trim(), inner);
+                    paragraphs.add(lines);
+                    needed += lines.size() * fm.getHeight() + fm.getHeight() / 3;
+                }
+                if (needed <= bottom - y || bodySize <= 7f) {
+                    break;
+                }
+                bodySize -= 0.5f;
+            }
+            g.setColor(new Color(0xF3, 0xE9, 0xD2));
+            for (final List<String> lines : paragraphs) {
+                for (final String line : lines) {
+                    if (y + fm.getHeight() > bottom + fm.getDescent()) {
+                        return; // too long even in the smallest font: cut off
+                    }
+                    g.drawString(line, m, y + fm.getAscent());
+                    y += fm.getHeight();
+                }
+                y += fm.getHeight() / 3;
+            }
+        }
+
+        /** The words of a text in lines no wider than the width (a word wider than it stands alone). */
+        private static List<String> wrap(final FontMetrics fm, final String text, final int width) {
+            final List<String> lines = new java.util.ArrayList<>();
+            StringBuilder line = new StringBuilder();
+            for (final String word : text.split(" +")) {
+                final String next = line.length() == 0 ? word : line + " " + word;
+                if (line.length() > 0 && fm.stringWidth(next) > width) {
+                    lines.add(line.toString());
+                    line = new StringBuilder(word);
+                } else {
+                    line = new StringBuilder(next);
+                }
+            }
+            if (line.length() > 0) {
+                lines.add(line.toString());
+            }
+            return lines;
         }
     }
 }

@@ -126,6 +126,33 @@ public class HexRelicTierTest extends AITest {
     }
 
     @Test
+    public void testHelmetsAndCrownsForTheHead() {
+        final HexContent content = HexContent.get();
+        final List<String> helmets = Arrays.asList("Horned Helm", "Thinking Cap", "Gorgon's Head", "Helm of the Gods", "Mask of Memory",
+                "Grafted Skullcap", "Ornate Kanzashi", "Crown of Gondor", "Helm of Possession", "Xira's Fancy Hat");
+        for (final String name : helmets) {
+            final HexRelic relic = content.getRelic(name);
+            AssertJUnit.assertNotNull(name, relic);
+            AssertJUnit.assertEquals(name, "Head", relic.slot);
+            AssertJUnit.assertTrue(name + " from the first cycle", content.ordinaryRelics(1).contains(relic));
+            AssertJUnit.assertEquals(name + " II", "Head", content.getRelic(name + " II").slot);
+            AssertJUnit.assertEquals(name + " III", "Head", content.getRelic(name + " III").slot);
+        }
+        // the Helm of the Host only in New Game Plus
+        final HexRelic host = content.getRelic("Helm of the Host");
+        AssertJUnit.assertFalse(content.ordinaryRelics(1).contains(host));
+        AssertJUnit.assertTrue(content.ordinaryRelics(2).contains(host));
+        // the card starts in play with the head that wears it
+        final HexCampaign c = party();
+        c.player("Ann").relics.add("Mask of Memory");
+        int masks = 0;
+        for (final IPaperCard card : seat(c, "Ann").getCardsOnBattlefield()) {
+            masks += card.getName().equals("Mask of Memory") ? 1 : 0;
+        }
+        AssertJUnit.assertEquals(1, masks);
+    }
+
+    @Test
     public void testHelmOfAwakeningForTheHead() {
         final HexContent content = HexContent.get();
         final HexRelic helm = content.getRelic("Helm of Awakening");

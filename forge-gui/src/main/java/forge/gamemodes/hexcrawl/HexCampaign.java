@@ -512,10 +512,8 @@ public class HexCampaign {
 
     /** A very valuable card of the colour (or an artifact) that no other head got, into the sideboard. */
     private void treasureCard(final HexPlayer p, final HexReward reward, final HexColor color, final Random rnd, final Set<String> taken) {
-        final List<String> pool = new ArrayList<>(HexContent.get().treasureCards(color, players.size()));
-        pool.removeAll(taken);
-        if (!pool.isEmpty()) {
-            final String card = pool.get(rnd.nextInt(pool.size()));
+        final String card = HexContent.get().treasureCardFor(p, color, players.size(), taken, rnd);
+        if (card != null) {
             taken.add(card);
             p.sideboard.add(card);
             reward.chestCard = card;
@@ -839,6 +837,7 @@ public class HexCampaign {
         boostLand = false;
         boostEnemyLife = 0;
         boostDoubleGold = false;
+        clearHeadBoosts();
         lastEvent = null;
         lastEventCards.clear();
         lastEventOwners.clear();
@@ -912,7 +911,7 @@ public class HexCampaign {
         if (target != null && target == tile()) {
             return canEnterLabyrinth(); // standing before a dungeon: in
         }
-        if (target == null || isBusy() || won || !isAdjacent(target) || inLabyrinth()) {
+        if (target == null || isHeld() || won || !isAdjacent(target) || inLabyrinth()) {
             return false;
         }
         return !(target.poi == HexPoi.BOSS && target.color == HexColor.COLORLESS && !allArchmagesDefeated());
@@ -959,6 +958,19 @@ public class HexCampaign {
     /** Fights and unclaimed rewards have to be dealt with before the party can travel or trade. */
     public boolean isBusy() {
         return pendingEncounter != null || !pendingRewards.isEmpty();
+    }
+
+    /**
+     * Does something keep the party on its field? A fight or an unclaimed reward does, except Arzakon: he gives one try
+     * a cycle, so the party may walk away from his field and come back better prepared.
+     */
+    public boolean isHeld() {
+        return !pendingRewards.isEmpty() || pendingEncounter != null && !arzakonWaitsForParty();
+    }
+
+    /** The party stands on Arzakon's field and his fight has not begun: it may still leave. */
+    public boolean arzakonWaitsForParty() {
+        return pendingEncounter != null && pendingEncounter.secretBoss;
     }
 
     public boolean isAdjacent(final HexTile target) {
@@ -1035,8 +1047,8 @@ public class HexCampaign {
                 if (distanceDanger(t) >= ROAMING_DANGER && roamers().size() < MAX_ROAMERS && rnd.nextInt(100) < ROAMING_CHANCE) {
                     t.enemy.roaming = true;
                 }
-            } else if (first && rnd.nextInt(100) < EVENT_CHANCE) {
-                t.event = HexEvent.random(rnd).name();
+            } else if (first && rnd.nextInt(100) < EVENT_CHANCE && !arzakonAwake) {
+                t.event = HexEvent.random(rnd).name(); // none while Arzakon waits: the land holds its breath
             }
         }
     }
@@ -1156,7 +1168,7 @@ public class HexCampaign {
 
     /** May the party set out for this far field (one it has seen, not next to it, not a fast-travel town)? */
     public boolean canRoute(final HexTile goal) {
-        if (goal == null || isBusy() || won || inLabyrinth() || goal == tile() || isAdjacent(goal) || !(goal.explored || goal.scouted)) {
+        if (goal == null || isHeld() || won || inLabyrinth() || goal == tile() || isAdjacent(goal) || !(goal.explored || goal.scouted)) {
             return false;
         }
         if (canFastTravel(goal)) {
@@ -1206,11 +1218,16 @@ public class HexCampaign {
     /** Moves the party one field. */
     public MoveResult moveTo(final int q, final int r) {
         final HexTile target = map.get(q, r);
-        if (isBusy() || won || inLabyrinth()) {
+        if (isHeld() || won || inLabyrinth()) {
             return MoveResult.BUSY;
         }
         if (!isAdjacent(target)) {
             return MoveResult.NOT_ADJACENT;
+        }
+        if (arzakonWaitsForParty()) {
+            // the party walks away from Arzakon: he waits on his field for its one try
+            log(msg("lblHexJournalArzakonLeft"));
+            pendingEncounter = null;
         }
         final boolean finalBoss = target.poi == HexPoi.BOSS && target.color == HexColor.COLORLESS;
         if (finalBoss && !allArchmagesDefeated()) {
@@ -1534,6 +1551,7 @@ public class HexCampaign {
         boostLand = false;
         boostEnemyLife = 0;
         boostDoubleGold = false;
+        clearHeadBoosts();
         deckChecked.clear();
         reshuffleEnemies();
         if (inTownField()) {
@@ -1769,36 +1787,25 @@ public class HexCampaign {
                 }
                 text.append(' ').append(msg("lblHexEventGold", String.valueOf(gold(HexEvent.CHEST_GOLD))));
                 break;
-            case CAMP:
-                final Random rnd = random();
-                for (final HexPlayer p : players) {
-                    final String card = HexContent.get().randomCardOfColor(t.color, rnd);
-                    if (card != null) {
-                        p.sideboard.add(card);
-                        lastEventCards.add(card);
-                        lastEventOwners.add(p.name);
-                        text.append('\n').append(msg("lblHexEventFound", p.name, card));
-                    }
-                }
-                break;
             case BLESSING:
                 boostHand = Math.max(boostHand, 1);
-                break;
-            case LEY_LINE:
-                boostLand = true;
                 break;
             case ALTAR:
                 boostEnemyLife += HexEvent.ALTAR_ENEMY_LIFE;
                 boostDoubleGold = true;
                 break;
+            case CAMP:
+            case LEY_LINE:
             case RUINED_SHRINE:
             case CARAVAN:
             case MIRROR:
-                // every head decides for itself; companions leave it
+                // every head decides for itself; companions take the camp's best card and the ley line's land, and leave the rest
+                final Random rnd = random();
                 for (final HexPlayer p : players) {
-                    if (!p.ai) {
-                        p.eventOffer = event.name();
-                        p.eventColor = t.color;
+                    if (p.ai) {
+                        companionAtEvent(p, event, t.color, rnd, text);
+                    } else {
+                        offerEvent(p, event, t.color, rnd);
                     }
                 }
                 text.append('\n').append(msg("lblHexEventChoose"));
@@ -1811,20 +1818,150 @@ public class HexCampaign {
         log(msg("lblHexJournalEvent", event.getLabel()));
     }
 
+    /** What an event offers a head that decides for itself: a camp's cards, a caravan's stall, a ruined shrine's relics. */
+    private void offerEvent(final HexPlayer p, final HexEvent event, final HexColor color, final Random rnd) {
+        final HexContent content = HexContent.get();
+        p.eventOffer = event.name();
+        p.eventColor = color;
+        p.eventCards = new ArrayList<>();
+        p.eventRelics = new ArrayList<>();
+        p.eventGold = 0;
+        if (event == HexEvent.CAMP) {
+            p.eventCards = content.eventCards(p, color, HexContent.CAMP_RARITIES, HexEvent.CAMP_CARDS, null, rnd);
+            p.eventGold = campGold(p.eventCards);
+        } else if (event == HexEvent.CARAVAN) {
+            p.eventCards = content.eventCards(p, color, HexContent.EVENT_RARITIES, HexEvent.STALL_CARDS, null, rnd);
+        } else if (event == HexEvent.RUINED_SHRINE) {
+            final List<HexRelic> free = freeRelics(p);
+            while (!free.isEmpty() && p.eventRelics.size() < HexEvent.SHRINE_RELICS) {
+                final HexRelic relic = free.remove(rnd.nextInt(free.size()));
+                p.eventRelics.add(content.upgrade(relic, cycle, rnd).name); // New Game Plus: maybe a stronger one
+            }
+        }
+    }
+
+    /** A companion at an event: the camp's best card, the ley line's land; it leaves the trades alone. */
+    private void companionAtEvent(final HexPlayer p, final HexEvent event, final HexColor color, final Random rnd, final StringBuilder text) {
+        if (event == HexEvent.CAMP) {
+            String best = null;
+            for (final String card : HexContent.get().eventCards(p, color, HexContent.CAMP_RARITIES, HexEvent.CAMP_CARDS, null, rnd)) {
+                if (best == null || HexContent.get().price(card) > HexContent.get().price(best)) {
+                    best = card;
+                }
+            }
+            if (best != null) {
+                p.sideboard.add(best);
+                lastEventCards.add(best);
+                lastEventOwners.add(p.name);
+                text.append('\n').append(msg("lblHexEventFound", p.name, best));
+            }
+        } else if (event == HexEvent.LEY_LINE) {
+            p.boostDeckLand++;
+        }
+    }
+
+    /** The gold a camp offers instead of a card: what its cards would sell for, on average. */
+    private static int campGold(final List<String> cards) {
+        int sum = 0;
+        for (final String card : cards) {
+            sum += HexContent.get().sellPrice(card);
+        }
+        return cards.isEmpty() ? 0 : Math.max(1, sum / cards.size());
+    }
+
+    /** The ordinary relics a head could still carry: not carried yet, for a slot that is free. */
+    private List<HexRelic> freeRelics(final HexPlayer p) {
+        final List<HexRelic> free = new ArrayList<>();
+        for (final HexRelic relic : HexContent.get().ordinaryRelics(cycle)) {
+            if (!p.relics.contains(relic.name) && relicInSlot(p, relic.slot) == null) {
+                free.add(relic);
+            }
+        }
+        return free;
+    }
+
     /**
-     * A head takes up the offer of a ruined shrine (a relic for a free slot, or gold if all are
-     * taken) or a caravan (two cards of the field's colour, into the sideboard) for one of its
-     * cards that is not a basic land. A deck may not fall below the minimum size.
+     * What a head pays at a caravan's stall for a card, on top of the card it gives: the difference of their shop prices
+     * (the card given counts with its full price). Nothing if the card given is worth as much or more.
      */
+    public static int stallSurcharge(final String stallCard, final String given) {
+        final HexContent content = HexContent.get();
+        return given == null ? content.price(stallCard) : Math.max(0, content.price(stallCard) - content.price(given));
+    }
+
+    /** The head is done with its event: the offer is gone. */
+    private static void clearEventOffer(final HexPlayer p) {
+        p.eventOffer = null;
+        p.eventColor = null;
+        p.eventCards = new ArrayList<>();
+        p.eventRelics = new ArrayList<>();
+        p.eventGold = 0;
+    }
+
+    /** What ley lines gave the heads for a fight is used up. */
+    private void clearHeadBoosts() {
+        for (final HexPlayer p : players) {
+            p.boostHand = 0;
+            p.boostDeckLand = 0;
+        }
+    }
+
+    /** A head takes up the offer of a ruined shrine, a caravan or a mirror for one of its cards (see the next). */
     public boolean chooseEvent(final String playerName, final String card, final boolean fromSideboard) {
+        return chooseEvent(playerName, card, fromSideboard, 0);
+    }
+
+    /**
+     * A head decides at its event. A camp: the card with the number pick (from 1), or its gold ({@link HexEvent#PICK_GOLD});
+     * the card goes into the sideboard if the flag says so (or the deck is locked), else into the deck. A ley line:
+     * {@link HexEvent#PICK_HAND} or {@link HexEvent#PICK_LAND}. A ruined shrine (the relic with the number pick, or, with
+     * 0 or all slots taken, a random relic or gold), a caravan (the stall's card with the number pick, paying
+     * {@link #stallSurcharge}; with 0 two random cards, as older builds ask for) or a mirror: one of the head's cards that
+     * is not a basic land, from its sideboard if the flag says so. A deck may not fall below the minimum size.
+     */
+    public boolean chooseEvent(final String playerName, final String card, final boolean fromSideboard, final int pick) {
         final HexPlayer p = player(playerName);
         final HexEvent event = p == null ? null : HexEvent.of(p.eventOffer);
         final HexContent content = HexContent.get();
-        if (event == null || !canPickForEvent(event, card)) {
+        if (event == null) {
+            return false;
+        }
+        if (event == HexEvent.CAMP) {
+            if (pick == HexEvent.PICK_GOLD && p.eventGold > 0) {
+                earn(p, p.eventGold);
+                log(msg("lblHexJournalCampGold", p.name, String.valueOf(p.eventGold)));
+            } else if (pick >= 1 && pick <= p.eventCards.size()) {
+                final String found = p.eventCards.get(pick - 1);
+                (fromSideboard || deckLocked() ? p.sideboard : p.deck).add(found);
+                log(msg("lblHexJournalCamp", p.name, found));
+            } else {
+                return false;
+            }
+            clearEventOffer(p);
+            return true;
+        }
+        if (event == HexEvent.LEY_LINE) {
+            if (pick == HexEvent.PICK_HAND) {
+                p.boostHand++;
+            } else if (pick == HexEvent.PICK_LAND) {
+                p.boostDeckLand++;
+            } else {
+                return false;
+            }
+            log(msg(pick == HexEvent.PICK_HAND ? "lblHexJournalLeyHand" : "lblHexJournalLeyLand", p.name));
+            clearEventOffer(p);
+            return true;
+        }
+        if (!canPickForEvent(event, card)) {
             return false;
         }
         if (fromSideboard ? !p.sideboard.contains(card) : event.takesCard() && p.deck.size() <= MIN_DECK_SIZE || !p.deck.contains(card)) {
             return false;
+        }
+        final String stallCard = event == HexEvent.CARAVAN && pick >= 1 && pick <= p.eventCards.size() ? p.eventCards.get(pick - 1) : null;
+        final int surcharge = stallCard == null ? 0 : stallSurcharge(stallCard, card);
+        if (surcharge > p.gold) {
+            return false; // the head cannot pay the difference
         }
         if (event.takesCard()) {
             (fromSideboard ? p.sideboard : p.deck).remove(card);
@@ -1835,6 +1972,7 @@ public class HexCampaign {
         p.gifts = new ArrayList<>();
         p.giftRelic = null;
         p.giftGold = 0;
+        p.giftPaid = 0;
         p.giftEvent = event.name();
         if (event == HexEvent.MIRROR) {
             // the head keeps its card; the copy goes into the sideboard
@@ -1842,13 +1980,13 @@ public class HexCampaign {
             p.gifts.add(card);
             log(msg("lblHexJournalMirror", p.name, card));
         } else if (event == HexEvent.RUINED_SHRINE) {
-            final List<HexRelic> free = new ArrayList<>();
-            for (final HexRelic relic : content.ordinaryRelics(cycle)) {
-                if (!p.relics.contains(relic.name) && relicInSlot(p, relic.slot) == null) {
-                    free.add(relic);
-                }
-            }
-            if (free.isEmpty()) {
+            final List<HexRelic> free = freeRelics(p);
+            final HexRelic chosen = pick >= 1 && pick <= p.eventRelics.size() ? content.getRelic(p.eventRelics.get(pick - 1)) : null;
+            if (chosen != null && !p.relics.contains(chosen.name) && relicInSlot(p, chosen.slot) == null) {
+                p.relics.add(chosen.name);
+                p.giftRelic = chosen.name;
+                log(msg("lblHexJournalShrine", p.name, card, chosen.name));
+            } else if (free.isEmpty()) {
                 earn(p, gold(HexEvent.CHEST_GOLD));
                 p.giftGold = gold(HexEvent.CHEST_GOLD);
                 log(msg("lblHexJournalShrineGold", p.name, card, String.valueOf(gold(HexEvent.CHEST_GOLD))));
@@ -1858,6 +1996,13 @@ public class HexCampaign {
                 p.giftRelic = relic.name;
                 log(msg("lblHexJournalShrine", p.name, card, relic.name));
             }
+        } else if (stallCard != null) {
+            // the caravan's stall: the card chosen, for the card given and the difference in gold
+            spend(p, surcharge);
+            p.sideboard.add(stallCard);
+            p.gifts.add(stallCard);
+            p.giftPaid = surcharge;
+            log(msg("lblHexJournalStall", p.name, card, stallCard, String.valueOf(surcharge)));
         } else {
             final List<String> got = new ArrayList<>();
             for (int i = 0; i < 2; i++) {
@@ -1871,8 +2016,7 @@ public class HexCampaign {
             p.gifts = got;
         }
         p.giftSerial++;
-        p.eventOffer = null;
-        p.eventColor = null;
+        clearEventOffer(p);
         return true;
     }
 
@@ -1891,8 +2035,7 @@ public class HexCampaign {
     public void skipEvent(final String playerName) {
         final HexPlayer p = player(playerName);
         if (p != null) {
-            p.eventOffer = null;
-            p.eventColor = null;
+            clearEventOffer(p);
         }
     }
 
@@ -1907,6 +2050,14 @@ public class HexCampaign {
         }
         if (boostLand) {
             result.add(msg("lblHexBoostLand"));
+        }
+        for (final HexPlayer p : players) {
+            if (p.boostHand > 0) {
+                result.add(msg("lblHexBoostHeadHand", p.name, String.valueOf(p.boostHand)));
+            }
+            if (p.boostDeckLand > 0) {
+                result.add(msg("lblHexBoostHeadLand", p.name, String.valueOf(p.boostDeckLand)));
+            }
         }
         if (boostDoubleGold) {
             result.add(msg("lblHexBoostAltar", String.valueOf(boostEnemyLife)));

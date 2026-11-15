@@ -253,7 +253,12 @@ public class HexSession {
 
     /** A head gives a card to a ruined shrine or a caravan. */
     public void chooseEvent(final String head, final String card, final boolean fromSideboard) {
-        act(new HexActionEvent(HexActionEvent.EVENT_CHOICE, 0, 0, card, fromSideboard, head));
+        chooseEvent(head, card, fromSideboard, 0);
+    }
+
+    /** A head decides at its event, with the number of what it picks (see {@link HexCampaign#chooseEvent(String, String, boolean, int)}). */
+    public void chooseEvent(final String head, final String card, final boolean flag, final int pick) {
+        act(new HexActionEvent(HexActionEvent.EVENT_CHOICE, 0, pick, card, flag, head));
     }
 
     /** A head leaves the shrine or caravan alone. */
@@ -448,7 +453,7 @@ public class HexSession {
                 if (action.getQ() == 1) {
                     campaign.skipEvent(head);
                 } else {
-                    campaign.chooseEvent(head, action.getText(), action.getFlag());
+                    campaign.chooseEvent(head, action.getText(), action.getFlag(), action.getR());
                 }
             } else if (HexActionEvent.RESTOCK.equals(type)) {
                 campaign.restock(head);
@@ -536,9 +541,9 @@ public class HexSession {
 
         // travelling: once everybody has voted (or the leader has), the field with the most votes wins
         final boolean leaderVoted = campaign.leader != null && voters.contains(campaign.leader) && votes.containsKey(campaign.leader);
-        if (!voters.isEmpty() && (leaderVoted || votes.keySet().containsAll(voters)) && !campaign.isBusy() && !fightRunning) {
+        if (!voters.isEmpty() && (leaderVoted || votes.keySet().containsAll(voters)) && !campaign.isHeld() && !fightRunning) {
             resolveVotes();
-        } else if (campaign.isBusy()) {
+        } else if (campaign.isHeld()) {
             clearVotes();
         }
         return fightDue(voters);
@@ -555,7 +560,8 @@ public class HexSession {
             fightHeld = fightHeld && enc != null;
             return false;
         }
-        if (enc.ambush && (voters.isEmpty() || !fightReady.containsAll(voters))) {
+        // a hunter that caught the party, and Arzakon (one try a cycle): every head first says it is ready
+        if ((enc.ambush || enc.secretBoss) && (voters.isEmpty() || !fightReady.containsAll(voters))) {
             return false;
         }
         if (!fightReady.containsAll(deckChoosers(voters))) {
@@ -652,7 +658,7 @@ public class HexSession {
             if (voteDeadline <= 0 || now < voteDeadline || votes.isEmpty() || fightRunning) {
                 return false;
             }
-            if (campaign.isBusy()) {
+            if (campaign.isHeld()) {
                 clearVotes();
             } else {
                 resolveVotes();
