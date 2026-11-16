@@ -31325,3 +31325,16 @@ Zygon Infiltrator|Zygonen-Infiltrator|Kreatur — Alien, Gestaltwandler, Soldat|
 Éowyn, Fearless Knight|Éowyn, furchtlose Ritterin|Legendäre Kreatur — Mensch, Ritter|Eile\nWenn Éowyn, furchtlose Ritterin, ins Spiel kommt, schicke eine Kreatur deiner Wahl mit größerer Stärke, die ein Gegner kontrolliert, ins Exil. Legendäre Kreaturen, die du kontrollierst, erhalten bis zum Ende des Zuges Schutz vor jeder Farbe jener Kreatur.
 Éowyn, Lady of Rohan|Éowyn, Herrin von Rohan|Legendäre Kreatur — Mensch, Adliger|Zu Beginn des Kampfes in deinem Zug erhält eine Kreatur deiner Wahl bis zum Ende des Zuges entweder Erstschlag oder Wachsamkeit (du entscheidest). Falls jene Kreatur ausgerüstet ist, erhält sie stattdessen bis zum Ende des Zuges Erstschlag und Wachsamkeit.\nAusrüsten-Fähigkeiten, die du aktivierst, kosten beim Aktivieren {1} weniger.
 Éowyn, Shieldmaiden|Éowyn die Schildmaid|Legendäre Kreatur — Mensch, Ritter|Erstschlag\nZu Beginn des Kampfes in deinem Zug und falls in diesem Zug ein anderer Mensch unter deiner Kontrolle ins Spiel gekommen ist, erzeuge zwei 2/2 rote Mensch-Ritter-Kreaturenspielsteine mit Eile, die Trampelschaden verursachen. Falls du dann sechs oder mehr Menschen kontrollierst, ziehe eine Karte.
+Veteran's Circlet|Reif des Veteranen|Artefakt|Immer wenn eine oder mehrere Kreaturen, die du kontrollierst, einem Spieler Kampfschaden zufügen, erhältst du eine Erfahrungsmarke.
+Zu Beginn des Kampfes in deinem Zug lege X +1/+1-Marken auf eine Kreatur deiner Wahl, die du kontrollierst. X ist die Hälfte der Anzahl an Erfahrungsmarken, die du hast, abgerundet.
+Scholar's Wand|Stab des Gelehrten|Artefakt|Immer wenn du deinen zweiten Zauberspruch in einem Zug wirkst, erhältst du eine Erfahrungsmarke.
+Spontanzauber und Hexereien, die du wirkst, kosten beim Wirken für je drei Erfahrungsmarken, die du hast, {1} weniger.
+Medallion of Hard Lessons|Medaillon der harten Lehren|Artefakt|Immer wenn eine Quelle, die ein Gegner kontrolliert, dir Schaden zufügt, erhältst du eine Erfahrungsmarke. Diese Fähigkeit triggert nur einmal pro Zug.
+Zu Beginn deines Endsegments erhältst du 1 Lebenspunkt für jede Erfahrungsmarke, die du hast.
+Pathfinder's Boots|Stiefel des Pfadfinders|Artefakt|Immer wenn ein Land unter deiner Kontrolle ins Spiel kommt, erhältst du eine Erfahrungsmarke. Diese Fähigkeit triggert nur einmal pro Zug.
+Zu Beginn deines Versorgungssegments wende Hellsicht X an. X ist 1 plus ein Drittel der Anzahl an Erfahrungsmarken, die du hast, abgerundet.
+Battle-Scarred Hauberk|Kampfgezeichnete Halsberge|Artefakt|Immer wenn eine Kreatur, die du kontrollierst, stirbt, erhältst du eine Erfahrungsmarke.
+Kreaturen, die du kontrollierst, erhalten +X/+X. X ist ein Drittel der Anzahl an Erfahrungsmarken, die du hast, abgerundet.
+Tome of Retold Tales|Foliant der wiedererzählten Sagen|Artefakt|Zu Beginn deines Versorgungssegments erhältst du eine Erfahrungsmarke.
+Immer wenn du eine oder mehrere Erfahrungsmarken erhältst, ziehe eine Karte und dann eine weitere Karte für je vier Erfahrungsmarken, die du hast.
+Hard-Won Experience|Hart erkämpfte Erfahrung|Artefakt|Du beginnst das Spiel mit zwei Erfahrungsmarken.

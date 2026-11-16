@@ -36,6 +36,8 @@ public class HexRelic {
     public int hand;
     /** Cards and tokens the head starts with on the battlefield. */
     public List<String> battlefield = new ArrayList<>();
+    /** Cards the head starts with in the command zone, where their abilities work (the campaign's own emblems). */
+    public List<String> command = new ArrayList<>();
     /** Added to the life of the enemy. */
     public int enemyLife;
     /** Cards and tokens the enemy starts with on the battlefield. */

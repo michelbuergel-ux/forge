@@ -1,0 +1,9 @@
+Name:Medallion of Hard Lessons
+ManaCost:no cost
+Types:Artifact
+T:Mode$ DamageDone | ValidSource$ Card.OppCtrl | ValidTarget$ You | ActivationLimit$ 1 | TriggerZones$ Command | Execute$ TrigExperience | TriggerDescription$ Whenever a source an opponent controls deals damage to you, you get an experience counter. This ability triggers only once each turn.
+SVar:TrigExperience:DB$ PutCounter | Defined$ You | CounterType$ Experience | CounterNum$ 1
+T:Mode$ Phase | Phase$ End of Turn | ValidPlayer$ You | TriggerZones$ Command | CheckSVar$ X | SVarCompare$ GE1 | Execute$ TrigGainLife | TriggerDescription$ At the beginning of your end step, you gain 1 life for each experience counter you have.
+SVar:TrigGainLife:DB$ GainLife | Defined$ You | LifeAmount$ X
+SVar:X:Count$YourCountersExperience
+Oracle:Whenever a source an opponent controls deals damage to you, you get an experience counter. This ability triggers only once each turn.\nAt the beginning of your end step, you gain 1 life for each experience counter you have.

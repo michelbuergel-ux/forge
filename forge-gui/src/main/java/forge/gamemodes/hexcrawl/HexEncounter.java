@@ -25,6 +25,8 @@ public class HexEncounter {
     public boolean ambush;
     /** The enemy of an archenemy task: alone, with a deck of schemes it sets in motion every turn. */
     public boolean archenemy;
+    /** A doppelganger: its heads fight with the decks of the party's heads (see HexCampaign#mirroredHeads). */
+    public boolean doppelganger;
     /** A boss's own words before the fight and after beating the party (Adventure data), or null. */
     public String intro;
     public String insult;

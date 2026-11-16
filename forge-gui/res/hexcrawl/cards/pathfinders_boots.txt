@@ -1,0 +1,10 @@
+Name:Pathfinder's Boots
+ManaCost:no cost
+Types:Artifact
+T:Mode$ ChangesZone | Origin$ Any | Destination$ Battlefield | ValidCard$ Land.YouCtrl | ActivationLimit$ 1 | TriggerZones$ Command | Execute$ TrigExperience | TriggerDescription$ Whenever a land you control enters, you get an experience counter. This ability triggers only once each turn.
+SVar:TrigExperience:DB$ PutCounter | Defined$ You | CounterType$ Experience | CounterNum$ 1
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | Execute$ TrigScry | TriggerDescription$ At the beginning of your upkeep, scry X, where X is 1 plus a third of the number of experience counters you have, rounded down.
+SVar:TrigScry:DB$ Scry | ScryNum$ Y
+SVar:X:Count$YourCountersExperience/DivideEvenlyDown.3
+SVar:Y:SVar$X/Plus.1
+Oracle:Whenever a land you control enters, you get an experience counter. This ability triggers only once each turn.\nAt the beginning of your upkeep, scry X, where X is 1 plus a third of the number of experience counters you have, rounded down.

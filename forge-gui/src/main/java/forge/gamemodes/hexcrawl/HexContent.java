@@ -46,6 +46,8 @@ public final class HexContent {
         /** What a boss says before the fight and after winning it (Adventure data), or null. */
         String bossIntro;
         String bossInsult;
+        /** The Adventure mode's doppelganger: it plays with its opponent's deck. */
+        boolean copyPlayerDeck;
     }
 
     public static final int CARDS_PER_SHOP = 8;
@@ -168,6 +170,7 @@ public final class HexContent {
                 e.life = o.has("life") ? o.get("life").getAsInt() : 20;
                 e.colors = o.has("colors") && o.get("colors").isJsonPrimitive() ? o.get("colors").getAsString() : "";
                 e.sprite = o.has("sprite") && o.get("sprite").isJsonPrimitive() ? o.get("sprite").getAsString() : null;
+                e.copyPlayerDeck = o.has("copyPlayerDeck") && o.get("copyPlayerDeck").getAsBoolean();
                 e.bossIntro = o.has("bossIntro") && o.get("bossIntro").isJsonPrimitive() ? cleanLine(o.get("bossIntro").getAsString()) : null;
                 e.bossInsult = o.has("bossInsult") && o.get("bossInsult").isJsonPrimitive() ? cleanLine(o.get("bossInsult").getAsString()) : null;
                 if (o.has("equipment") && o.get("equipment").isJsonArray()) {
@@ -177,6 +180,9 @@ public final class HexContent {
                 }
                 if (e.deck != null) {
                     enemies.put(e.name, e);
+                    if (e.copyPlayerDeck && doppelgangerEnemy == null) {
+                        doppelgangerEnemy = e; // not a wanderer of its own: it turns up in place of one (HexCampaign#scout)
+                    }
                     if (e.deck.startsWith("decks/miniboss/")) {
                         miniBosses.add(e); // the named enemies the towns put a bounty on
                     }
@@ -196,7 +202,7 @@ public final class HexContent {
                 for (final JsonElement el : o.getAsJsonArray("enemies")) {
                     final Enemy e = enemies.get(el.getAsString());
                     // ordinary wanderers only: bosses and mini bosses have their own decks folder
-                    if (e != null && e.deck.startsWith("decks/standard/") && seen.add(e.name)) {
+                    if (e != null && e.deck.startsWith("decks/standard/") && !e.copyPlayerDeck && seen.add(e.name)) {
                         list.add(e);
                     }
                 }
@@ -362,6 +368,9 @@ public final class HexContent {
                 for (final String card : relic.battlefield) {
                     known &= findStartCard(card) != null;
                 }
+                for (final String card : relic.command) {
+                    known &= findStartCard(card) != null;
+                }
                 for (final String card : relic.enemyBattlefield) {
                     known &= findStartCard(card) != null;
                 }
@@ -452,6 +461,7 @@ public final class HexContent {
             }
         }
         final List<String> cards = new ArrayList<>(relic.battlefield);
+        cards.addAll(relic.command);
         cards.addAll(relic.randomCards);
         cards.addAll(relic.enemyBattlefield);
         for (final String id : cards) {
@@ -699,6 +709,26 @@ public final class HexContent {
         final Enemy e = list.get(from + rnd.nextInt(window));
         final HexEncounter enc = toEncounter(e, color);
         enc.gold = 20 + e.life;
+        return enc;
+    }
+
+    /** The Adventure mode's doppelganger, or null if its data is missing. */
+    private Enemy doppelgangerEnemy;
+
+    /**
+     * A doppelganger in place of a wandering enemy that was rolled: as tough and as rich as that one, on its field.
+     * Null if there is no doppelganger.
+     */
+    public HexEncounter doppelganger(final HexEncounter rolled) {
+        if (doppelgangerEnemy == null || rolled == null) {
+            return null;
+        }
+        final HexEncounter enc = toEncounter(doppelgangerEnemy, rolled.color);
+        enc.doppelganger = true;
+        enc.life = Math.max(enc.life, rolled.life);
+        enc.gold = rolled.gold;
+        enc.q = rolled.q;
+        enc.r = rolled.r;
         return enc;
     }
 
@@ -1167,8 +1197,8 @@ public final class HexContent {
 
     /** The scout report of an enemy (decks are read once and remembered). Null if its deck can't be read. */
     public synchronized ScoutReport scout(final HexEncounter enc) {
-        if (enc == null || enc.deckPath == null) {
-            return null;
+        if (enc == null || enc.deckPath == null || enc.doppelganger) {
+            return null; // a doppelganger has no deck of its own
         }
         final ScoutReport known = scoutReports.get(enc.deckPath);
         if (known != null) {

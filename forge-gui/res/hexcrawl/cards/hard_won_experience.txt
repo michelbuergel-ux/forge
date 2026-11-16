@@ -1,0 +1,6 @@
+Name:Hard-Won Experience
+ManaCost:no cost
+Types:Artifact
+T:Mode$ NewGame | TriggerZones$ Command | Execute$ TrigExperience | Static$ True | TriggerDescription$ You begin the game with two experience counters.
+SVar:TrigExperience:DB$ PutCounter | Defined$ You | CounterType$ Experience | CounterNum$ 2
+Oracle:You begin the game with two experience counters.

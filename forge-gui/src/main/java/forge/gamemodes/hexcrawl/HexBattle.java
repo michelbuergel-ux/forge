@@ -89,7 +89,7 @@ public final class HexBattle {
         final HexContent content = HexContent.get();
         final int life = campaign.enemyLife(enc);
         int avatar = firstAvatar;
-        final RegisteredPlayer enemy = new RegisteredPlayer(content.loadEnemyDeck(enc));
+        final RegisteredPlayer enemy = new RegisteredPlayer(enc.doppelganger ? mirrorDeck(campaign, enc, 0) : content.loadEnemyDeck(enc));
         enemy.setPlayer(GamePlayerUtil.createAiPlayer(enc.enemyName, avatar++));
         enemy.setTeamNumber(ENEMY_TEAM);
         enemy.setStartingLife(life);
@@ -122,6 +122,18 @@ public final class HexBattle {
             enemy.setSchemes(content.schemeDeck(new java.util.Random(campaign.seed * 31 + campaign.fights() * 7919L + enc.questId)));
             return;
         }
+        if (enc.doppelganger) {
+            // every head of a doppelganger plays the deck of another head of the party
+            for (int n = 2; n <= campaign.enemyHeads(); n++) {
+                final RegisteredPlayer rp = new RegisteredPlayer(mirrorDeck(campaign, enc, n - 1));
+                rp.setPlayer(GamePlayerUtil.createAiPlayer(enc.enemyName + " " + n, avatar++));
+                rp.setTeamNumber(ENEMY_TEAM);
+                rp.setStartingLife(life);
+                applyCycle(campaign, enc, rp, n);
+                players.add(rp);
+            }
+            return;
+        }
         if (enc.headsAlike()) {
             for (int n = 2; n <= campaign.enemyHeads(); n++) {
                 final RegisteredPlayer rp = new RegisteredPlayer(content.loadEnemyDeck(enc));
@@ -143,6 +155,13 @@ public final class HexBattle {
             applyCycle(campaign, enc, rp, head++);
             players.add(rp);
         }
+    }
+
+    /** The deck a doppelganger's head plays (0 for the first): the deck of a head of the party (see HexCampaign#mirroredHeads). */
+    private static Deck mirrorDeck(final HexCampaign campaign, final HexEncounter enc, final int head) {
+        final List<HexPlayer> heads = campaign.mirroredHeads(enc);
+        final HexPlayer p = heads.get(head % heads.size());
+        return HexContent.get().toDeck(enc.enemyName, p.deck);
     }
 
     /**
@@ -195,6 +214,7 @@ public final class HexBattle {
     private static void applyRelics(final HexCampaign campaign, final HexPlayer p, final RegisteredPlayer rp) {
         final HexContent content = HexContent.get();
         final List<forge.item.IPaperCard> inPlay = new ArrayList<>();
+        final List<forge.item.IPaperCard> inCommand = new ArrayList<>();
         int hand = 0;
         for (final String name : p.relics) {
             final HexRelic relic = content.getRelic(name);
@@ -203,6 +223,7 @@ public final class HexBattle {
             }
             hand += relic.hand;
             addStartCards(inPlay, relic.battlefield);
+            addStartCards(inCommand, relic.command);
             if (!relic.randomCards.isEmpty()) {
                 // New Game Plus: some of these cards, new ones every fight, more with every cycle
                 final List<String> drawn = new ArrayList<>();
@@ -223,6 +244,9 @@ public final class HexBattle {
         }
         if (!inPlay.isEmpty()) {
             rp.addExtraCardsOnBattlefield(inPlay);
+        }
+        if (!inCommand.isEmpty()) {
+            rp.addExtraCardsInCommandZone(inCommand); // the campaign's emblems: they work from there
         }
         if (hand != 0) {
             rp.setStartingHand(Math.max(1, rp.getStartingHand() + hand));

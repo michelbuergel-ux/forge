@@ -81,7 +81,7 @@ public class HexRelicTierTest extends AITest {
                     AssertJUnit.assertEquals(relic.name + ": " + card, baseCopies * relic.tier, copies);
                 }
             }
-            AssertJUnit.assertTrue(relic.name + " is stronger", relic.battlefield.size() > base.battlefield.size()
+            AssertJUnit.assertTrue(relic.name + " is stronger", relic.battlefield.size() > base.battlefield.size() || relic.command.size() > base.command.size()
                     || relic.life > base.life || relic.hand > base.hand);
         }
         AssertJUnit.assertTrue("some legendary cards among the relics", checked > 0);

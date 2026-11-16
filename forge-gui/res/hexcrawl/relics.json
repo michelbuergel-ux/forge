@@ -3033,6 +3033,192 @@
     ]
   },
   {
+    "name": "Veteran's Circlet",
+    "slot": "Head",
+    "price": 200,
+    "command": [
+      "Veteran's Circlet"
+    ]
+  },
+  {
+    "name": "Veteran's Circlet II",
+    "slot": "Head",
+    "price": 450,
+    "tier": 2,
+    "base": "Veteran's Circlet",
+    "command": [
+      "Veteran's Circlet",
+      "Hard-Won Experience"
+    ]
+  },
+  {
+    "name": "Veteran's Circlet III",
+    "slot": "Head",
+    "price": 1012,
+    "tier": 3,
+    "base": "Veteran's Circlet",
+    "command": [
+      "Veteran's Circlet",
+      "Hard-Won Experience",
+      "Hard-Won Experience"
+    ]
+  },
+  {
+    "name": "Scholar's Wand",
+    "slot": "Right",
+    "price": 200,
+    "command": [
+      "Scholar's Wand"
+    ]
+  },
+  {
+    "name": "Scholar's Wand II",
+    "slot": "Right",
+    "price": 450,
+    "tier": 2,
+    "base": "Scholar's Wand",
+    "command": [
+      "Scholar's Wand",
+      "Hard-Won Experience"
+    ]
+  },
+  {
+    "name": "Scholar's Wand III",
+    "slot": "Right",
+    "price": 1012,
+    "tier": 3,
+    "base": "Scholar's Wand",
+    "command": [
+      "Scholar's Wand",
+      "Hard-Won Experience",
+      "Hard-Won Experience"
+    ]
+  },
+  {
+    "name": "Medallion of Hard Lessons",
+    "slot": "Neck",
+    "price": 150,
+    "command": [
+      "Medallion of Hard Lessons"
+    ]
+  },
+  {
+    "name": "Medallion of Hard Lessons II",
+    "slot": "Neck",
+    "price": 338,
+    "tier": 2,
+    "base": "Medallion of Hard Lessons",
+    "command": [
+      "Medallion of Hard Lessons",
+      "Hard-Won Experience"
+    ]
+  },
+  {
+    "name": "Medallion of Hard Lessons III",
+    "slot": "Neck",
+    "price": 759,
+    "tier": 3,
+    "base": "Medallion of Hard Lessons",
+    "command": [
+      "Medallion of Hard Lessons",
+      "Hard-Won Experience",
+      "Hard-Won Experience"
+    ]
+  },
+  {
+    "name": "Pathfinder's Boots",
+    "slot": "Boots",
+    "price": 120,
+    "command": [
+      "Pathfinder's Boots"
+    ]
+  },
+  {
+    "name": "Pathfinder's Boots II",
+    "slot": "Boots",
+    "price": 270,
+    "tier": 2,
+    "base": "Pathfinder's Boots",
+    "command": [
+      "Pathfinder's Boots",
+      "Hard-Won Experience"
+    ]
+  },
+  {
+    "name": "Pathfinder's Boots III",
+    "slot": "Boots",
+    "price": 608,
+    "tier": 3,
+    "base": "Pathfinder's Boots",
+    "command": [
+      "Pathfinder's Boots",
+      "Hard-Won Experience",
+      "Hard-Won Experience"
+    ]
+  },
+  {
+    "name": "Battle-Scarred Hauberk",
+    "slot": "Body",
+    "price": 250,
+    "command": [
+      "Battle-Scarred Hauberk"
+    ]
+  },
+  {
+    "name": "Battle-Scarred Hauberk II",
+    "slot": "Body",
+    "price": 562,
+    "tier": 2,
+    "base": "Battle-Scarred Hauberk",
+    "command": [
+      "Battle-Scarred Hauberk",
+      "Hard-Won Experience"
+    ]
+  },
+  {
+    "name": "Battle-Scarred Hauberk III",
+    "slot": "Body",
+    "price": 1266,
+    "tier": 3,
+    "base": "Battle-Scarred Hauberk",
+    "command": [
+      "Battle-Scarred Hauberk",
+      "Hard-Won Experience",
+      "Hard-Won Experience"
+    ]
+  },
+  {
+    "name": "Tome of Retold Tales",
+    "slot": "Left",
+    "price": 300,
+    "command": [
+      "Tome of Retold Tales"
+    ]
+  },
+  {
+    "name": "Tome of Retold Tales II",
+    "slot": "Left",
+    "price": 675,
+    "tier": 2,
+    "base": "Tome of Retold Tales",
+    "command": [
+      "Tome of Retold Tales",
+      "Hard-Won Experience"
+    ]
+  },
+  {
+    "name": "Tome of Retold Tales III",
+    "slot": "Left",
+    "price": 1519,
+    "tier": 3,
+    "base": "Tome of Retold Tales",
+    "command": [
+      "Tome of Retold Tales",
+      "Hard-Won Experience",
+      "Hard-Won Experience"
+    ]
+  },
+  {
     "name": "Moxen of the Cycles",
     "slot": "Neck",
     "price": 1125,

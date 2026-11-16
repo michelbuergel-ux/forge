@@ -1,0 +1,9 @@
+Name:Veteran's Circlet
+ManaCost:no cost
+Types:Artifact
+T:Mode$ DamageDoneOnce | CombatDamage$ True | ValidSource$ Creature.YouCtrl | ValidTarget$ Player | TriggerZones$ Command | Execute$ TrigExperience | TriggerDescription$ Whenever one or more creatures you control deal combat damage to a player, you get an experience counter.
+SVar:TrigExperience:DB$ PutCounter | Defined$ You | CounterType$ Experience | CounterNum$ 1
+T:Mode$ Phase | Phase$ BeginCombat | ValidPlayer$ You | TriggerZones$ Command | CheckSVar$ X | SVarCompare$ GE1 | Execute$ TrigCounters | TriggerDescription$ At the beginning of combat on your turn, put X +1/+1 counters on target creature you control, where X is half the number of experience counters you have, rounded down.
+SVar:TrigCounters:DB$ PutCounter | ValidTgts$ Creature.YouCtrl | TgtPrompt$ Select target creature you control | CounterType$ P1P1 | CounterNum$ X
+SVar:X:Count$YourCountersExperience/HalfDown
+Oracle:Whenever one or more creatures you control deal combat damage to a player, you get an experience counter.\nAt the beginning of combat on your turn, put X +1/+1 counters on target creature you control, where X is half the number of experience counters you have, rounded down.

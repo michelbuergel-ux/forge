@@ -104,13 +104,24 @@ public final class HexTheme {
         return getLabel();
     }
 
+    /** Does the card give its player experience counters or count them? */
+    static boolean caresAboutExperience(final CardRules r) {
+        final String oracle = r.getOracleText();
+        if (oracle != null && oracle.toLowerCase(java.util.Locale.ROOT).contains("experience counter")) {
+            return true;
+        }
+        final String other = r.getOtherPart() == null ? null : r.getOtherPart().getOracleText();
+        return other != null && other.toLowerCase(java.util.Locale.ROOT).contains("experience counter");
+    }
+
     // ------------------------------------------------------------------ catalog
 
     private static final List<HexTheme> ALL;
     static {
         final List<HexTheme> all = new ArrayList<>();
         all.add(mechanic("tokens", r -> hints(r, DeckHints.Type.ABILITY, "Token")));
-        all.add(mechanic("counters", r -> hints(r, DeckHints.Type.ABILITY, "Counters", "Proliferate")));
+        // counters of every kind, also the experience counters a player gets (few cards, and proliferate adds them too)
+        all.add(mechanic("counters", r -> hints(r, DeckHints.Type.ABILITY, "Counters", "Proliferate") || caresAboutExperience(r)));
         all.add(mechanic("graveyard", r -> hints(r, DeckHints.Type.ABILITY, "Graveyard", "Mill", "Delirium", "Surveil")));
         all.add(mechanic("lifegain", r -> hints(r, DeckHints.Type.ABILITY, "LifeGain") || r.hasKeyword("Lifelink")));
         all.add(mechanic("sacrifice", r -> hints(r, DeckHints.Type.ABILITY, "Sacrifice")));

@@ -1153,6 +1153,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             info.kind = loc.getMessage("lblHexFightKindSiege");
         } else if (enc.archenemy) {
             info.kind = loc.getMessage("lblHexFightKindArchenemy");
+        } else if (enc.doppelganger) {
+            info.kind = loc.getMessage("lblHexFightKindDoppelganger");
         } else if (enc.questId != 0) {
             info.kind = loc.getMessage("lblHexFightKindTask");
         } else {
@@ -1207,7 +1209,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             }
         }
         if (enc.gold > 0) {
-            sb.append('\n').append(loc.getMessage("lblHexScoutReward", String.valueOf(campaign.gold(enc.gold))));
+            sb.append('\n').append(loc.getMessage(enc.doppelganger ? "lblHexScoutRewardCopy" : "lblHexScoutReward",
+                    String.valueOf(campaign.gold(enc.gold))));
         }
         return sb.toString();
     }
@@ -1592,95 +1595,144 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             if (reward.chestRelicWorn != null && !promptChestRelic(campaign, reward)) {
                 return; // closed: asked again later
             }
-            final List<String> cards = reward.options();
-            // a treasure found without a fight: nothing to choose, only to take
-            final boolean onlyTake = reward.gold == 0 && cards.isEmpty();
-            // the Gold token and the cards on offer side by side: a click takes one (-1 is the gold for chooseReward)
-            final JPanel pictures = new JPanel(new MigLayout("insets 0, gap 12"));
-            pictures.setOpaque(false);
-            final List<JComponent> clickable = new ArrayList<>();
-            final List<Integer> picks = new ArrayList<>();
-            if (!onlyTake) {
-                final JComponent gold = HexRewardCards.card(HexRewardCards.goldToken(), t("lblHexTakeGold", String.valueOf(reward.gold)), true);
-                gold.setToolTipText(t("lblHexTakeGold", String.valueOf(reward.gold)));
-                clickable.add(gold);
-                picks.add(-1);
-                pictures.add(gold, "w " + HexRewardCards.W + "!, h " + HexRewardCards.H + "!");
-            }
-            for (int i = 0; i < cards.size(); i++) {
-                final JComponent card = HexRewardCards.card(HexContent.get().getCard(cards.get(i)), null, true);
-                clickable.add(card);
-                picks.add(i);
-                pictures.add(card, "w " + HexRewardCards.W + "!, h " + HexRewardCards.H + "!");
-            }
-            String message = t(clickable.size() > 1 ? "lblHexRewardChooseOne" : "lblHexRewardFor", reward.playerName);
-            final HexRelic trophy = reward.trophy == null ? null : HexContent.get().getRelic(reward.trophy);
-            if (trophy != null) {
-                // a beaten boss's trophy comes on top of the choice
-                final HexPlayer mine = campaign.player(reward.playerName);
-                final boolean worn = mine != null && mine.relics.contains(trophy.name);
-                message += "\n\n" + t(worn ? "lblHexRewardTrophyWorn" : "lblHexRewardTrophy", trophy.name) + "\n"
-                        + relicEffects(trophy, campaign.cycle).trim();
-            }
-            final PaperCard bossCard = reward.bossCard == null ? null : HexContent.get().getCard(reward.bossCard);
-            if (bossCard != null) {
-                // Arzakon's angel: the head's already, it stands first, apart from the choice
-                message += "\n\n" + t("lblHexRewardBossCard", reward.bossCard, String.valueOf(HexContent.get().price(reward.bossCard)));
-                pictures.add(HexRewardCards.captioned(HexContent.ARZAKON, HexRewardCards.card(bossCard, null, false),
-                        HexRewardCards.W, HexRewardCards.H), 0);
-                if (!clickable.isEmpty()) {
-                    pictures.add(new JLabel(), 1); // a gap between the angel and the choice
-                }
-            }
-            if (reward.chestCard != null || reward.chestRelic != null || reward.chestGold > 0) {
-                // a dungeon's chest, opened already: its card stands first, apart from the choice
-                message += "\n";
-                if (reward.chestCard != null) {
-                    message += "\n" + t("lblHexRewardChestCard", reward.chestCard, String.valueOf(HexContent.get().price(reward.chestCard)));
-                }
-                if (reward.chestGold > 0) {
-                    message += "\n" + t("lblHexRewardChestGold", String.valueOf(reward.chestGold));
-                }
-                if (reward.chestRelic != null) {
-                    final boolean swapped = reward.chestRelicSold != null && !reward.chestRelicSold.equals(reward.chestRelic);
-                    message += "\n" + (swapped
-                            ? t("lblHexRewardChestRelicSwapped", reward.chestRelic, reward.chestRelicSold, String.valueOf(reward.chestRelicGold))
-                            : reward.chestRelicGold > 0
-                            ? t("lblHexRewardChestRelicSold", reward.chestRelic, String.valueOf(reward.chestRelicGold))
-                            : t("lblHexRewardChestRelic", reward.chestRelic));
-                }
-                final PaperCard treasure = reward.chestCard == null ? null : HexContent.get().getCard(reward.chestCard);
-                if (treasure != null) {
-                    // the chest's card is already the head's: only to look at
-                    pictures.add(HexRewardCards.captioned(t("lblHexChest"), HexRewardCards.card(treasure, null, false),
-                            HexRewardCards.W, HexRewardCards.H), 0);
-                    if (!clickable.isEmpty()) {
-                        pictures.add(new JLabel(), 1); // a gap between the chest and the choice
-                    }
-                }
-            }
-            final boolean shown = pictures.getComponentCount() > 0;
-            // new cards (the one chosen, a chest's, Arzakon's angel): into the deck or the sideboard
-            final boolean newCards = !cards.isEmpty() || reward.chestCard != null || reward.bossCard != null;
-            JComponent body = shown ? pictures : null;
-            if (newCards) {
-                final JPanel box = new JPanel(new MigLayout("insets 0, gap 0, wrap 1", "[center]"));
-                box.setOpaque(false);
-                if (shown) {
-                    box.add(pictures);
-                }
-                box.add(newCardsSwitch(), "gaptop 14, alignx center");
-                body = box;
-            }
-            final List<String> buttons = onlyTake ? Arrays.asList(t("lblHexRewardTakeTreasure")) : Collections.<String>emptyList();
-            final int choice = HexRewardCards.choose(message, campaign.name, body, clickable, buttons);
-            if (onlyTake ? choice == 0 : choice >= 0 && choice < picks.size()) {
-                session.chooseReward(onlyTake ? -1 : picks.get(choice), rewardToSideboard);
+            if (reward.copy) {
+                promptCopyReward(campaign, reward);
+            } else {
+                promptRewardCards(campaign, reward);
             }
         } finally {
             rewardPromptOpen = false;
         }
         promptPerkIfWaiting();
+    }
+
+    /** The reward of a won fight: the gold or one of the cards on offer, and what came with it (a trophy, a chest). */
+    private void promptRewardCards(final HexCampaign campaign, final HexReward reward) {
+        final List<String> cards = reward.options();
+        // a treasure found without a fight: nothing to choose, only to take
+        final boolean onlyTake = reward.gold == 0 && cards.isEmpty();
+        // the Gold token and the cards on offer side by side: a click takes one (-1 is the gold for chooseReward)
+        final JPanel pictures = new JPanel(new MigLayout("insets 0, gap 12"));
+        pictures.setOpaque(false);
+        final List<JComponent> clickable = new ArrayList<>();
+        final List<Integer> picks = new ArrayList<>();
+        if (!onlyTake) {
+            final JComponent gold = HexRewardCards.card(HexRewardCards.goldToken(), t("lblHexTakeGold", String.valueOf(reward.gold)), true);
+            gold.setToolTipText(t("lblHexTakeGold", String.valueOf(reward.gold)));
+            clickable.add(gold);
+            picks.add(-1);
+            pictures.add(gold, "w " + HexRewardCards.W + "!, h " + HexRewardCards.H + "!");
+        }
+        for (int i = 0; i < cards.size(); i++) {
+            final JComponent card = HexRewardCards.card(HexContent.get().getCard(cards.get(i)), null, true);
+            clickable.add(card);
+            picks.add(i);
+            pictures.add(card, "w " + HexRewardCards.W + "!, h " + HexRewardCards.H + "!");
+        }
+        String message = t(clickable.size() > 1 ? "lblHexRewardChooseOne" : "lblHexRewardFor", reward.playerName);
+        final HexRelic trophy = reward.trophy == null ? null : HexContent.get().getRelic(reward.trophy);
+        if (trophy != null) {
+            // a beaten boss's trophy comes on top of the choice
+            final HexPlayer mine = campaign.player(reward.playerName);
+            final boolean worn = mine != null && mine.relics.contains(trophy.name);
+            message += "\n\n" + t(worn ? "lblHexRewardTrophyWorn" : "lblHexRewardTrophy", trophy.name) + "\n"
+                    + relicEffects(trophy, campaign.cycle).trim();
+        }
+        final PaperCard bossCard = reward.bossCard == null ? null : HexContent.get().getCard(reward.bossCard);
+        if (bossCard != null) {
+            // Arzakon's angel: the head's already, it stands first, apart from the choice
+            message += "\n\n" + t("lblHexRewardBossCard", reward.bossCard, String.valueOf(HexContent.get().price(reward.bossCard)));
+            pictures.add(HexRewardCards.captioned(HexContent.ARZAKON, HexRewardCards.card(bossCard, null, false),
+                    HexRewardCards.W, HexRewardCards.H), 0);
+            if (!clickable.isEmpty()) {
+                pictures.add(new JLabel(), 1); // a gap between the angel and the choice
+            }
+        }
+        if (reward.chestCard != null || reward.chestRelic != null || reward.chestGold > 0) {
+            // a dungeon's chest, opened already: its card stands first, apart from the choice
+            message += "\n";
+            if (reward.chestCard != null) {
+                message += "\n" + t("lblHexRewardChestCard", reward.chestCard, String.valueOf(HexContent.get().price(reward.chestCard)));
+            }
+            if (reward.chestGold > 0) {
+                message += "\n" + t("lblHexRewardChestGold", String.valueOf(reward.chestGold));
+            }
+            if (reward.chestRelic != null) {
+                final boolean swapped = reward.chestRelicSold != null && !reward.chestRelicSold.equals(reward.chestRelic);
+                message += "\n" + (swapped
+                        ? t("lblHexRewardChestRelicSwapped", reward.chestRelic, reward.chestRelicSold, String.valueOf(reward.chestRelicGold))
+                        : reward.chestRelicGold > 0
+                        ? t("lblHexRewardChestRelicSold", reward.chestRelic, String.valueOf(reward.chestRelicGold))
+                        : t("lblHexRewardChestRelic", reward.chestRelic));
+            }
+            final PaperCard treasure = reward.chestCard == null ? null : HexContent.get().getCard(reward.chestCard);
+            if (treasure != null) {
+                // the chest's card is already the head's: only to look at
+                pictures.add(HexRewardCards.captioned(t("lblHexChest"), HexRewardCards.card(treasure, null, false),
+                        HexRewardCards.W, HexRewardCards.H), 0);
+                if (!clickable.isEmpty()) {
+                    pictures.add(new JLabel(), 1); // a gap between the chest and the choice
+                }
+            }
+        }
+        final boolean shown = pictures.getComponentCount() > 0;
+        // new cards (the one chosen, a chest's, Arzakon's angel): into the deck or the sideboard
+        final boolean newCards = !cards.isEmpty() || reward.chestCard != null || reward.bossCard != null;
+        JComponent body = shown ? pictures : null;
+        if (newCards) {
+            final JPanel box = new JPanel(new MigLayout("insets 0, gap 0, wrap 1", "[center]"));
+            box.setOpaque(false);
+            if (shown) {
+                box.add(pictures);
+            }
+            box.add(newCardsSwitch(), "gaptop 14, alignx center");
+            body = box;
+        }
+        final List<String> buttons = onlyTake ? Arrays.asList(t("lblHexRewardTakeTreasure")) : Collections.<String>emptyList();
+        final int choice = HexRewardCards.choose(message, campaign.name, body, clickable, buttons);
+        if (onlyTake ? choice == 0 : choice >= 0 && choice < picks.size()) {
+            session.chooseReward(onlyTake ? -1 : picks.get(choice), rewardToSideboard);
+        }
+    }
+
+    /** A beaten doppelganger: it copies a card of the head's own deck (listed with a picture), or the head takes the gold. */
+    private void promptCopyReward(final HexCampaign campaign, final HexReward reward) {
+        final List<String> names = reward.options();
+        final javax.swing.DefaultListModel<String> model = new javax.swing.DefaultListModel<>();
+        for (final String name : names) {
+            model.addElement(forge.util.CardTranslation.getTranslatedName(name));
+        }
+        final forge.toolbox.FList<String> list = new forge.toolbox.FList<>(model);
+        list.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
+        final CardPicturePanel pic = new CardPicturePanel();
+        pic.setOpaque(false);
+        list.addListSelectionListener(e -> {
+            final int i = list.getSelectedIndex();
+            final PaperCard card = i >= 0 && i < names.size() ? HexContent.get().getCard(names.get(i)) : null;
+            if (card != null) {
+                pic.setItem(card);
+            }
+        });
+        if (!names.isEmpty()) {
+            list.setSelectedIndex(0);
+        }
+        final JPanel panel = new JPanel(new MigLayout("insets 0, gap 12, wrap 2", "[340!, fill][200!, fill]", "[top]"));
+        panel.setOpaque(false);
+        panel.add(new forge.toolbox.FScrollPane(list, true), "h 280!");
+        panel.add(pic, "h 280!");
+        panel.add(newCardsSwitch(), "span 2, gaptop 10, alignx center");
+        final List<String> options = new ArrayList<>();
+        options.add(t("lblHexDoppelCopy"));
+        options.add(t("lblHexTakeGold", String.valueOf(reward.gold)));
+        options.add(t("lblHexLater"));
+        final int choice = FOptionPane.showOptionDialog(t("lblHexDoppelChoose", reward.playerName, String.valueOf(reward.gold)),
+                campaign.name, FOptionPane.QUESTION_ICON, panel, options, 0);
+        final int i = list.getSelectedIndex();
+        if (choice == 0 && i >= 0 && i < names.size()) {
+            session.chooseReward(i, rewardToSideboard);
+        } else if (choice == 1) {
+            session.chooseReward(-1, rewardToSideboard);
+        }
     }
 
     /** Where the cards of a reward go (the deck or the sideboard): the choice is kept while Forge runs. */
@@ -1955,6 +2007,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         final StringBuilder sb = new StringBuilder(relicEffects(relic, cycle).trim());
         final java.util.Set<String> seen = new java.util.HashSet<>();
         final List<String> ids = new ArrayList<>(relic.battlefield);
+        ids.addAll(relic.command);
         ids.addAll(relic.enemyBattlefield);
         for (final String id : ids) {
             final forge.item.IPaperCard card = HexContent.get().findStartCard(id);
@@ -2252,7 +2305,14 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             sb.append(' ').append(loc.getMessage("lblHexEnemyArchenemy", String.valueOf(HexContent.SCHEMES_PER_ARCHENEMY)));
         }
         final int followers = campaign.enemyHeads(enc) - 1;
-        if (withFollowers && followers > 0) {
+        if (enc.doppelganger) {
+            // its heads play the party's decks: whose, the one thing to know about it
+            final List<String> mirrored = new ArrayList<>();
+            for (final HexPlayer p : campaign.mirroredHeads(enc)) {
+                mirrored.add(p.name);
+            }
+            sb.append(' ').append(loc.getMessage("lblHexEnemyMirrors", String.join(", ", mirrored)));
+        } else if (withFollowers && followers > 0) {
             sb.append(' ').append(loc.getMessage(enc.headsAlike() ? "lblHexEnemyCopies" : "lblHexEnemyFollowers", String.valueOf(followers)));
         }
         if (!enc.startCards.isEmpty()) {
@@ -2284,6 +2344,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         if (!relic.battlefield.isEmpty()) {
             sb.append(loc.getMessage("lblHexRelicStart", cardNames(content, relic.battlefield))).append('\n');
+        }
+        if (!relic.command.isEmpty()) {
+            sb.append(loc.getMessage("lblHexRelicCommand", cardNames(content, relic.command))).append('\n');
         }
         if (!relic.randomCards.isEmpty()) {
             sb.append(loc.getMessage("lblHexRelicRandomStart", String.valueOf(relic.randomPerCycle * cycle),

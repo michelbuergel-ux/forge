@@ -29,6 +29,8 @@ public class HexCampaign {
     public static final int ANTE_MAX_PRICE = 500;
     /** How many heads the enemy fights with, by the number of heads of the party (1 to 4). */
     public static final int[] ENEMY_HEADS = { 1, 2, 3, 3 };
+    /** Of the wandering enemies that turn up, this many in a hundred are a doppelganger. */
+    public static final int DOPPELGANGER_CHANCE = 5;
     /** What the enemy side gets on top of the enemy's own life, by the number of heads of the party (1 to 4). */
     public static final int[] ENEMY_EXTRA_LIFE = { 0, 5, 10, 40 };
     public static final int QUESTS_PER_TOWN = 2;
@@ -1043,6 +1045,13 @@ public class HexCampaign {
                 t.enemy = HexContent.get().randomEncounter(t.color, danger(t), rnd);
                 t.enemy.q = t.q;
                 t.enemy.r = t.r;
+                // now and then a doppelganger in its place (decided apart from rnd, so the rest of the map stays as it was)
+                if (Math.floorMod(java.util.Objects.hash(seed, t.key(), battlesWon, cycle), 100) < DOPPELGANGER_CHANCE) {
+                    final HexEncounter mirror = HexContent.get().doppelganger(t.enemy);
+                    if (mirror != null) {
+                        t.enemy = mirror;
+                    }
+                }
                 // a few of the tougher ones hunt the party
                 if (distanceDanger(t) >= ROAMING_DANGER && roamers().size() < MAX_ROAMERS && rnd.nextInt(100) < ROAMING_CHANCE) {
                     t.enemy.roaming = true;
@@ -1431,7 +1440,12 @@ public class HexCampaign {
                 reward.playerName = p.name;
                 reward.gold = withGoldBonus(p, gold(enc.gold) * (boostDoubleGold ? 2 : 1));
                 final Random rnd = random();
-                for (int i = 0; i < REWARD_CHOICES * 4 && reward.cards.size() < REWARD_CHOICES; i++) {
+                if (enc.doppelganger) {
+                    // a copy of any card of the head's own deck
+                    reward.copy = true;
+                    reward.cards.addAll(doppelgangerCopies(p));
+                }
+                for (int i = 0; !enc.doppelganger && i < REWARD_CHOICES * 4 && reward.cards.size() < REWARD_CHOICES; i++) {
                     final String card = content.randomAnteCard(enc, rnd);
                     if (card == null) {
                         break;
@@ -1602,6 +1616,30 @@ public class HexCampaign {
         return lost;
     }
 
+    /** What a beaten doppelganger copies for a head: any card of its deck, once each, no basic lands nor Arzakon's angels. */
+    public static List<String> doppelgangerCopies(final HexPlayer p) {
+        final List<String> result = new ArrayList<>();
+        for (final String card : new java.util.TreeSet<>(p.deck)) {
+            if (canPickForEvent(HexEvent.MIRROR, card)) {
+                result.add(card);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * The heads whose decks a doppelganger's heads play, in seat order: all of them, or, when it brings fewer heads than
+     * the party has, some of them (the same ones every time it is asked for on that field).
+     */
+    public List<HexPlayer> mirroredHeads(final HexEncounter enc) {
+        final List<HexPlayer> heads = new ArrayList<>(players);
+        final Random rnd = new Random(seed * 7919L + enc.q * 131L + enc.r);
+        while (heads.size() > Math.max(1, enemyHeads(enc))) {
+            heads.remove(rnd.nextInt(heads.size()));
+        }
+        return heads;
+    }
+
     public HexReward pendingReward(final String playerName) {
         for (final HexReward r : pendingRewards) {
             if (r.playerName.equals(playerName)) {
@@ -1651,7 +1689,7 @@ public class HexCampaign {
         }
         if (cardIndex >= 0 && cardIndex < options.size()) {
             (cardToSideboard ? p.sideboard : p.deck).add(options.get(cardIndex));
-            log(msg("lblHexJournalRewardCard", p.name, options.get(cardIndex)));
+            log(msg(reward.copy ? "lblHexJournalDoppelCopy" : "lblHexJournalRewardCard", p.name, options.get(cardIndex)));
         } else {
             earn(p, reward.gold);
             if (reward.gold > 0) { // a treasure found without a fight has none

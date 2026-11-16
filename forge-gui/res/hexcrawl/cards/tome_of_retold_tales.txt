@@ -1,0 +1,10 @@
+Name:Tome of Retold Tales
+ManaCost:no cost
+Types:Artifact
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | Execute$ TrigExperience | TriggerDescription$ At the beginning of your upkeep, you get an experience counter.
+SVar:TrigExperience:DB$ PutCounter | Defined$ You | CounterType$ Experience | CounterNum$ 1
+T:Mode$ CounterAddedOnce | ValidPlayer$ You | CounterType$ EXPERIENCE | TriggerZones$ Command | Execute$ TrigDraw | TriggerDescription$ Whenever you get one or more experience counters, draw a card, then draw an additional card for each four experience counters you have.
+SVar:TrigDraw:DB$ Draw | Defined$ You | NumCards$ Y
+SVar:X:Count$YourCountersExperience/DivideEvenlyDown.4
+SVar:Y:SVar$X/Plus.1
+Oracle:At the beginning of your upkeep, you get an experience counter.\nWhenever you get one or more experience counters, draw a card, then draw an additional card for each four experience counters you have.
