@@ -22,7 +22,7 @@ import forge.game.spellability.SpellAbility;
 import forge.util.IHasForgeLog;
 
 /**
- * Shared team turns (Multi-Headed Giant, Hex Campaign fights): the team that holds priority as a unit, and the heads
+ * Shared team turns (Multi-Headed Giant): the team that holds priority as a unit, and the heads
  * declaring at the same time. Kept apart from PhaseHandler, which calls in here only with shared team turns.
  */
 final class TeamPriority implements IHasForgeLog {

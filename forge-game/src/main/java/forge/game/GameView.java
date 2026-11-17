@@ -83,7 +83,7 @@ public class GameView extends TrackableObject {
         return get(TrackableProperty.GameType);
     }
 
-    /** See {@link GameRules#hasSharedTeamTurns()}: the team play of Multi-Headed Giant (and Hex Campaign fights). */
+    /** See {@link GameRules#hasSharedTeamTurns()}: the team play of Multi-Headed Giant. */
     public boolean isSharedTeamTurns() {
         final Boolean value = get(TrackableProperty.SharedTeamTurns);
         return value != null && value;

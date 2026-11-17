@@ -454,7 +454,7 @@ public class PhaseHandler implements IHasForgeLog {
                     }
                     for (final Player active : getActivePlayers()) {
                         active.drawCard();
-                        // a player set up to draw more each turn (the enemies of a Hex Campaign New Game Plus)
+                        // a player set up to draw more each turn (set up by a game mode)
                         final int extra = active.getRegisteredPlayer() == null ? 0 : active.getRegisteredPlayer().getExtraDrawsPerTurn();
                         for (int i = 0; i < extra; i++) {
                             active.drawCard();

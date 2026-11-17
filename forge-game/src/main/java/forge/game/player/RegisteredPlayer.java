@@ -24,7 +24,7 @@ public class RegisteredPlayer {
 
     private int startingLife = 20;
     private int startingHand = 7;
-    /** Cards the player draws in each of its draw steps on top of the normal one (Hex Campaign New Game Plus). */
+    /** Cards the player draws in each of its draw steps on top of the normal one (set up by a game mode). */
     private int extraDrawsPerTurn = 0;
     private int manaShards = 0;
     private Iterable<IPaperCard> extraCardsOnBattlefield = null;

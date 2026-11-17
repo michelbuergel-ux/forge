@@ -163,7 +163,7 @@ public class GameRules {
     }
 
     /**
-     * Multi-Headed Giant (and the shared team turns a game sets up itself, as the Hex Campaign's fights): the heads of
+     * Multi-Headed Giant (and the shared team turns a game mode sets up itself): the heads of
      * a team hold priority, declare attackers and blockers and answer at the same time, each at its own screen,
      * instead of one after the other as in Two-Headed Giant.
      */
@@ -176,7 +176,7 @@ public class GameRules {
     }
 
     /**
-     * Shared team turns with team permanents (a Hex Campaign option): for what a card says about the permanents "you
+     * Shared team turns with team permanents (an option a game mode may set): for what a card says about the permanents "you
      * control", the permanents of the whole team count. Each permanent keeps its real controller: it still counts as
      * one "you don't control" or "another player controls", and only its controller attacks with it, taps it for a
      * cost or sacrifices it. See {@link forge.game.player.Player#sharesPermanentsWith}.
@@ -190,7 +190,7 @@ public class GameRules {
     }
 
     /**
-     * Streamlined priority (Hex Campaign fights): the players' screens auto-pass when they can't do
+     * Streamlined priority (an option a game mode may set): the players' screens auto-pass when they can't do
      * anything, skip the pauses between steps and stop at fewer phases, without touching their
      * saved preferences.
      */

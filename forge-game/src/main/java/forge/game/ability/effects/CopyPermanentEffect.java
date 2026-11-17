@@ -192,7 +192,7 @@ public class CopyPermanentEffect extends TokenEffectBase {
                 }
                 PaperCard pc = StaticData.instance().getCommonCards().getUniqueByName(name);
                 if (pc == null) {
-                    // a card added while the program runs (the Adventure mode's, a Hex Campaign's) is not in the index above
+                    // a card added while the program runs (the Adventure mode's, for example) is not in the index above
                     pc = StaticData.instance().getCommonCards().getCard(name);
                 }
                 if (pc != null) {
@@ -285,7 +285,7 @@ public class CopyPermanentEffect extends TokenEffectBase {
             String set = sa.getOriginalHost().getSetCode();
             copy.getCurrentState().setRarity(CardRarity.Token);
             copy.getCurrentState().setSetCode(set);
-            // a custom card (the Adventure mode's, a Hex Campaign's) has no token picture: its copy keeps the card's own
+            // a custom card (the Adventure mode's, for example) has no token picture: its copy keeps the card's own
             final boolean custom = original.getRules() != null && original.getRules().isCustom();
             if (!custom) {
                 copy.getCurrentState().setImageKey(StaticData.instance().getOtherImageKey(name, set));
