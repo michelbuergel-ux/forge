@@ -3,7 +3,6 @@ package forge.gamemodes.match;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.primitives.Ints;
-import org.apache.commons.lang3.EnumUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import forge.LobbyPlayer;
@@ -164,7 +163,7 @@ public abstract class GameLobby implements IHasGameType {
         for (final String field : StringUtils.split(FModel.getPreferences().getPref(FPref.UI_LOBBY_SETUP), SETUP_SEPARATOR)) {
             if (field.startsWith(SETUP_VARIANTS)) {
                 for (final String name : StringUtils.split(field.substring(SETUP_VARIANTS.length()), ',')) {
-                    final GameType variant = EnumUtils.getEnum(GameType.class, name);
+                    final GameType variant = GameType.smartValueOf(name);
                     if (variant != null && (choices.contains(variant) || FormatChoices.VARIANTS.contains(variant))) {
                         applyVariant(variant);
                     }
@@ -371,19 +370,20 @@ public abstract class GameLobby implements IHasGameType {
             break;
         case TwoHeadedGiant:
             data.appliedVariants.remove(GameType.MultiHeadedGiant); // the other team variant
-            // the Commander variants and Vanguard set their own life totals, and Planechase has its own team rules (CR 901.12)
+            // the other Commander variants and Vanguard set their own life totals, and Planechase has its own team rules (CR 901.12)
             data.appliedVariants.remove(GameType.Vanguard);
             data.appliedVariants.remove(GameType.Planechase);
             data.appliedVariants.remove(GameType.Archenemy);
             data.appliedVariants.remove(GameType.ArchenemyRumble);
-            data.appliedVariants.remove(GameType.Commander);
             data.appliedVariants.remove(GameType.Oathbreaker);
             data.appliedVariants.remove(GameType.TinyLeaders);
             data.appliedVariants.remove(GameType.Brawl);
+            if (hasVariant(GameType.Commander)) {
+                setGameType(GameType.Commander); // the desktop deck choosers follow the game type
+            }
             applyVariantTeams();
             break;
         case Commander:
-            data.appliedVariants.remove(GameType.TwoHeadedGiant);
             data.appliedVariants.remove(GameType.Oathbreaker);
             data.appliedVariants.remove(GameType.TinyLeaders);
             data.appliedVariants.remove(GameType.Brawl);

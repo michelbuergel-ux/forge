@@ -241,6 +241,9 @@ public class HeadlessNetworkClient implements AutoCloseable, IHasForgeLog {
     }
 
     void onGameEnd() {
+        if (gameFinishedLatch.getCount() == 0) {
+            return;
+        }
         gameInProgress.set(false);
         gameFinishedLatch.countDown();
         netLog.info("Game ended. Deltas={}, FullSyncs={}, TotalBytes={}",
@@ -320,6 +323,7 @@ public class HeadlessNetworkClient implements AutoCloseable, IHasForgeLog {
         });
         // Track the current pending auto-response so we can cancel it when a new prompt arrives
         private volatile ScheduledFuture<?> pendingAutoResponse = null;
+        private volatile boolean gameFinishedEventSeen = false;
         // Lock for coordinating auto-response scheduling
         private final Object autoResponseLock = new Object();
 
@@ -374,6 +378,11 @@ public class HeadlessNetworkClient implements AutoCloseable, IHasForgeLog {
 
             // Then notify the client for logging/verification
             client.onDeltaPacketReceived(packet);
+
+            // afterGameEnd never arrives once the harness hands this seat to the AI
+            if (gameFinishedEventSeen) {
+                client.onGameEnd();
+            }
         }
 
         @Override
@@ -411,6 +420,9 @@ public class HeadlessNetworkClient implements AutoCloseable, IHasForgeLog {
                 }
             }
             super.handleGameEvents(events);
+            if (events.stream().anyMatch(e -> e instanceof forge.game.event.GameEventGameFinished)) {
+                gameFinishedEventSeen = true;
+            }
         }
 
         @Override
