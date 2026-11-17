@@ -30,7 +30,6 @@ import forge.card.ColorSet;
 import forge.card.MagicColor;
 import forge.gamemodes.hexcrawl.HexCardSearch;
 import forge.gamemodes.hexcrawl.HexContent;
-import forge.gui.CardPicturePanel;
 import forge.item.PaperCard;
 import forge.toolbox.FList;
 import forge.toolbox.FScrollPane;
@@ -65,7 +64,9 @@ final class HexArchivistPanel extends JPanel {
     private final List<PaperCard> shown = new ArrayList<>();
     private final JLabel count = label("", body(Font.PLAIN, 12.5f), MUTED);
     private final JLabel price = label("", body(Font.BOLD, 15f), GOLD_LIGHT);
-    private final CardPicturePanel picture = new CardPicturePanel();
+    /** The chosen card, drawn like the cards of the camp and the caravan (scaled to fit). */
+    private final JPanel picture = new JPanel(new java.awt.BorderLayout());
+    private PaperCard pictured;
     private final Timer delay;
 
     HexArchivistPanel(final int gold0) {
@@ -140,7 +141,7 @@ final class HexArchivistPanel extends JPanel {
         final JPanel right = new JPanel(new MigLayout("insets 0, gap 6, wrap 1", "[fill]", "[322!][]"));
         right.setOpaque(false);
         picture.setOpaque(false);
-        right.add(picture);
+        right.add(picture, "w " + HexRewardCards.W + "!, h " + HexRewardCards.H + "!");
         right.add(price, "alignx center");
         add(right);
 
@@ -267,13 +268,19 @@ final class HexArchivistPanel extends JPanel {
         final PaperCard card = selected();
         if (card == null) {
             price.setText(" ");
+            picture.removeAll();
+            pictured = null;
+            picture.repaint();
             return;
         }
-        try {
-            picture.setItem(card);
-        } catch (final RuntimeException e) {
-            // a picture that cannot be drawn leaves the search usable
-            System.err.println("Hex Campaign: no picture of " + card.getName() + ": " + e);
+        if (card != pictured) {
+            pictured = card;
+            picture.removeAll();
+            // the printing the head gets, as in the shops
+            final PaperCard printing = HexContent.get().getCard(card.getName());
+            picture.add(HexRewardCards.card(printing != null ? printing : card, null, false));
+            picture.revalidate();
+            picture.repaint();
         }
         final int p = HexContent.get().archivistPrice(card.getName());
         price.setText(Localizer.getInstance().getMessage("lblHexArchivistPrice", String.valueOf(p)));
