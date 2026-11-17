@@ -147,7 +147,7 @@ final class HexNewCampaignPage extends JPanel {
         for (int i = 0; i < HexCampaign.GOLD_MULTIPLIERS.length; i++) {
             final int n = i;
             final int m = HexCampaign.GOLD_MULTIPLIERS[i];
-            final Pill pill = new Pill(m == 1 ? t("lblHexGoldNormal") : m + "x");
+            final Pill pill = new Pill(m == 5 ? t("lblHexGoldNormal") : m + "x"); // 5x is the usual setting
             pill.addActionListener(e -> { goldChoice = n; update(); });
             goldPills.add(pill);
             goldRow.add(pill, "h 34!, wmin 56");
