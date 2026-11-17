@@ -37,6 +37,20 @@ public final class DisplayMenu {
         menu.add(getSubmenu_StackGroupPermanents());
         menu.add(getMenuItem_TokensSeparateRow());
         menu.add(getMenuItem_SeparateCombatStacks());
+        // team play (shared team turns) only: elsewhere they do nothing, so they are not shown
+        final SkinnedCheckBoxMenuItem teamOwn = getMenuItem_TeamBattlefield(FPref.UI_TEAM_BATTLEFIELD_OWN, "cbTeamBattlefieldOwn");
+        final SkinnedCheckBoxMenuItem teamEnemy = getMenuItem_TeamBattlefield(FPref.UI_TEAM_BATTLEFIELD_ENEMY, "cbTeamBattlefieldEnemy");
+        menu.add(teamOwn);
+        menu.add(teamEnemy);
+        menu.addMenuListener(new javax.swing.event.MenuListener() {
+            @Override public void menuSelected(final javax.swing.event.MenuEvent e) {
+                final boolean team = matchUI.getGameView() != null && matchUI.getGameView().isSharedTeamTurns();
+                teamOwn.setVisible(team);
+                teamEnemy.setVisible(team);
+            }
+            @Override public void menuDeselected(final javax.swing.event.MenuEvent e) { }
+            @Override public void menuCanceled(final javax.swing.event.MenuEvent e) { }
+        });
         menu.add(getMenuItem_ActionableHighlights());
         menu.add(getMenuItem_AutoTapPreview());
         menu.add(getMenuItem_LinkedExileCards());
@@ -110,6 +124,21 @@ public final class DisplayMenu {
             prefs.setPref(FPref.UI_SEPARATE_COMBAT_STACKS, enabled);
             prefs.save();
             relayoutFields();
+        });
+        return menuItem;
+    }
+
+    /** Team games: one battlefield for a side (the own team, or the enemy teams), or a field per head (from the next game on). */
+    private SkinnedCheckBoxMenuItem getMenuItem_TeamBattlefield(final FPref pref, final String label) {
+        final Localizer localizer = Localizer.getInstance();
+        final SkinnedCheckBoxMenuItem menuItem = MenuUtil.createStayOpenSkinnedCheckBox(localizer.getMessage(label));
+        menuItem.setToolTipText(localizer.getMessage("nlTeamBattlefield"));
+        menuItem.setState(prefs.getPrefBoolean(pref));
+        menuItem.addActionListener(e -> {
+            final boolean enabled = !prefs.getPrefBoolean(pref);
+            prefs.setPref(pref, enabled);
+            prefs.save();
+            matchUI.relayoutTeamBattlefields(); // at once, not only from the next game
         });
         return menuItem;
     }

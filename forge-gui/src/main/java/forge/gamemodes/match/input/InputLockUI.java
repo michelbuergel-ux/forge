@@ -62,7 +62,8 @@ public class InputLockUI implements Input {
                 controller.getGui().updateAutoPassPrompt();
             } else {
                 controller.getGui().updateButtons(InputLockUI.this.getOwner(), "", "", false, false, false);
-                showMessage(Localizer.getInstance().getMessage("lblWaitingforActions"));
+                final String teamActivity = controller.getTeamActivity();
+                showMessage(teamActivity != null ? teamActivity : Localizer.getInstance().getMessage("lblWaitingforActions"));
             }
         }
     };

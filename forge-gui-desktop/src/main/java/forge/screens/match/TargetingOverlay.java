@@ -46,13 +46,13 @@ import forge.game.spellability.StackItemView;
 import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.model.FModel;
 import forge.screens.match.controllers.CDock.ArcState;
-import forge.screens.match.views.VField;
 import forge.screens.match.views.VStack.StackInstanceTextArea;
 import forge.toolbox.FSkin;
 import forge.toolbox.FSkin.SkinnedPanel;
 import forge.view.FView;
 import forge.view.arcane.CardPanel;
 import forge.view.arcane.CardPanelContainer;
+import forge.view.arcane.PlayArea;
 import forge.view.arcane.util.CardPanelMouseListener;
 
 /**
@@ -137,9 +137,9 @@ public class TargetingOverlay {
             case MOUSEOVER:
                 // Draw only hovered card
                 activePanel = null;
-                for (final VField f : matchUI.getFieldViews()) {
-                    cardPanels.addAll(f.getTabletop().getCardPanels());
-                    final List<CardPanel> cPanels = f.getTabletop().getCardPanels();
+                for (final PlayArea area : matchUI.getTabletops()) {
+                    cardPanels.addAll(area.getCardPanels());
+                    final List<CardPanel> cPanels = area.getCardPanels();
                     for (final CardPanel c : cPanels) {
                         if (c.isSelected()) {
                             activePanel = c;
@@ -151,8 +151,8 @@ public class TargetingOverlay {
                 break;
             case ON:
                 // Draw all
-                for (final VField f : matchUI.getFieldViews()) {
-                    cardPanels.addAll(f.getTabletop().getCardPanels());
+                for (final PlayArea area : matchUI.getTabletops()) {
+                    cardPanels.addAll(area.getCardPanels());
                 }
         }
 
@@ -245,9 +245,9 @@ public class TargetingOverlay {
 
         if (!assembler.isListening() && matchUI != null && matchUI.getFieldViews() != null) {
             assembler.setListening(true);
-            for (final VField f : matchUI.getFieldViews()) {
-                f.getTabletop().addLayoutListener(assembler);
-                f.getTabletop().addCardPanelMouseListener(assembler);
+            for (final PlayArea area : matchUI.getTabletops()) { // a shared team battlefield once
+                area.addLayoutListener(assembler);
+                area.addCardPanelMouseListener(assembler);
             }
         }
         //List<VField> fields = VMatchUI.SINGLETON_INSTANCE.getFieldViews();
@@ -264,9 +264,9 @@ public class TargetingOverlay {
                 case MOUSEOVER:
                     // Draw only hovered card
                     activePanel = null;
-                    for (final VField f : matchUI.getFieldViews()) {
-                        cardPanels.addAll(f.getTabletop().getCardPanels());
-                        final List<CardPanel> cPanels = f.getTabletop().getCardPanels();
+                    for (final PlayArea area : matchUI.getTabletops()) {
+                        cardPanels.addAll(area.getCardPanels());
+                        final List<CardPanel> cPanels = area.getCardPanels();
                         for (final CardPanel c : cPanels) {
                             if (c.isSelected()) {
                                 activePanel = c;
@@ -278,8 +278,8 @@ public class TargetingOverlay {
                     break;
                 case ON:
                     // Draw all
-                    for (final VField f : matchUI.getFieldViews()) {
-                        cardPanels.addAll(f.getTabletop().getCardPanels());
+                    for (final PlayArea area : matchUI.getTabletops()) {
+                        cardPanels.addAll(area.getCardPanels());
                     }
             }
 

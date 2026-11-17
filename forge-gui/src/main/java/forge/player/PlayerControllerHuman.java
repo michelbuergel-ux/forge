@@ -126,6 +126,49 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
     private final YieldController yieldController = new YieldController(this);
 
     protected final InputQueue inputQueue;
+
+    private volatile boolean concurrentChoice;
+    /** The prompts open for this player (nested ones count too), and whether its OK waits for team mates. */
+    private final java.util.concurrent.atomic.AtomicInteger openInputs = new java.util.concurrent.atomic.AtomicInteger();
+    private volatile boolean okSaid;
+    /** The cards whose notices (a die rolled, a coin flipped...) this player muted for the rest of this game. */
+    private final Set<String> mutedNotices = Sets.newConcurrentHashSet();
+    private volatile boolean choiceInterrupted;
+    private volatile InputPassPriority openPriorityInput;
+    /** Shared team priority: what the team mate who acted first is doing (shown while waiting). */
+    private volatile String teamActivity;
+
+    public String getTeamActivity() {
+        return teamActivity;
+    }
+
+    @Override
+    public void pingCard(final CardView card) {
+        if (card == null) {
+            return;
+        }
+        // to every screen of the team, the own one too (as feedback)
+        final Set<IGuiGame> guis = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (final Player mate : player.getTeamMates(true)) {
+            if (mate.getController() instanceof PlayerControllerHuman pch && pch.getGui() != null && guis.add(pch.getGui())) {
+                pch.getGui().showPing(player.getView(), card);
+            }
+        }
+    }
+    @Override
+    public void sendTeamSignal(final forge.gamemodes.match.TeamSignal signal) {
+        if (signal == null) {
+            return;
+        }
+        // like a ping: to every screen of the team, the own one too (as feedback)
+        final Set<IGuiGame> guis = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (final Player mate : player.getTeamMates(true)) {
+            if (mate.getController() instanceof PlayerControllerHuman pch && pch.getGui() != null && guis.add(pch.getGui())) {
+                pch.getGui().showTeamSignal(player.getView(), signal, null);
+            }
+        }
+    }
+
     protected final InputProxy inputProxy;
 
     private final Localizer localizer = Localizer.getInstance();
@@ -865,7 +908,9 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         final InputSelectEntitiesFromList<Player> input = new InputSelectEntitiesFromList<>(this, 1, 1, getGame().getPlayersInTurnOrder());
         input.setMessage(prompt);
         input.showAndWait();
-        return input.getFirstSelected();
+        // cancelling the choice must not leave the game without a starting player
+        final Player chosen = input.getFirstSelected();
+        return chosen == null ? this.player : chosen;
     }
 
     @Override
@@ -1704,13 +1749,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         return result;
     }
 
-    @Override
-    public List<SpellAbility> chooseSpellAbilityToPlay() {
-        final MagicStack stack = getGame().getStack();
-
-        // Skip when already yielding — yield proceeds regardless of available-actions.
-        // shouldAutoYield, not isYieldActive: it clears yields that have run their course, so an expiring one no longer skips the scan
-        // Compute the actionable set when APINA / suggestions / highlights need it.
+    private void refreshAvailableActions() {
         boolean highlightsEnabled = yieldController.getBoolPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS);
         if (!yieldController.shouldAutoYield() && (needsAvailableActions() || highlightsEnabled)) {
             long timeoutMs = computeAvailableActionsBudgetMs(getPlayer());
@@ -1726,6 +1765,29 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
             }
         } else {
             cachedActionableCards = null;
+        }
+    }
+
+    @Override
+    public List<SpellAbility> chooseSpellAbilityToPlay() {
+        final MagicStack stack = getGame().getStack();
+        teamActivity = null;
+
+        // Skip when already yielding — yield proceeds regardless of available-actions.
+        // shouldAutoYield, not isYieldActive: it clears yields that have run their course, so an expiring one no longer skips the scan
+        // Compute the actionable set when APINA / suggestions / highlights need it.
+        if (concurrentChoice) {
+            // on a thread of its own: working out what may be played changes the game, so not while the team's
+            // thread (or a mate's prompt) works on it
+            final java.util.concurrent.locks.ReentrantLock lock = getGame().getStateLock();
+            lock.lock();
+            try {
+                refreshAvailableActions();
+            } finally {
+                lock.unlock();
+            }
+        } else {
+            refreshAvailableActions();
         }
 
         // yieldJustEndedFlag is read from the EDT (didYieldJustEnd); synchronized writer/reader pair handles visibility.
@@ -1767,20 +1829,144 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         final UndoManager undo = getGame().getUndoManager();
         undo.setMode(undoModeFromPrefs());      // the host's setting decides, for every player in the game
         if (!isMacroActive()) {
-            if (UndoManager.OWN_TURN_ONLY && !getGame().getPhaseHandler().isPlayerTurn(player)) {
+            if (concurrentChoice) {
+                // team mates are prompted at the same time: there is no single history to rewind
+                undo.barrier("Team mates act at the same time");
+            } else if (UndoManager.OWN_TURN_ONLY && !getGame().getPhaseHandler().isPlayerTurn(player)) {
                 undo.barrier("Opponent's turn");
             } else {
                 undo.checkpoint(getGame(), player);      // must come BEFORE the prompt is built
             }
         }
         final InputPassPriority defaultInput = new InputPassPriority(this);
-        defaultInput.showAndWait();
+        openPriorityInput = defaultInput;
+        if (choiceInterrupted) {
+            openPriorityInput = null;
+            return null;
+        }
+        try {
+            defaultInput.showAndWait();
+        } finally {
+            openPriorityInput = null;
+        }
+        if (defaultInput.isInterrupted()) {
+            return null;
+        }
         netLog.trace("InputPassPriority returned for player {}, chosenSa={}", player.getName(), defaultInput.getChosenSa());
         if (undo.consumeRequest()) {            // restore on the GAME thread, not the EDT
             undo.undo(getGame());
             return Collections.emptyList();     // mainLoopStep just prompts again
         }
         return defaultInput.getChosenSa();
+    }
+
+    /** Team play (shared team turns): the games the team additions are meant for. */
+    private boolean isTeamGame() {
+        final Game game = getGame();
+        return game != null && game.getRules().hasSharedTeamTurns();
+    }
+
+    /** A prompt of this player opens (true) or closes: the game waits for them while one is open. */
+    public void noteInputOpen(final boolean open) {
+        if (open) {
+            openInputs.incrementAndGet();
+        } else if (openInputs.decrementAndGet() <= 0) {
+            openInputs.set(0);
+            okSaid = false;
+        }
+        updateWaitedFor();
+    }
+
+    /** The player said OK and waits for team mates (true), or took it back: the game no longer waits for them. */
+    public void noteOkSaid(final boolean said) {
+        okSaid = said;
+        updateWaitedFor();
+    }
+
+    private void updateWaitedFor() {
+        final Game game = getGame();
+        if (player == null || game == null || !isTeamGame()) {
+            return; // other game modes stay as they were
+        }
+        final boolean waited = openInputs.get() > 0 && !okSaid;
+        if (player.getView().isWaitedFor() == waited) {
+            return;
+        }
+        player.getView().setWaitedFor(waited);
+        // the other screens hear of it with the next event
+        ThreadUtil.invokeInGameThread(() -> game.fireEvent(new GameEventPlayerStatsChanged(player)));
+    }
+
+    @Override
+    public boolean canChooseSpellAbilityConcurrently() {
+        return true;
+    }
+
+    @Override
+    public Object getConcurrentChoiceKey() {
+        // local players sharing one screen can't be prompted at the same time
+        return getGui();
+    }
+
+    @Override
+    public void setConcurrentSpellAbilityChoice(final boolean concurrent) {
+        concurrentChoice = concurrent;
+        choiceInterrupted = false;
+    }
+
+    @Override
+    public boolean canKeepSpellAbilityChoiceOpen() {
+        return true;
+    }
+
+    @Override
+    public void mateActing(final Player mate, final Card card) {
+        final InputPassPriority inp = openPriorityInput;
+        if (inp == null || mate == null) {
+            return;
+        }
+        final boolean shown = card != null && card.getView().canBeShownTo(player.getView());
+        final String what = shown
+                ? localizer.getMessage("lblTeamMatePlaying", mate.getName(), CardTranslation.getTranslatedName(card.getName()))
+                : localizer.getMessage("lblTeamMateActing", mate.getName());
+        inp.showMateActing(what, shown ? card.getView() : null);
+    }
+
+    @Override
+    public void refreshSpellAbilityChoice() {
+        final InputPassPriority inp = openPriorityInput;
+        if (inp == null || !inp.isOpen()) {
+            return;
+        }
+        // what may be played now (the mate's spell is on the stack)
+        final java.util.concurrent.locks.ReentrantLock lock = getGame().getStateLock();
+        lock.lock();
+        try {
+            refreshAvailableActions();
+        } finally {
+            lock.unlock();
+        }
+        if (mayAutoPass() && !inp.hasQueuedCard()) {
+            inp.interrupt(); // nothing to do any more: this head passes
+            return;
+        }
+        inp.mateDone();
+    }
+
+    @Override
+    public void interruptSpellAbilityChoice(final Player actedFirst, final Card card) {
+        if (actedFirst != null && actedFirst != player) {
+            // shown while waiting, until this head gets priority again
+            final String who = actedFirst.getName();
+            teamActivity = card != null && card.getView().canBeShownTo(player.getView())
+                    ? localizer.getMessage("lblTeamMatePlaying", who, CardTranslation.getTranslatedName(card.getName()))
+                    : localizer.getMessage("lblTeamMateActing", who);
+        }
+        choiceInterrupted = true;
+        final InputPassPriority inp = openPriorityInput;
+        if (inp != null) {
+            inp.interrupt();
+        }
     }
 
     @Override
@@ -1962,7 +2148,24 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
                 cardView = sa.getHostCard().getView();
             getGui().confirm(cardView, message, true, ImmutableList.of(localizer.getMessage("lblOK")));
         } else {
-            getGui().message(message, sa == null || sa.getHostCard() == null ? "" : CardView.get(sa.getHostCard()).toString());
+            final String title = sa == null || sa.getHostCard() == null ? "" : CardView.get(sa.getHostCard()).toString();
+            final String source = sa == null || sa.getHostCard() == null ? null : sa.getHostCard().getName();
+            if (source == null || !isTeamGame()) {
+                getGui().message(message, title); // other game modes: the plain window, as ever
+                return;
+            }
+            if (mutedNotices.contains(source)) {
+                // muted for this game: only into the log
+                getGame().fireEvent(new GameEventAddLog(GameLogEntryType.INFORMATION, message));
+                return;
+            }
+            // the window offers to stop such notices of this card for the rest of the game
+            final int choice = getGui().showOptionDialog(message, title, forge.localinstance.skin.FSkinProp.ICO_INFORMATION,
+                    ImmutableList.of(localizer.getMessage("lblOK"),
+                            localizer.getMessage("lblMuteNoticesOf", CardTranslation.getTranslatedName(source))), 0);
+            if (choice == 1) {
+                mutedNotices.add(source);
+            }
         }
     }
 
@@ -2816,7 +3019,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
     }
 
     public boolean canUndoLastAction() {
-        if (getGame().getPhaseHandler().getPriorityPlayer() != player) return false;
+        if (!getGame().getPhaseHandler().hasPriority(player)) return false;
         return getGame().getUndoManager().canUndo(player) && inputQueue.getInput() instanceof InputPassPriority;
     }
 
@@ -3993,12 +4196,20 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         yieldController.setDisableAutoTriggers(disable);
     }
 
-    public boolean isUiSetToSkipPhase(final PlayerView turnPlayer, final PhaseType phase) {
+    public boolean isUiSetToSkipPhase(final PlayerView turnPlayer0, final PhaseType phase) {
         if (macros != null && macros.isReplaying()) {
             return false;
         }
+        final PlayerView turnPlayer = turnPlayer0;
+        final Player me = getPlayer();
+        if (me != null && turnPlayer != null && getGame() != null && getGame().getRules().hasTeamActingTogether()) {
+            // Multi-Headed Giant: the turn belongs to the whole team, so in its team's turn every head uses the
+            // phase stops of its own field, not those it set for the head that leads the turn
+            final Player turnOwner = getGame().getPlayer(turnPlayer);
+            return playerSkipsPhase(turnOwner != null && turnOwner.sameTeam(me) ? me.getView() : turnPlayer, phase);
+        }
         // a team that shares its turns stops where any of its players has a stop
-        if (getGui().getGameView() != null) {
+        if (getGui().getGameView() != null && turnPlayer != null) {
             return getGui().getGameView().getPlayers().stream().filter(turnPlayer::sharesTeamWith).allMatch(p -> playerSkipsPhase(p, phase));
         }
         return playerSkipsPhase(turnPlayer, phase);

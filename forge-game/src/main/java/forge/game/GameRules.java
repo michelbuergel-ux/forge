@@ -128,10 +128,6 @@ public class GameRules {
                 || appliedVariants.contains(GameType.Brawl);
     }
 
-    /** Teams take turns and hold priority together (CR 805), as in Two-Headed Giant. */
-    public boolean hasSharedTeamTurns() {
-        return appliedVariants.contains(GameType.TwoHeadedGiant);
-    }
 
     public boolean useGrayText() {
         return useGrayText;
@@ -153,5 +149,21 @@ public class GameRules {
 
     public void setSimTimeout(final int duration) {
         this.simTimeout = duration;
+    }
+
+    /**
+     * Teams take turns and hold priority together (CR 805), share one life total and lose together: Two-Headed Giant,
+     * and Multi-Headed Giant (teams of any size, see {@link #hasTeamActingTogether()}).
+     */
+    public boolean hasSharedTeamTurns() {
+        return appliedVariants.contains(GameType.TwoHeadedGiant) || appliedVariants.contains(GameType.MultiHeadedGiant);
+    }
+
+    /**
+     * Multi-Headed Giant: the heads of a team hold priority, declare attackers and blockers and answer at the same
+     * time, each at its own screen, instead of one after the other as in Two-Headed Giant.
+     */
+    public boolean hasTeamActingTogether() {
+        return appliedVariants.contains(GameType.MultiHeadedGiant);
     }
 }

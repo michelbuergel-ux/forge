@@ -121,6 +121,38 @@ public class CPrompt implements ICDoc {
     public void initialize() {
         _initButton(view.getBtnCancel(), actCancel);
         _initButton(view.getBtnOK(), actOK);
+        for (final java.util.Map.Entry<forge.gamemodes.match.TeamSignal, forge.toolbox.FButton> e : view.getSignalButtons().entrySet()) {
+            final forge.gamemodes.match.TeamSignal signal = e.getKey();
+            for (final ActionListener l : e.getValue().getActionListeners()) {
+                e.getValue().removeActionListener(l);
+            }
+            e.getValue().addActionListener(evt -> {
+                if (matchUI.getGameController() != null) {
+                    matchUI.getGameController().sendTeamSignal(signal);
+                }
+            });
+        }
+    }
+
+    /** Team games show the signal buttons. */
+    public void showTeamControls(final boolean team) {
+        view.getPnlTeam().setVisible(team);
+        view.getPnlTeam().revalidate();
+    }
+
+    private javax.swing.Timer signalTimer;
+
+    /** What a team mate signalled, on a coloured strip above the prompt for a few seconds. */
+    public void showSignal(final String text, final int millis) {
+        view.getLblSignal().setText(text);
+        view.getLblSignal().setVisible(true);
+        if (signalTimer != null) {
+            signalTimer.stop();
+        }
+        signalTimer = new javax.swing.Timer(millis, e -> view.getLblSignal().setVisible(false));
+        signalTimer.setRepeats(false);
+        signalTimer.start();
+        remind();
     }
 
     private static Dialog getActiveDialog(boolean modalOnly)

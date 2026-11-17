@@ -75,9 +75,37 @@ public class AiBlockController {
     // set to true when AI is predicting a blocking for another player so it doesn't use hidden information
     private boolean checkingOther = false;
 
+    /** Shared team turns: the heads whose creatures block together (ai among them), or null for ai alone. */
+    private List<Player> heads;
+
     public AiBlockController(Player p, boolean checkingOther) {
         this.checkingOther = checkingOther;
         ai = p;
+    }
+
+    /**
+     * Shared team turns: one block for the heads of a team together, with all their creatures, so
+     * that no attacker is blocked twice while another one gets through.
+     */
+    public AiBlockController(Player p, boolean checkingOther, List<Player> teamHeads) {
+        this(p, checkingOther);
+        heads = teamHeads == null || teamHeads.size() < 2 ? null : new ArrayList<>(teamHeads);
+    }
+
+    /** The creatures that may block: ai's, or those of all heads blocking together. */
+    private List<Card> ownCreatures() {
+        if (heads == null) {
+            return ai.getCreaturesInPlay();
+        }
+        final List<Card> all = new ArrayList<>();
+        for (final Player head : heads) {
+            all.addAll(head.getCreaturesInPlay());
+        }
+        return all;
+    }
+
+    private boolean isOwnBlocker(final Card blocker) {
+        return heads == null ? blocker.getController() == ai : heads.contains(blocker.getController());
     }
 
     // finds the creatures able to block the attacker
@@ -1000,9 +1028,11 @@ public class AiBlockController {
     }
 
     private void clearBlockers(final Combat combat, final List<Card> possibleBlockers) {
-        for (final Card blocker : CardLists.filterControlledBy(combat.getAllBlockers(), ai)) {
+        for (final Card blocker : combat.getAllBlockers()) {
             // don't touch other player's blockers
-            combat.removeFromCombat(blocker);
+            if (isOwnBlocker(blocker)) {
+                combat.removeFromCombat(blocker);
+            }
         }
 
         attackersLeft = new ArrayList<>(attackers);
@@ -1073,8 +1103,7 @@ public class AiBlockController {
         }
     }
     public void assignBlockersForCombat(final Combat combat, final CardCollection excludedBlockers) {
-        // TODO plan blocks together with teammates (CR 805.10d)
-        List<Card> possibleBlockers = ai.getCreaturesInPlay();
+        List<Card> possibleBlockers = ownCreatures();
         if (excludedBlockers != null && !excludedBlockers.isEmpty()) {
             possibleBlockers.removeAll(excludedBlockers);
         }
@@ -1087,7 +1116,7 @@ public class AiBlockController {
      * @param blockers blockers to add in addition to creatures already in play
      */
     public void assignAdditionalBlockers(final Combat combat, CardCollectionView blockers) {
-        List<Card> possibleBlockers = ai.getCreaturesInPlay();
+        List<Card> possibleBlockers = ownCreatures();
         for (Card c : blockers) {
             if (!possibleBlockers.contains(c)) {
                 possibleBlockers.add(c);
@@ -1104,7 +1133,7 @@ public class AiBlockController {
      * @param givenAttackers specific attackers to consider
      */
     public void assignBlockersGivenAttackers(final Combat combat, List<Card> givenAttackers) {
-        List<Card> possibleBlockers = ai.getCreaturesInPlay();
+        List<Card> possibleBlockers = ownCreatures();
         attackers = givenAttackers;
         assignBlockers(combat, possibleBlockers);
     }

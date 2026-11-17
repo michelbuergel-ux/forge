@@ -72,6 +72,8 @@ public enum ProtocolMethod implements IHasForgeLog {
     applyDelta          (Mode.SERVER, Void.TYPE, DeltaPacket.class),
     /** Server→client push of authoritative yield-state changes. */
     applyYieldUpdate    (Mode.SERVER, Void.TYPE, YieldUpdate.class),
+    showPing            (Mode.SERVER, Void.TYPE, PlayerView.class, CardView.class),
+    showTeamSignal      (Mode.SERVER, Void.TYPE, PlayerView.class, forge.gamemodes.match.TeamSignal.class, String.class),
     applyMacroState     (Mode.SERVER, Void.TYPE, IMacroSystem.State.class),
 
     // Client -> Server
@@ -94,6 +96,8 @@ public enum ProtocolMethod implements IHasForgeLog {
     reorderHand               (Mode.CLIENT, Void.TYPE, CardView.class, Integer.TYPE),
     requestResync             (Mode.CLIENT, Void.TYPE),
     sendYieldUpdate           (Mode.CLIENT, Void.TYPE, YieldUpdate.class),
+    pingCard                  (Mode.CLIENT, Void.TYPE, CardView.class),
+    sendTeamSignal            (Mode.CLIENT, Void.TYPE, forge.gamemodes.match.TeamSignal.class),
     setRememberedActions      (Mode.MACRO, Void.TYPE),
     nextRememberedAction      (Mode.MACRO, Void.TYPE),
     repeatRememberedActions   (Mode.MACRO, Void.TYPE);

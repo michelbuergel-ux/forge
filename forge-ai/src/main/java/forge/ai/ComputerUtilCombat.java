@@ -2494,7 +2494,7 @@ public class ComputerUtilCombat {
         }
 
         int life = ai.getLife();
-        int poisonLife = ai.getGame().getRules().getPoisonCountersToLose() - ai.getPoisonCounters();
+        int poisonLife = ai.getPoisonLossThreshold() - ai.getPoisonCounters();
         double percentLife = life * 1.0 / damageScore;
         double percentPoison = poisonLife * 1.0 / poisonScore;
 

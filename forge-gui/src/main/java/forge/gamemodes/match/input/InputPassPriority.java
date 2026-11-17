@@ -59,9 +59,13 @@ public class InputPassPriority extends InputSyncronizedBase {
     private static final long serialVersionUID = -581477682214137181L;
 
     private List<SpellAbility> chosenSa;
+    private volatile boolean interrupted;
 
     private SuggestionType pendingSuggestion = null;
     private String pendingSuggestionMessage = null;
+
+    /** Team play: a team mate acting while this prompt stays open (see MateActing). */
+    private final MateActing mate = new MateActing(this);
 
     public InputPassPriority(final PlayerControllerHuman controller) {
         super(controller);
@@ -72,14 +76,48 @@ public class InputPassPriority extends InputSyncronizedBase {
         final AfkTimeout timeout = HostingServer.armAfkTimeout(getController(), this);
         try {
             super.showAndWait();
+        } catch (final RuntimeException e) {
+            // it failed while being shown (a shared team prompt may be asked again): no dead prompt left on screen
+            if (!isFinished()) {
+                try {
+                    stop();
+                } catch (final RuntimeException again) {
+                    e.addSuppressed(again);
+                }
+            }
+            throw e;
         } finally {
             timeout.cancel();
+            // interrupted before it was even shown: don't leave it behind on the queue
+            if (interrupted && getController().getInputQueue().getInput() == this) {
+                getController().getInputQueue().removeInput(this);
+            }
         }
+    }
+
+    /** Shared team priority: a team mate acted first, this prompt ends without a decision. */
+    public void interrupt() {
+        interrupted = true;
+        if (isFinished()) return;
+        chosenSa = null;
+        stop();
+    }
+
+    public boolean isInterrupted() {
+        return interrupted;
     }
 
     /** {@inheritDoc} */
     @Override
     public final void showMessage() {
+        if (mate.isActive()) {
+            mate.showPrompt();
+            return;
+        }
+        if (isWaitingForMates()) {
+            showWaitingForMates();
+            return;
+        }
         if (!getController().isMacroActive() && !isAlreadyYielding()) {
             // Suppress one prompt after a yield ends — avoids "yielded → ended → yield again?" loop
             if (getController().getYieldController().getBoolPref(FPref.YIELD_SUPPRESS_AFTER_END)
@@ -125,6 +163,45 @@ public class InputPassPriority extends InputSyncronizedBase {
         }
 
         showNormalPrompt();
+    }
+
+    /** Is this prompt still open (not answered or interrupted)? */
+    public boolean isOpen() {
+        return !isFinished() && !interrupted;
+    }
+
+    // ------------------------------------------------------------------ team play (the work is done in MateActing)
+
+    /** A team mate acts: the prompt says so and shows its card; no OK meanwhile, and a card picked waits for the mate. */
+    public void showMateActing(final String what, final CardView card) {
+        mate.show(what, card);
+    }
+
+    public boolean hasQueuedCard() {
+        return mate.hasQueuedCard();
+    }
+
+    /** The mate's action is done: the prompt shows the new state, and a card picked meanwhile is played now. */
+    public void mateDone() {
+        mate.done();
+    }
+
+    /** For the team parts: the prompt shows no choice of its own (a mate's item is shown). */
+    void clearChosen() {
+        chosenSa = null;
+    }
+
+    /** For MateActing: the card picked meanwhile is played now. */
+    void replayCard(final Card card, final List<Card> others, final ITriggerEvent event) {
+        if (!isFinished()) {
+            onCardSelected(card, others, event);
+        }
+    }
+
+    /** For MateActing: the OK said before is void (the game changed). */
+    void newTeamRound() {
+        forgetOk();
+        watchTeam();
     }
 
     /** Ends this prompt without an action; the game thread then performs a pending undo. */
@@ -230,6 +307,9 @@ public class InputPassPriority extends InputSyncronizedBase {
     /** {@inheritDoc} */
     @Override
     protected final void onOk() {
+        if (isWaitingForMates() || mate.isActive()) {
+            return; // OK said already, or a mate acts: wait
+        }
         if (pendingSuggestion != null) {
             // Defensive: state may have flipped (e.g. async multiplayer click).
             if (isAlreadyYielding()) {
@@ -281,16 +361,29 @@ public class InputPassPriority extends InputSyncronizedBase {
     public void passPriority() {
         if (isFinished()) return;
         passPriority(() -> {
-            getController().macros().addRememberedAction(new PassPriorityAction(
-                    getController().getGame().getStack().isEmpty(),
-                    getController().getGame().getPhaseHandler().getPhase()));
-            stop();
+            // with team mates asked at the same time the pass waits for theirs, and may be taken back until then
+            okWithMates(() -> {
+                getController().macros().addRememberedAction(new PassPriorityAction(
+                        getController().getGame().getStack().isEmpty(),
+                        getController().getGame().getPhaseHandler().getPhase()));
+                stop();
+            });
         });
     }
 
     /** {@inheritDoc} */
     @Override
     protected final void onCancel() {
+        if (mate.isActive()) {
+            mate.dropQueued(); // the card picked is dropped again
+            return;
+        }
+        if (isWaitingForMates()) {
+            if (takeBackOk()) {
+                showNormalPrompt();
+            }
+            return;
+        }
         if (pendingSuggestion != null) {
             getController().getYieldController().declineSuggestion(pendingSuggestion);
             pendingSuggestion = null;
@@ -300,11 +393,11 @@ public class InputPassPriority extends InputSyncronizedBase {
         }
 
         if (!getController().tryUndoLastAction()) { //undo if possible
-            //otherwise end turn
-            passPriority(() -> {
+            //otherwise end turn; with team mates asked at the same time it waits for theirs, and may be taken back until then
+            passPriority(() -> okWithMates(() -> {
                 getController().autoPassUntilEndOfTurn();
                 stop();
-            });
+            }));
         }
     }
 
@@ -318,7 +411,7 @@ public class InputPassPriority extends InputSyncronizedBase {
             //if gui player has mana floating that will be lost if phase ended right now, prompt before passing priority
             final Game game = getController().getGame();
             if (game.getStack().isEmpty()) { //phase can't end right now if stack isn't empty
-                Player player = game.getPhaseHandler().getPriorityPlayer();
+                Player player = getController().getPlayer();
                 if (player != null && player.getManaPool().willManaBeLostAtEndOfPhase() && player.getLobbyPlayer() == GamePlayerUtil.getGuiPlayer()) {
                     //must invoke in game thread so dialog can be shown on mobile game
                     ThreadUtil.invokeInGameThread(() -> {
@@ -347,6 +440,17 @@ public class InputPassPriority extends InputSyncronizedBase {
         List<SpellAbility> abilities = card.getAllPossibleAbilities(getController().getPlayer(), triggerEvent == null); 
         if (abilities.isEmpty()) {
             return false;
+        }
+        if (mate.isActive()) {
+            // the mate is in the middle of its action: the card is played right after it
+            mate.queue(card, otherCardsToSelect, triggerEvent);
+            return true;
+        }
+        if (isWaitingForMates()) {
+            if (!takeBackOk()) {
+                return false; // too late: the team passed
+            }
+            showNormalPrompt(); // acting takes the pass back
         }
 
         final SpellAbility ability = getController().getAbilityToPlay(card, abilities, triggerEvent);
@@ -389,6 +493,12 @@ public class InputPassPriority extends InputSyncronizedBase {
     @Override
     public boolean selectAbility(final SpellAbility ab) {
     	if (ab != null) {
+            if (mate.isActive()) {
+                return false; // a mate acts: pick its card instead, it waits
+            }
+            if (isWaitingForMates() && !takeBackOk()) {
+                return false; // too late: the team passed
+            }
     	    chosenSa = new ArrayList<>();
             chosenSa.add(ab);
             stop();

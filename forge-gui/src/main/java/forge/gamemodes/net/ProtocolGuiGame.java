@@ -196,6 +196,12 @@ public class ProtocolGuiGame extends NetworkGuiGame implements IHasForgeLog {
     }
     private void updateGameView(boolean flush) {
         if (paused) { return; }
+        // shared team priority: team mates' prompts may get here at the same time, off the game thread
+        synchronized (forge.gui.control.GameEventForwarder.LOCK) {
+            updateGameView0(flush);
+        }
+    }
+    private void updateGameView0(boolean flush) {
         GameView gameView = getGameView();
         if (gameView == null) {
             return;
@@ -282,7 +288,9 @@ public class ProtocolGuiGame extends NetworkGuiGame implements IHasForgeLog {
         if (gameView == null) {
             return;
         }
-        // The client builds its screen from the view, so the full state goes first
+        // the view as it is now first (with team play, who is whose opponent decides the battlefields), then the full
+        // state: the client builds its screen from them when openView comes
+        updateGameView();
         sendFullState();
         send(ProtocolMethod.openView, myPlayers);
         // The client's new view starts with an empty log, so a game under way (reconnect, subgame) replays it
@@ -454,6 +462,17 @@ public class ProtocolGuiGame extends NetworkGuiGame implements IHasForgeLog {
     @Override
     public List<CardView> manipulateCardList(final String title, final Iterable<CardView> cards, final Iterable<CardView> manipulable, final boolean toTop, final boolean toBottom, final boolean toAnywhere) {
         return syncAndSendAndWait(ProtocolMethod.manipulateCardList, title, cards, manipulable, toTop, toBottom, toAnywhere);
+    }
+
+    @Override
+    public void showPing(final PlayerView from, final CardView card) {
+        // the card is known on the client already; plain send works from any thread
+        send(ProtocolMethod.showPing, from, card);
+    }
+
+    @Override
+    public void showTeamSignal(final PlayerView from, final forge.gamemodes.match.TeamSignal signal, final String detail) {
+        send(ProtocolMethod.showTeamSignal, from, signal, detail);
     }
 
     @Override

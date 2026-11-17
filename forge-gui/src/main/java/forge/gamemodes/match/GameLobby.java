@@ -343,6 +343,17 @@ public abstract class GameLobby implements IHasGameType {
     }
 
     public void applyVariant(final GameType variant) {
+        if (variant == GameType.MultiHeadedGiant) {
+            // a rules option on top of the chosen format, not a format of its own; Two-Headed Giant is the other team variant
+            data.appliedVariants.remove(GameType.TwoHeadedGiant);
+            data.appliedVariants.add(variant);
+            // sensible default: all humans form one team against the AI players (can be changed per player)
+            for (final LobbySlot slot : data.slots) {
+                slot.setTeam(slot.getType() == LobbySlotType.AI ? 1 : 0);
+            }
+            updateView(true);
+            return;
+        }
         setGameType(variant);
         data.appliedVariants.add(variant);
 
@@ -358,6 +369,7 @@ public abstract class GameLobby implements IHasGameType {
             data.appliedVariants.remove(GameType.TwoHeadedGiant);
             break;
         case TwoHeadedGiant:
+            data.appliedVariants.remove(GameType.MultiHeadedGiant); // the other team variant
             // the other Commander variants and Vanguard set their own life totals, and Planechase has its own team rules (CR 901.12)
             data.appliedVariants.remove(GameType.Vanguard);
             data.appliedVariants.remove(GameType.Planechase);

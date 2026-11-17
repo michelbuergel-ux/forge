@@ -259,6 +259,10 @@ public class HostedMatch {
             }
         }
 
+        // the screens arrange the fields by team, so they have to know who is whose opponent
+        for (final Player p : players) {
+            p.updateOpponentsForView();
+        }
         final ReplaySession replay = ReplaySession.begin(game, humanControllers);
 
         for (final Entry<IGuiGame, Collection<PlayerView>> e : playersPerGui.asMap().entrySet()) {

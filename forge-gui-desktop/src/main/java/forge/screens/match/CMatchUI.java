@@ -134,6 +134,7 @@ import forge.util.collect.FCollectionView;
 import forge.view.FView;
 import forge.view.arcane.CardPanel;
 import forge.view.arcane.FloatingZone;
+import forge.view.arcane.PlayArea;
 
 import net.miginfocom.layout.LinkHandler;
 import net.miginfocom.swing.MigLayout;
@@ -411,6 +412,9 @@ public final class CMatchUI
         return FSkin.getAvatars().get(avatarIdx >= 0 ? avatarIdx : defaultIndex);
     }
 
+    /** Team games: the local player and the teammates; null in every other game. */
+    private java.util.Set<PlayerView> teamPlayers;
+
     private void initMatch(final FCollectionView<PlayerView> sortedPlayers, final Collection<PlayerView> myPlayers) {
         this.sortedPlayers = sortedPlayers;
         allHands = sortedPlayers.size() == getLocalPlayerCount();
@@ -431,7 +435,8 @@ public final class CMatchUI
 
         int i = 0;
         for (final PlayerView p : sortedPlayers) {
-            final boolean mirror = !isLocalPlayer(p);
+            // teammates sit on our side of the table, the same way round as the own field
+            final boolean mirror = !isLocalPlayer(p) && (teamPlayers == null || !teamPlayers.contains(p));
             // A field must be initialized after it's instantiated, to update player info.
             // No player, no init.
             final EDocID fieldDoc = EDocID.Fields[i];
@@ -444,12 +449,63 @@ public final class CMatchUI
             i++;
         }
 
+        java.util.Set<VField> teamFields = null;
+        if (teamPlayers != null) {
+            teamFields = new java.util.HashSet<>();
+            int n = 0;
+            for (final PlayerView p : sortedPlayers) {
+                if (teamPlayers.contains(p)) {
+                    teamFields.add(fields.get(n));
+                }
+                n++;
+            }
+        }
+        view.setTeamFields(teamFields);
         view.setFieldViews(fields);
+        if (teamPlayers != null) {
+            TeamBattlefieldLayout.form(fields, sortedPlayers, teamPlayers);
+        }
 
         initHandViews();
         registerDocs();
 
         screen.setCloseButtonTooltip(getConcedeCaption() + " Game");
+    }
+
+    /**
+     * Team games: the Display menu's choice of team battlefields (own team, enemy teams), applied to the running
+     * match at once: the fields are formed anew, docked, and their battlefields redrawn.
+     */
+    public void relayoutTeamBattlefields() {
+        if (teamPlayers == null || sortedPlayers == null) {
+            return;
+        }
+        final List<VField> fields = view.getFieldViews();
+        for (final VField f : fields) {
+            f.resetTeam();
+        }
+        TeamBattlefieldLayout.form(fields, sortedPlayers, teamPlayers);
+        view.redockTeamFields();
+        for (final VField f : fields) {
+            f.getTabletop().update(); // each battlefield shows its head, or its team, again
+            f.updateDetails();
+            f.updateTabLabel();
+        }
+    }
+
+    /** The battlefields on screen, each once (team members share their team's). */
+    public List<PlayArea> getTabletops() {
+        return TeamBattlefieldLayout.tabletops(getFieldViews());
+    }
+
+    /** Shared team turns: a team mate's hand gets its own tab, like the own hand. */
+    private boolean sharesHandWithLocalPlayer(final PlayerView p) {
+        for (final PlayerView local : getLocalPlayers()) {
+            if (p.sharesHandWith(local)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void initHandViews() {
@@ -458,7 +514,7 @@ public final class CMatchUI
 
         int i = 0;
         for (final PlayerView p : sortedPlayers) {
-            if (allHands || isLocalPlayer(p) || CardView.mayViewAny(p.getHand(), localPlayers)) {
+            if (allHands || isLocalPlayer(p) || sharesHandWithLocalPlayer(p) || CardView.mayViewAny(p.getHand(), localPlayers)) {
                 final EDocID doc = EDocID.Hands[i];
                 final VHand newHand = new VHand(this, doc, p);
                 newHand.getLayoutControl().initialize();
@@ -857,8 +913,8 @@ public final class CMatchUI
         for (final VHand h : view.getHands()) {
             panels.addAll(h.getHandArea().getCardPanels());
         }
-        for (final VField f : view.getFieldViews()) {
-            panels.addAll(f.getTabletop().getCardPanels());
+        for (final PlayArea area : getTabletops()) {
+            panels.addAll(area.getCardPanels());
         }
         return panels;
     }
@@ -883,7 +939,7 @@ public final class CMatchUI
             for (final VField f : view.getFieldViews()) {
                 final CardPanel panel = f.getTabletop().getCardPanel(id);
                 if (panel != null) {
-                    SDisplayUtil.showTab(f);
+                    SDisplayUtil.showTab(f.docked());
                     return panel;
                 }
             }
@@ -972,16 +1028,60 @@ public final class CMatchUI
                 }
             }
         }
+        // shared team turns: light up the phase on the fields of all heads whose turn it is
+        final FCollectionView<PlayerView> activePlayers = getGameView().getActivePlayers();
+        if (ph != null && activePlayers != null && activePlayers.size() > 1) {
+            for (final PlayerView active : activePlayers) {
+                final VField field = getFieldViewFor(active);
+                final PhaseLabel activeLbl = field == null ? null : field.getPhaseIndicator().getLabelFor(ph);
+                if (activeLbl != null) {
+                    activeLbl.setActive(true);
+                }
+            }
+        }
 
         if (openAbilityMenu != null) { //ensure ability menu can't remain open between phases
             openAbilityMenu.setVisible(false);
         }
     }
 
+    // ------------------------------------------------------------------ team play
+
+    /** Pings and team signals (see TeamMatchExtras): they act only in team games. */
+    private final TeamMatchExtras teamExtras = new TeamMatchExtras(this);
+
+    private void updateTeamControls() {
+        teamExtras.updateTeamControls();
+    }
+
+    /** A game of teams with several heads on this screen's side (the team signals and pings work). */
+    public boolean isTeamGame() {
+        return teamPlayers != null && teamPlayers.size() > 1;
+    }
+
+    /** Team games: the local player and the team mates; null in every other game. */
+    java.util.Set<PlayerView> getTeamPlayers() {
+        return teamPlayers;
+    }
+
+    @Override
+    public void showPing(final PlayerView from, final CardView card) {
+        super.showPing(from, card);
+        teamExtras.showPing(from, card);
+    }
+
+    @Override
+    public void showTeamSignal(final PlayerView from, final forge.gamemodes.match.TeamSignal signal, final String detail) {
+        teamExtras.showTeamSignal(from, signal, detail);
+    }
+
     @Override
     public void updateTurn(final PlayerView player) {
+        FThreads.invokeInEdtNowOrLater(this::updateTeamControls);
         final VField nextField = getFieldViewFor(player);
-        SDisplayUtil.showTab(nextField);
+        if (nextField != null) {
+            SDisplayUtil.showTab(nextField.docked());
+        }
         cPrompt.updateText();
         repaintCardOverlays();
     }
@@ -1019,6 +1119,12 @@ public final class CMatchUI
             writeMatchPreferences();
         }
         final GameView gameView = getGameView();
+        if (Singletons.getControl().getCurrentScreen() != screen) {
+            // the match screen is gone already (in a network game another player left the result
+            // screen first, which ends the match for everybody): a result screen would cover
+            // whatever is shown now
+            return;
+        }
         if (hasLocalPlayers() || gameView.isMatchOver()) {
             new ViewWinLose(gameView, this).show();
         }
@@ -1036,9 +1142,8 @@ public final class CMatchUI
      * Clear all visually highlighted card panels on the battlefield.
      */
     public void clearPanelSelections() {
-        final List<VField> fields = view.getFieldViews();
-        for (final VField field : fields) {
-            for (final CardPanel p : field.getTabletop().getCardPanels()) {
+        for (final PlayArea area : getTabletops()) {
+            for (final CardPanel p : area.getCardPanels()) {
                 p.setSelected(false);
             }
         }
@@ -1259,7 +1364,40 @@ public final class CMatchUI
         }
         // Multiplayer: sort by turn order with local player first
         final String layout = FModel.getPreferences().getPref(FPref.UI_MULTIPLAYER_FIELD_LAYOUT);
-        if (players.size() > 2 && myPlayers != null && myPlayers.size() >= 1
+        teamPlayers = null;
+        // team play (shared team turns) only: other team games keep Forge's own layout
+        if (gameView.isSharedTeamTurns() && players.size() > 2 && myPlayers != null && myPlayers.size() >= 1) {
+            // a team of several heads: own field first, then an opponent, so that the two base
+            // cells are "us" (bottom) and "them" (top); the other fields join their side as tabs
+            // the game's own instance: in a network game myPlayers holds copies sent with
+            // openView, which the game state updates never reach (hand and library stay empty)
+            PlayerView me = myPlayers.get(0);
+            for (final PlayerView p : players) {
+                if (p.equals(me)) {
+                    me = p;
+                    break;
+                }
+            }
+            final List<PlayerView> mates = new ArrayList<>();
+            final List<PlayerView> foes = new ArrayList<>();
+            for (final PlayerView p : players) {
+                if (p.equals(me)) {
+                    continue;
+                }
+                (me.isOpponentOf(p) ? foes : mates).add(p);
+            }
+            if (!mates.isEmpty() && !foes.isEmpty()) {
+                final List<PlayerView> order = new ArrayList<>();
+                order.add(me);
+                order.add(foes.remove(0));
+                order.addAll(mates);
+                order.addAll(foes);
+                players = new FCollection<>(order);
+                teamPlayers = new java.util.HashSet<>(mates);
+                teamPlayers.add(me);
+            }
+        }
+        if (teamPlayers == null && players.size() > 2 && myPlayers != null && myPlayers.size() >= 1
                 && !"OFF".equals(layout)) {
             players = new FCollection<>(sortPlayersForMultiplayer(players, myPlayers.get(0), "ROWS".equals(layout)));
         }
@@ -1456,6 +1594,7 @@ public final class CMatchUI
     }
 
     private void actuateMatchPreferences() {
+        updateTeamControls();
         final ForgePreferences prefs = FModel.getPreferences();
         final List<VField> fieldViews = getFieldViews();
         final PhaseType[] phases = PhaseType.values();

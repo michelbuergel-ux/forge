@@ -164,6 +164,12 @@ public class Game {
     private final Game maingame;
     private final GameView view;
     private final Tracker tracker = new Tracker();
+    /**
+     * Shared team turns: team mates are prompted on threads of their own, and what they may play is worked out there,
+     * which changes the game's state (its static effects, for one). The team's thread holds this while it plays and
+     * checks the state, the prompts while they work it out; see TeamPriority.
+     */
+    private final java.util.concurrent.locks.ReentrantLock stateLock = new java.util.concurrent.locks.ReentrantLock();
     private final UndoManager undoManager = new UndoManager();
 
     /**
@@ -393,6 +399,20 @@ public class Game {
             pl.setTeam(teamNum);
         }
 
+        if (rules.hasSharedTeamTurns()) {
+            // one life total per team: every head starts with the life of the first member of its team
+            for (Player pl : allPlayers) {
+                for (Player first : allPlayers) {
+                    if (first.getTeam() == pl.getTeam()) {
+                        if (first != pl) {
+                            pl.setStartingLife(first.getStartingLife());
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
         action = new GameAction(this);
         stack = new MagicStack(this);
         phaseHandler = new PhaseHandler(this);
@@ -413,6 +433,11 @@ public class Game {
 
     public GameView getView() {
         return view;
+    }
+
+    /** See {@link #stateLock}. */
+    public java.util.concurrent.locks.ReentrantLock getStateLock() {
+        return stateLock;
     }
 
     public Tracker getTracker() {

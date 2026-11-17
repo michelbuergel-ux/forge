@@ -61,6 +61,11 @@ public class VPrompt implements IVDoc<CPrompt> {
     // Various components
     private final FButton btnOK = new FButton(localizer.getMessage("lblOK"));
     private final FButton btnCancel = new FButton(localizer.getMessage("lblCancel"));
+    /** Team games: what a team mate just signalled ("Hold!"), on a coloured strip for a few seconds. */
+    private final FLabel lblSignal = new FLabel.Builder().fontSize(13).fontStyle(Font.BOLD).fontAlign(SwingConstants.CENTER).opaque().build();
+    /** Team games: quick signals to the team mates. */
+    private final JPanel pnlTeam = new JPanel(new MigLayout("insets 0, gap 2px!, fillx"));
+    private final java.util.Map<forge.gamemodes.match.TeamSignal, FButton> signalButtons = new java.util.EnumMap<>(forge.gamemodes.match.TeamSignal.class);
     private final FHtmlViewer tarMessage = new FHtmlViewer();
     private final FScrollPane messageScroller = new FScrollPane(tarMessage, false,
     		ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
@@ -132,6 +137,10 @@ public class VPrompt implements IVDoc<CPrompt> {
         }
         lblGames.setText(localizer.getMessage("lblGameSetup"));
 
+        lblSignal.setVisible(false);
+        lblSignal.setBackground(new java.awt.Color(0x1F6F43));
+        lblSignal.setForeground(java.awt.Color.WHITE);
+        container.add(lblSignal, "span 2, w 10:100%, h 26px!, hidemode 3");
         container.add(messageScroller, "span 2, w 10:100%, h 0:100%");
 
         boolean largerButtons = prefs.getPrefBoolean(FPref.UI_TOUCHSCREEN_OPTIMIZE);
@@ -140,6 +149,21 @@ public class VPrompt implements IVDoc<CPrompt> {
 
         container.add(btnOK, constraints);
         container.add(btnCancel, constraints);
+        if (pnlTeam.getComponentCount() == 0) {
+            pnlTeam.setOpaque(false);
+            for (final forge.gamemodes.match.TeamSignal signal : forge.gamemodes.match.TeamSignal.BUTTONS) {
+                final FButton b = new FButton(localizer.getMessage(signal.getLabelKey()));
+                b.setFont(FSkin.getFont(11));
+                signalButtons.put(signal, b);
+                pnlTeam.add(b, "h 22px!, growx, sg signal");
+            }
+            // how to point a team mate at a card: easy to forget, so it stays in sight
+            final FLabel pingHint = new FLabel.Builder().text(localizer.getMessage("lblPingHint")).fontSize(11)
+                    .fontAlign(SwingConstants.CENTER).build();
+            pnlTeam.add(pingHint, "newline, span, growx, h 16px!");
+            pnlTeam.setVisible(false);
+        }
+        container.add(pnlTeam, "span 2, w 10:100%, gaptop 2px!, hidemode 3");
     }
 
     /* (non-Javadoc)
@@ -191,6 +215,18 @@ public class VPrompt implements IVDoc<CPrompt> {
     /** @return {@link javax.swing.JButton} */
     public FButton getBtnCancel() {
         return this.btnCancel;
+    }
+
+    public FLabel getLblSignal() {
+        return this.lblSignal;
+    }
+
+    public JPanel getPnlTeam() {
+        return this.pnlTeam;
+    }
+
+    public java.util.Map<forge.gamemodes.match.TeamSignal, FButton> getSignalButtons() {
+        return this.signalButtons;
     }
 
     /** @return {@link javax.swing.JTextArea} */

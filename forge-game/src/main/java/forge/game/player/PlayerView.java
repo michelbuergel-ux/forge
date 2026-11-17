@@ -120,6 +120,14 @@ public class PlayerView extends GameEntityView {
         set(TrackableProperty.SharedTeam, PlayerView.getCollection(p.getSharedTeam()));
     }
 
+    /**
+     * The players who may look at this player's hand: the team mates in a game with shared team
+     * turns (as in Two-Headed Giant, CR 810.6), nobody otherwise.
+     */
+    public boolean sharesHandWith(final PlayerView other) {
+        return other != null && !equals(other) && sharesTeamWith(other);
+    }
+
     public boolean isOpponentOf(final PlayerView other) {
         return getOpponents().contains(other);
     }
@@ -130,7 +138,7 @@ public class PlayerView extends GameEntityView {
             return true;
         }
         TrackableCollection<PlayerView> team = get(TrackableProperty.SharedTeam);
-        return team != null && team.contains(other);
+        return team != null && other != null && team.indexOf(other) != -1; // indexOf, not contains: see CardView.mayPlayerLook
     }
 
     public final String getCommanderInfo(CardView v) {
@@ -248,6 +256,14 @@ public class PlayerView extends GameEntityView {
     }
     public void setHasPriority(final boolean val) {
         set(TrackableProperty.HasPriority, val);
+    }
+
+    /** Does the game wait for this player's decision (a prompt of theirs is open, not yet answered)? */
+    public boolean isWaitedFor() {
+        return get(TrackableProperty.WaitedFor);
+    }
+    public void setWaitedFor(final boolean val) {
+        set(TrackableProperty.WaitedFor, val);
     }
 
     public int getMaxHandSize() {

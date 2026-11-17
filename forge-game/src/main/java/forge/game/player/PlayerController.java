@@ -311,6 +311,46 @@ public abstract class PlayerController {
     public abstract CardCollectionView tuckCardsViaMulligan(CardCollectionView hand, int cardsToReturn);
 
     public abstract List<SpellAbility> chooseSpellAbilityToPlay();
+
+    /**
+     * Shared team priority: whether {@link #chooseSpellAbilityToPlay()} may run on its own thread,
+     * at the same time as that of team mates. Controllers that answer true must support
+     * {@link #interruptSpellAbilityChoice()}.
+     */
+    public boolean canChooseSpellAbilityConcurrently() {
+        return false;
+    }
+    /** Controllers sharing this key (e.g. the same screen) are never asked at the same time. */
+    public Object getConcurrentChoiceKey() {
+        return this;
+    }
+    /** Called on the game thread before and after this controller is asked at the same time as its team mates. */
+    public void setConcurrentSpellAbilityChoice(final boolean concurrent) { }
+    /**
+     * A team mate acted first: end a running {@link #chooseSpellAbilityToPlay()} without a decision.
+     * @param actedFirst the team mate who acted
+     * @param card the card it plays (or activates), may be null
+     */
+    public void interruptSpellAbilityChoice(final Player actedFirst, final Card card) { }
+    /**
+     * A team mate acts (casts, activates, pays) while this controller's {@link #chooseSpellAbilityToPlay()} stays
+     * open: it may show what the mate does.
+     * @param mate the team mate who acts
+     * @param card the card it plays (or activates), may be null
+     */
+    public void mateActing(final Player mate, final Card card) { }
+    /**
+     * Can this controller's {@link #chooseSpellAbilityToPlay()} stay open while a team mate acts (see
+     * {@link #mateActing} and {@link #refreshSpellAbilityChoice()})? Otherwise it is interrupted and asked again.
+     */
+    public boolean canKeepSpellAbilityChoiceOpen() {
+        return false;
+    }
+    /**
+     * The game changed (a mate's action is done) while this controller's {@link #chooseSpellAbilityToPlay()} stayed
+     * open: show it anew, or pass if there is nothing to do any more.
+     */
+    public void refreshSpellAbilityChoice() { }
     public abstract boolean playChosenSpellAbility(SpellAbility sa);
 
     public abstract List<AbilitySub> chooseModeForAbility(SpellAbility sa, List<AbilitySub> possible, int min, int num, boolean allowRepeat);

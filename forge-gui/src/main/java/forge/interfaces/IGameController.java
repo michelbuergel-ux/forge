@@ -59,6 +59,12 @@ public interface IGameController {
      */
     void requestResync();
 
+    /** Team play: points the team mates at a card (it lights up on their screens for a moment). */
+    default void pingCard(CardView card) { }
+
+    /** Team play: a quick message ("Hold!", "Go ahead", "I'll block") to the team mates. */
+    default void sendTeamSignal(forge.gamemodes.match.TeamSignal signal) { }
+
     // Auto-yield preferences
     default boolean shouldAutoYield(String key) {
         return getYieldController().shouldAutoYield(key);

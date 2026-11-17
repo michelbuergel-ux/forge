@@ -70,6 +70,10 @@ public class InputBlock extends InputSyncronizedBase {
     /** {@inheritDoc} */
     @Override
     protected final void showMessage() {
+        if (isWaitingForMates()) {
+            showWaitingForMates();
+            return;
+        }
         // could add "Reset Blockers" button
         Localizer localizer = Localizer.getInstance();
         getController().getGui().updateButtons(getOwner(), true, false, true);
@@ -101,10 +105,13 @@ public class InputBlock extends InputSyncronizedBase {
     /** {@inheritDoc} */
     @Override
     public final void onOk() {
+        if (isWaitingForMates()) {
+            return; // OK said already: waiting for the team mates
+        }
         final String blockErrors = CombatUtil.validateBlocks(combat, defender);
         if (blockErrors == null) {
-            // Done blocking
-            stop();
+            // Done blocking; with team mates blocking at the same time the OK waits for theirs, and may be taken back until then
+            okWithMates(this::stop);
         } else {
             //must run in game thread to prevent problems for mobile game
             ThreadUtil.invokeInGameThread(() -> getController().getGui().message(blockErrors));
@@ -114,6 +121,9 @@ public class InputBlock extends InputSyncronizedBase {
     /** {@inheritDoc} */
     @Override
     public final boolean onCardSelected(final Card card, final List<Card> otherCardsToSelect, final ITriggerEvent triggerEvent) {
+        if (isWaitingForMates()) {
+            return false; // take the OK back first
+        }
         boolean isCorrectAction = false;
         if (triggerEvent != null && triggerEvent.getButton() == 3 && card.getController() == defender) {
             combat.removeFromCombat(card);

@@ -49,6 +49,7 @@ public class GameView extends TrackableObject {
         set(TrackableProperty.IsCommander, rules.hasCommander());
         set(TrackableProperty.GameType, rules.getGameType());
         set(TrackableProperty.PoisonCountersToLose, rules.getPoisonCountersToLose());
+        set(TrackableProperty.SharedTeamTurns, rules.hasSharedTeamTurns());
         set(TrackableProperty.NumGamesInMatch, rules.getGamesPerMatch());
 
         set(TrackableProperty.NumPlayedGamesInMatch, game.getMatch().getOutcomes().size());
@@ -81,6 +82,12 @@ public class GameView extends TrackableObject {
         return get(TrackableProperty.GameType);
     }
 
+    /** See {@link GameRules#hasSharedTeamTurns()}. */
+    public boolean isSharedTeamTurns() {
+        final Boolean value = get(TrackableProperty.SharedTeamTurns);
+        return value != null && value;
+    }
+
     public int getPoisonCountersToLose() {
         return get(TrackableProperty.PoisonCountersToLose);
     }
@@ -108,6 +115,24 @@ public class GameView extends TrackableObject {
     }
     void updatePlayerTurn(PhaseHandler phaseHandler) {
         set(TrackableProperty.PlayerTurn, PlayerView.get(phaseHandler.getPlayerTurn()));
+        set(TrackableProperty.ActivePlayers, PlayerView.getCollection(phaseHandler.getActivePlayers()));
+    }
+
+    /** All players whose turn it is: more than one only with shared team turns (Multi-Headed Giant). */
+    public FCollectionView<PlayerView> getActivePlayers() {
+        return get(TrackableProperty.ActivePlayers);
+    }
+
+    /** True if it is the turn of the given player, including a turn shared with the team. */
+    public boolean isPlayerTurn(final PlayerView player) {
+        if (player == null) {
+            return false;
+        }
+        if (player.equals(getPlayerTurn())) {
+            return true;
+        }
+        final FCollectionView<PlayerView> active = getActivePlayers();
+        return active != null && active.contains(player);
     }
 
     public void updatePlanarPlayer(PlayerView p) {

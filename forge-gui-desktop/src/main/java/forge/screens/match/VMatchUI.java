@@ -36,6 +36,8 @@ import forge.view.FView;
  */
 public class VMatchUI implements IVTopLevelUI {
     private List<VField> lstFields = new ArrayList<>();
+    /** Team games: the fields (own and teammates') that belong into the bottom cell; null otherwise. */
+    private java.util.Set<VField> teamFields;
     private List<VHand> lstHands = new ArrayList<>();
 
     // Tracking for dynamic split-mode cells so they can be cleaned up on relayout.
@@ -119,7 +121,9 @@ public class VMatchUI implements IVTopLevelUI {
             if (parent != null) {
                 parent.removeDoc(vField);
                 vField.setParentCell(null);
-                if (parent != c0 && parent != c1 && parent.getDocs().isEmpty()) {
+                if (parent != c0 && parent != c1 && parent.getDocs().isEmpty() && !dynamicCells.contains(parent)) {
+                    // (cells we split off ourselves are removed below; their base cell gets its
+                    // full width back, so there is no gap to fill)
                     SRearrangingUtil.fillGap(parent);
                     FView.SINGLETON_INSTANCE.removeDragCell(parent);
                 }
@@ -176,16 +180,18 @@ public class VMatchUI implements IVTopLevelUI {
             getBtnCancel().requestFocusInWindow();
         }
 
-        final boolean sortFieldsEnabled = lstFields.size() > 2
+        // a team of several heads keeps its fields together at the bottom, whatever the multiplayer layout says
+        final boolean teamLayout = teamFields != null && lstFields.size() > 2;
+        final boolean sortFieldsEnabled = lstFields.size() > 2 && !teamLayout
                 && !"OFF".equals(FModel.getPreferences().getPref(FPref.UI_MULTIPLAYER_FIELD_LAYOUT));
 
         // Clean up any existing dynamic split cells before re-assigning.
-        if (sortFieldsEnabled) {
+        if (sortFieldsEnabled || teamLayout) {
             cleanupDynamicCells();
         }
 
         // Ensure all field views are added to the layout
-        for (int i = 0; i < (sortFieldsEnabled ? 2 : lstFields.size()); i++) {
+        for (int i = 0; i < (sortFieldsEnabled || teamLayout ? 2 : lstFields.size()); i++) {
             VField vField = lstFields.get(i);
             // Check if field is in a visible cell (not a stale reference from old layout)
             DragCell parentCell = vField.getParentCell();
@@ -210,6 +216,9 @@ public class VMatchUI implements IVTopLevelUI {
 
         if (sortFieldsEnabled) {
             assignExtraFieldsToCells();
+        }
+        if (teamLayout) {
+            assignTeamFieldsToCells();
         }
 
         // Determine (an) existing hand panel
@@ -284,6 +293,108 @@ public class VMatchUI implements IVTopLevelUI {
      * layout and panel style preferences. Split mode uses percentage-based
      * rough bounds so the layout is resolution-independent.
      */
+    /**
+     * Team games (shared turns): our side of the table is the bottom row, the opponents' side the
+     * top row. A side of several heads shares one battlefield (see CMatchUI.formTeamBattlefields);
+     * any other field of a side sits next to its first or as a tab of the same cell.
+     */
+    private void assignTeamFieldsToCells() {
+        final DragCell bottom = lstFields.get(0).getParentCell();
+        final DragCell top = lstFields.get(1).getParentCell();
+        if (bottom == null || top == null || bottom == top) {
+            return;
+        }
+        final List<VField> mates = new ArrayList<>();
+        final List<VField> foes = new ArrayList<>();
+        for (int i = 2; i < lstFields.size(); i++) {
+            final VField vField = lstFields.get(i);
+            if (vField.isTeamMember()) {
+                continue; // shown on its team's battlefield, with its avatar in the team's column
+            }
+            (teamFields.contains(vField) ? mates : foes).add(vField);
+        }
+        boolean split = placeTeamRow(bottom, mates);
+        split |= placeTeamRow(top, foes);
+        // the own field and the first opponent in front
+        bottom.setSelected(lstFields.get(0));
+        top.setSelected(lstFields.get(1));
+        if (split) {
+            SResizingUtil.resizeWindow();
+        }
+    }
+
+    /**
+     * Puts the further fields of one side next to its first field, all of them side by side in equal columns
+     * (as tabs of one cell, only one of them was visible at a time). Returns true if the row was split.
+     */
+    private boolean placeTeamRow(final DragCell cell, final List<VField> others) {
+        if (others.isEmpty()) {
+            return false;
+        }
+        final RectangleOfDouble rb = cell.getRoughBounds();
+        final double w = rb.getW() / (others.size() + 1);
+        cell.setRoughBounds(new RectangleOfDouble(rb.getX(), rb.getY(), w, rb.getH()));
+        for (int i = 0; i < others.size(); i++) {
+            final double x = rb.getX() + w * (i + 1);
+            final double width = i == others.size() - 1 ? rb.getX() + rb.getW() - x : w; // the last takes what is left
+            final DragCell newCell = new DragCell();
+            newCell.setRoughBounds(new RectangleOfDouble(x, rb.getY(), width, rb.getH()));
+            FView.SINGLETON_INSTANCE.addDragCell(newCell);
+            newCell.addDoc(others.get(i));
+            dynamicCells.add(newCell);
+        }
+        return true;
+    }
+
+    /**
+     * Team games: the team battlefields were formed anew (the Display menu's choice, during the match): every
+     * field of a side gets its cell again, and the cells show their fields anew (a team's field looks different).
+     * Docs other than fields in the cells split off before (a team mate's hand) move to the field they belong to.
+     */
+    public void redockTeamFields() {
+        if (teamFields == null || lstFields.size() <= 2) {
+            return;
+        }
+        final List<forge.gui.framework.IVDoc<? extends forge.gui.framework.ICDoc>> strays = new ArrayList<>();
+        for (final DragCell cell : dynamicCells) {
+            for (final forge.gui.framework.IVDoc<? extends forge.gui.framework.ICDoc> doc : new ArrayList<>(cell.getDocs())) {
+                if (!(doc instanceof VField)) {
+                    cell.removeDoc(doc);
+                    doc.setParentCell(null);
+                    strays.add(doc);
+                }
+            }
+        }
+        cleanupDynamicCells();
+        assignTeamFieldsToCells();
+        for (final forge.gui.framework.IVDoc<? extends forge.gui.framework.ICDoc> doc : strays) {
+            DragCell target = lstFields.get(0).getParentCell();
+            for (int i = 0; i < EDocID.Hands.length && i < lstFields.size(); i++) {
+                if (EDocID.Hands[i] == doc.getDocumentID()) {
+                    final DragCell own = lstFields.get(i).docked().getParentCell();
+                    target = own == null ? target : own;
+                }
+            }
+            if (target != null) {
+                target.addDoc(doc);
+            }
+        }
+        final java.util.Set<DragCell> cells = new java.util.LinkedHashSet<>();
+        for (final VField f : lstFields) {
+            if (f.getParentCell() != null) {
+                cells.add(f.getParentCell());
+            }
+        }
+        for (final DragCell cell : cells) {
+            final forge.gui.framework.IVDoc<? extends forge.gui.framework.ICDoc> selected = cell.getSelected();
+            cell.setSelected(null); // shown anew: setSelected does nothing for the doc already selected
+            if (selected != null) {
+                cell.setSelected(selected);
+            }
+        }
+        SResizingUtil.resizeWindow();
+    }
+
     private void assignExtraFieldsToCells() {
         if (lstFields.size() <= 2) {
             return;
@@ -387,6 +498,11 @@ public class VMatchUI implements IVTopLevelUI {
     public List<VField> getFieldViews() {
         return lstFields;
     }
+    /** Team games: which of the fields belong to the own team (see {@link #assignTeamFieldsToCells()}). */
+    public void setTeamFields(final java.util.Set<VField> teamFields0) {
+        this.teamFields = teamFields0;
+    }
+
     public void setFieldViews(final List<VField> lst0) {
         this.lstFields = lst0;
     }
