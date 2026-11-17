@@ -192,6 +192,8 @@ public final class HexTheme {
         all.add(mechanic("carddraw", r -> mentions(r, HexTheme.DRAW)));
         all.add(mechanic("mill", r -> mentions(r, HexTheme.MILL) || hints(r, DeckHints.Type.ABILITY, "Mill")));
         all.add(new HexTheme("alchemy", "lblHexTheme_alchemy", null, HexTheme::alchemy, true));
+        // poison: cards that give poison counters (infect, toxic, poisonous), add more (proliferate) or care about them (corrupted)
+        all.add(mechanic("poison", r -> mentions(r, HexTheme.POISON) || hints(r, DeckHints.Type.KEYWORD, "Infect", "Toxic", "Poisonous")));
         ALL = Collections.unmodifiableList(all);
     }
 
@@ -203,6 +205,8 @@ public final class HexTheme {
         return new HexTheme(id, "lblHexTheme_" + id, null, fits);
     }
 
+    private static final java.util.regex.Pattern POISON = java.util.regex.Pattern.compile(
+            "\\b(?:poison counters?|infect|toxic|poisonous|proliferate|corrupted)\\b");
     private static final java.util.regex.Pattern HASTE = java.util.regex.Pattern.compile("\\bhaste\\b");
     private static final java.util.regex.Pattern DEATHTOUCH = java.util.regex.Pattern.compile("\\bdeathtouch\\b");
     /** Damage dealt to any target, players, creatures, planeswalkers (not "deals combat damage", not "to you"). */

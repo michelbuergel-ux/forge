@@ -314,7 +314,7 @@ public class HexBattleFeelTest extends AITest {
         final int share = rolls / HexEvent.values().length;
         AssertJUnit.assertTrue("rare: " + seen, mirrors < share / 3);
         for (final HexEvent e : HexEvent.values()) {
-            if (e != HexEvent.MIRROR) {
+            if (!e.isRare()) { // the mirror and the archivist are the rare ones
                 AssertJUnit.assertTrue("the others as before: " + seen, seen.getOrDefault(e, 0) > share * 9 / 10);
             }
         }

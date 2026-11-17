@@ -298,6 +298,9 @@ public final class HexContent {
         if (shop == null) {
             return;
         }
+        if (shopNames.add(card.getName())) {
+            shopCards.add(card); // what the shops may sell, the archivist gets (see archivistCards)
+        }
         // a land belongs to the colour of the mana it makes
         final byte bits = colorBits(shop, rules);
         if (Integer.bitCount(bits) >= 2) {
@@ -1359,6 +1362,63 @@ public final class HexContent {
             case MythicRare: return 300;
             default: return 40;
         }
+    }
+
+    /** The least the wandering archivist takes for a card: common, uncommon, rare, mythic. */
+    public static final int[] ARCHIVIST_PRICES = { 60, 150, 500, 1000 };
+    /** Every card the shops may sell, once, in name order. */
+    private final List<PaperCard> shopCards = new ArrayList<>();
+    private final Set<String> shopNames = new HashSet<>();
+    /** The cards the archivist gets and their names, picked from shopCards when first asked for. */
+    private List<PaperCard> archivistCards;
+    private Set<String> archivistNames;
+
+    /**
+     * The cards the wandering archivist gets for a head: any card the shops may sell that is legal in Vintage (no joke
+     * cards of the Un-sets, no playtest cards), in name order.
+     */
+    public synchronized List<PaperCard> archivistCards() {
+        if (archivistCards == null) {
+            // legal: printed in a set of Vintage (any printing will do) and not banned there
+            final java.util.function.Predicate<PaperCard> printed = FModel.getFormats() == null || FModel.getFormats().getVintage() == null
+                    ? c -> true : FModel.getFormats().getVintage().getFilterPrinted();
+            final List<PaperCard> cards = new ArrayList<>();
+            final Set<String> names = new HashSet<>();
+            for (final PaperCard card : shopCards) {
+                boolean legal = false;
+                for (final PaperCard printing : FModel.getMagicDb().getCommonCards().getAllCards(card.getName())) {
+                    if (printed.test(printing)) {
+                        legal = true;
+                        break;
+                    }
+                }
+                if (legal) {
+                    cards.add(card);
+                    names.add(card.getName());
+                }
+            }
+            archivistNames = names;
+            archivistCards = Collections.unmodifiableList(cards);
+        }
+        return archivistCards;
+    }
+
+    public boolean archivistSells(final String cardName) {
+        return cardName != null && archivistCards() != null && archivistNames.contains(cardName);
+    }
+
+    /** What the archivist takes for a card: the least for its rarity, or one and a half times its price if that is more. */
+    public int archivistPrice(final String cardName) {
+        final PaperCard card = getCard(cardName);
+        final CardRarity rarity = card == null ? CardRarity.Uncommon : card.getRarity();
+        final int least;
+        switch (rarity) {
+            case Common: least = ARCHIVIST_PRICES[0]; break;
+            case Rare: least = ARCHIVIST_PRICES[2]; break;
+            case MythicRare: least = ARCHIVIST_PRICES[3]; break;
+            default: least = ARCHIVIST_PRICES[1]; break;
+        }
+        return (int) Math.max(least, Math.round(price(cardName) * 1.5));
     }
 
     /** What a shop pays for a card: a quarter of its price. */

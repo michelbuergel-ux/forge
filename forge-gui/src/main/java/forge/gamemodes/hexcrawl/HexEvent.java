@@ -28,10 +28,17 @@ public enum HexEvent {
      * A magic mirror, rare: every head may copy one of its cards (it keeps the card, the copy goes into the
      * sideboard; a choice of each head). See {@link #MIRROR_ODDS}.
      */
-    MIRROR;
+    MIRROR,
+    /**
+     * A wandering archivist, rare: every head may buy one card of its choice, any card the shops know, at the
+     * archivist's price (HexContent#archivistPrice; a choice of each head). As rare as the mirror.
+     */
+    ARCHIVIST;
 
-    /** Of the fields a mirror would stand on, only one in this many gets it; the others get another event. */
+    /** Of the fields a rare event (the mirror, the archivist) would stand on, only one in this many gets it; the others get another event. */
     public static final int MIRROR_ODDS = 4;
+    /** The rare events, the last ones of the list. */
+    private static final int RARE_EVENTS = 2;
 
     public static final int SHRINE_LIFE = 5;
     public static final int CHEST_GOLD = 25;
@@ -55,7 +62,12 @@ public enum HexEvent {
 
     /** Does every head decide for itself (pick a card, or leave it)? */
     public boolean isChoice() {
-        return this == RUINED_SHRINE || this == CARAVAN || this == MIRROR || this == CAMP || this == LEY_LINE;
+        return this == RUINED_SHRINE || this == CARAVAN || this == MIRROR || this == CAMP || this == LEY_LINE || this == ARCHIVIST;
+    }
+
+    /** Is it one of the rare events (see MIRROR_ODDS)? */
+    public boolean isRare() {
+        return this == MIRROR || this == ARCHIVIST;
     }
 
     /** Does the head pick one of its own cards (to give it up, or to copy it)? */
@@ -68,12 +80,12 @@ public enum HexEvent {
         return this == RUINED_SHRINE || this == CARAVAN;
     }
 
-    /** The event of a new field: any of them alike, but the mirror is rare. */
+    /** The event of a new field: any of them alike, but the mirror and the archivist are rare. */
     public static HexEvent random(final java.util.Random rnd) {
         final HexEvent[] all = values();
         final HexEvent event = all[rnd.nextInt(all.length)];
-        if (event == MIRROR && rnd.nextInt(MIRROR_ODDS) != 0) {
-            return all[rnd.nextInt(all.length - 1)]; // one of the others (the mirror is the last)
+        if (event.isRare() && rnd.nextInt(MIRROR_ODDS) != 0) {
+            return all[rnd.nextInt(all.length - RARE_EVENTS)]; // one of the others (the rare ones are the last)
         }
         return event;
     }

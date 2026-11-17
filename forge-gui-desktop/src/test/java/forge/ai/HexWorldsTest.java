@@ -97,7 +97,8 @@ public class HexWorldsTest extends AITest {
         AssertJUnit.assertEquals(59, HexTheme.indexOf("universesbeyond"));
         AssertJUnit.assertEquals(62, HexTheme.indexOf("burn"));
         AssertJUnit.assertEquals(65, HexTheme.indexOf("alchemy"));
-        AssertJUnit.assertEquals(HexTheme.all().size() - 1, HexTheme.indexOf("alchemy"));
+        AssertJUnit.assertEquals(66, HexTheme.indexOf("poison"));
+        AssertJUnit.assertEquals(HexTheme.all().size() - 1, HexTheme.indexOf("poison"));
     }
 
     @Test

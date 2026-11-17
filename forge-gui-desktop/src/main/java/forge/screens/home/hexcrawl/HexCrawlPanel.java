@@ -1883,6 +1883,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 promptStall(campaign, mine);
             } else if (event == HexEvent.RUINED_SHRINE && !mine.eventRelics.isEmpty()) {
                 promptShrineRelic(campaign, mine);
+            } else if (event == HexEvent.ARCHIVIST) {
+                promptArchivist(campaign, mine);
             } else if (event.needsCard()) {
                 promptOwnCard(campaign, mine, event, event.getLabel() + ": " + event.getDescription(), 0, null);
             } else {
@@ -1902,6 +1904,34 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             session.chooseEvent(mine.name, null, false, HexEvent.PICK_GOLD);
         } else if (choice >= 1 && choice <= mine.eventCards.size()) {
             session.chooseEvent(mine.name, null, rewardToSideboard, choice);
+        }
+    }
+
+    /** The wandering archivist: the head searches for any card and buys it at the archivist's price, or leaves. */
+    private void promptArchivist(final HexCampaign campaign, final HexPlayer mine) {
+        final HexArchivistPanel search = new HexArchivistPanel(mine.gold);
+        final JPanel body = new JPanel(new MigLayout("insets 0, gap 0, wrap 1", "[center]"));
+        body.setOpaque(false);
+        body.add(search);
+        if (!campaign.deckLocked()) {
+            body.add(newCardsSwitch(), "gaptop 10, alignx center");
+        }
+        final int[] least = HexContent.ARCHIVIST_PRICES;
+        final String message = t("lblHexArchivistChoose", mine.name, String.valueOf(mine.gold)) + "\n"
+                + t("lblHexArchivistPrices", String.valueOf(least[0]), String.valueOf(least[1]), String.valueOf(least[2]), String.valueOf(least[3]));
+        final int choice = FOptionPane.showOptionDialog(message, campaign.name, FOptionPane.QUESTION_ICON, body,
+                Arrays.asList(t("lblHexArchivistBuy"), t("lblHexEventLeave"), t("lblHexLater")), 0);
+        final PaperCard card = search.selected();
+        if (choice == 0 && card != null) {
+            final int price = HexContent.get().archivistPrice(card.getName());
+            if (price > mine.gold) {
+                FOptionPane.showMessageDialog(t("lblHexArchivistTooDear", forge.util.CardTranslation.getTranslatedName(card.getName()),
+                        String.valueOf(price)), campaign.name);
+                return; // still open: asked again
+            }
+            session.chooseEvent(mine.name, card.getName(), rewardToSideboard || campaign.deckLocked(), 0);
+        } else if (choice == 1) {
+            session.skipEvent(mine.name);
         }
     }
 

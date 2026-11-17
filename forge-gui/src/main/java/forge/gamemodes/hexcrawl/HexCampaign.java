@@ -1837,6 +1837,7 @@ public class HexCampaign {
             case RUINED_SHRINE:
             case CARAVAN:
             case MIRROR:
+            case ARCHIVIST:
                 // every head decides for itself; companions take the camp's best card and the ley line's land, and leave the rest
                 final Random rnd = random();
                 for (final HexPlayer p : players) {
@@ -1987,6 +1988,18 @@ public class HexCampaign {
                 return false;
             }
             log(msg(pick == HexEvent.PICK_HAND ? "lblHexJournalLeyHand" : "lblHexJournalLeyLand", p.name));
+            clearEventOffer(p);
+            return true;
+        }
+        if (event == HexEvent.ARCHIVIST) {
+            // the card the head names, for the archivist's price; into the sideboard if the flag says so (or the deck is locked)
+            if (!content.archivistSells(card) || content.archivistPrice(card) > p.gold) {
+                return false;
+            }
+            final int price = content.archivistPrice(card);
+            spend(p, price);
+            (fromSideboard || deckLocked() ? p.sideboard : p.deck).add(card);
+            log(msg("lblHexJournalArchivist", p.name, card, String.valueOf(price)));
             clearEventOffer(p);
             return true;
         }
