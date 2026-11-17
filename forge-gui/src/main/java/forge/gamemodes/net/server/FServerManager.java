@@ -81,7 +81,7 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
     private final Map<String, Timer> reconnectTimers = new ConcurrentHashMap<>();
     /** How long an AI stand-in keeps a seat for a disconnected player before taking it over for good. */
     private static final int STAND_IN_TIMEOUT_SECONDS = 30 * 60;
-    /** If set, an AI plays for a player who drops out mid-game until they reconnect (Hex Campaign fights). */
+    /** If set, an AI plays for a player who drops out mid-game until they reconnect (an option a game mode may set). */
     private volatile boolean aiStandInWhileDisconnected;
     /** Disconnected players an AI plays for: their own controller, given back when they reconnect. */
     private final Map<String, PlayerControllerHuman> standIns = new ConcurrentHashMap<>();
@@ -263,7 +263,7 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
         return byteTracker;
     }
 
-    /** Set by the hex campaign: try UPnP when the server starts, without asking (unless it is set to "never"). */
+    /** Set by a game mode: try UPnP when the server starts, without asking (unless it is set to "never"). */
     private static volatile boolean upnpWithoutAsking;
     /** Result of the last UPnP attempt: null while unknown or not tried, then true or false. */
     private static volatile Boolean upnpResult;
@@ -1277,8 +1277,8 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
                     localLobby.handleDraftPick(pickEvent, client.getIndex());
                 }
                 return;
-            } else if (msg instanceof forge.gamemodes.net.event.HexActionEvent hexAction) {
-                forge.gamemodes.hexcrawl.HexNet.fromClient(client.getUsername(), hexAction);
+            } else if (msg instanceof forge.gamemodes.net.ModeChannel.Message modeMessage) {
+                forge.gamemodes.net.ModeChannel.fromClient(client.getUsername(), modeMessage);
                 return;
             }
             // Note: MessageEvent is handled by MessageHandler, not here

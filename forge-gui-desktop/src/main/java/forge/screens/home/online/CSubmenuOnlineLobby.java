@@ -52,7 +52,7 @@ public enum CSubmenuOnlineLobby implements ICDoc, IMenuProvider {
         hostGame(true);
     }
 
-    /** @param showAddresses show Forge's list of server addresses (the hex campaign shows its own invitation instead) */
+    /** @param showAddresses show Forge's list of server addresses (a game mode may show its own invitation instead) */
     public void hostGame(final boolean showAddresses) {
         NetConnectUtil.ensurePlayerName();
         FThreads.invokeInBackgroundThread(() -> {
@@ -77,7 +77,7 @@ public enum CSubmenuOnlineLobby implements ICDoc, IMenuProvider {
         FThreads.invokeInBackgroundThread(() -> join(url));
     }
 
-    /** Joins a host from the hex campaign's join dialog (the address has been checked already). */
+    /** Joins a host from a game mode's own join dialog (the address has been checked already). */
     public void joinFromCampaign(final String url) {
         NetConnectUtil.ensurePlayerName();
         FThreads.invokeInBackgroundThread(() -> join(url));

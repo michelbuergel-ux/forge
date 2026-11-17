@@ -1,9 +1,10 @@
-package forge.gamemodes.net.event;
+package forge.gamemodes.hexcrawl;
 
+import forge.gamemodes.net.ModeChannel;
 import forge.gamemodes.net.server.RemoteClient;
 
 /** Server -> client: the current state of the hex campaign the host is running. */
-public final class HexStateEvent implements NetEvent {
+public final class HexStateEvent implements ModeChannel.Message {
     private static final long serialVersionUID = 1L;
 
     private final String stateJson;

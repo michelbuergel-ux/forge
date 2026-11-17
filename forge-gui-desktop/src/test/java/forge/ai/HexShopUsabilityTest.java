@@ -14,7 +14,7 @@ import forge.gamemodes.hexcrawl.HexSession;
 import forge.gamemodes.hexcrawl.HexShopOffer;
 import forge.gamemodes.hexcrawl.HexShopType;
 import forge.gamemodes.hexcrawl.HexTile;
-import forge.gamemodes.net.event.HexActionEvent;
+import forge.gamemodes.hexcrawl.HexActionEvent;
 import forge.item.PaperCard;
 import forge.model.FModel;
 

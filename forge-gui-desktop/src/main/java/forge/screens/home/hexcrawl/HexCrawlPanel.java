@@ -51,7 +51,7 @@ import forge.gamemodes.hexcrawl.HexTile;
 import forge.gamemodes.match.HostedMatch;
 import forge.gamemodes.match.LobbySlot;
 import forge.gamemodes.match.LobbySlotType;
-import forge.gamemodes.net.event.HexStateEvent;
+import forge.gamemodes.hexcrawl.HexStateEvent;
 import forge.gamemodes.net.server.FServerManager;
 import forge.gamemodes.net.server.HostingServer;
 import forge.gamemodes.net.server.ServerGameLobby;

@@ -4,7 +4,7 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Rectangle;
 
-/** Team play and Hex Campaign fights: the pulsing amber frame and hourglass on the avatar of a player the game waits for. */
+/** Team play and streamlined priority: the pulsing amber frame and hourglass on the avatar of a player the game waits for. */
 final class WaitedForFrame {
     private static final Color WAIT_AMBER = new Color(255, 190, 40);
 

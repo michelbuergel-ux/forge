@@ -24,7 +24,7 @@ import forge.gamemodes.hexcrawl.HexPoi;
 import forge.gamemodes.hexcrawl.HexSession;
 import forge.gamemodes.hexcrawl.HexTheme;
 import forge.gamemodes.hexcrawl.HexTile;
-import forge.gamemodes.net.event.HexActionEvent;
+import forge.gamemodes.hexcrawl.HexActionEvent;
 import forge.item.IPaperCard;
 import forge.item.PaperCard;
 

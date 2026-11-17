@@ -15,6 +15,13 @@ import net.miginfocom.swing.MigLayout;
 public enum VSubmenuHexCrawl implements IVSubmenu<CSubmenuHexCrawl> {
     SINGLETON_INSTANCE;
 
+    static {
+        // the campaign listens on the network and shows its fights on the match screen as soon as Forge has its
+        // menus (a guest may join before opening it)
+        forge.gamemodes.hexcrawl.HexNet.register();
+        HexMatchScreen.register();
+    }
+
     private final Localizer localizer = Localizer.getInstance();
     private DragCell parentCell;
     private final DragTab tab = new DragTab(localizer.getMessage("lblHexCampaign"));

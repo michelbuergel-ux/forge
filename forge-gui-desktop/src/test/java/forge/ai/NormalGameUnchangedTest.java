@@ -16,7 +16,7 @@ import forge.player.PlayerControllerHuman;
 public class NormalGameUnchangedTest extends AITest {
 
     private static boolean teamOrHex(final PlayerControllerHuman human) throws Exception {
-        final Method m = PlayerControllerHuman.class.getDeclaredMethod("isTeamOrHexGame");
+        final Method m = PlayerControllerHuman.class.getDeclaredMethod("isTeamOrStreamlinedGame");
         m.setAccessible(true);
         return (Boolean) m.invoke(human);
     }

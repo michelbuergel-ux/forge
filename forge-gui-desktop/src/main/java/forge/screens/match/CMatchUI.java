@@ -731,7 +731,7 @@ public final class CMatchUI
         for (final PlayerView p : livesUpdate) {
             getFieldViewFor(p).updateDetails();
         }
-        FThreads.invokeInEdtNowOrLater(this::refreshFightBanner);
+        FThreads.invokeInEdtNowOrLater(() -> MatchModeExtras.get().refresh(this));
     }
 
     @Override
@@ -1047,29 +1047,13 @@ public final class CMatchUI
         }
     }
 
-    // ------------------------------------------------------------------ team play and Hex Campaign fights
+    // ------------------------------------------------------------------ team play
 
-    /** The fight banner, the team log, pings and team signals (see HexMatchExtras): they act only in such games. */
-    private final HexMatchExtras hexExtras = new HexMatchExtras(this);
-
-    void placeFightBanner() {
-        hexExtras.placeFightBanner();
-    }
-
-    void removeFightBanner() {
-        hexExtras.removeFightBanner();
-    }
-
-    private void refreshFightBanner() {
-        hexExtras.refreshFightBanner();
-    }
+    /** Pings and team signals (see TeamMatchExtras): they act only in team games. */
+    private final TeamMatchExtras teamExtras = new TeamMatchExtras(this);
 
     private void updateTeamControls() {
-        hexExtras.updateTeamControls();
-    }
-
-    private void noteTeamLand(final CardView land) {
-        hexExtras.noteTeamLand(land);
+        teamExtras.updateTeamControls(MatchModeExtras.get().promptButtons(this));
     }
 
     /** A game of teams with several heads on this screen's side (the team signals and pings work). */
@@ -1084,24 +1068,24 @@ public final class CMatchUI
 
     @Override
     public void noteTeamCast(final GameEventSpellAbilityCast event) {
-        hexExtras.noteTeamCast(event);
+        MatchModeExtras.get().noteTeamCast(this, event);
     }
 
     @Override
     public void showPing(final PlayerView from, final CardView card) {
         super.showPing(from, card);
-        hexExtras.showPing(from, card);
+        teamExtras.showPing(from, card);
     }
 
     @Override
     public void showTeamSignal(final PlayerView from, final forge.gamemodes.match.TeamSignal signal, final String detail) {
-        hexExtras.showTeamSignal(from, signal, detail);
+        teamExtras.showTeamSignal(from, signal, detail);
     }
 
     @Override
     public void updateTurn(final PlayerView player) {
         FThreads.invokeInEdtNowOrLater(this::updateTeamControls);
-        FThreads.invokeInEdtNowOrLater(this::refreshFightBanner);
+        FThreads.invokeInEdtNowOrLater(() -> MatchModeExtras.get().refresh(this));
         final VField nextField = getFieldViewFor(player);
         if (nextField != null) {
             SDisplayUtil.showTab(nextField.docked());
@@ -1137,12 +1121,12 @@ public final class CMatchUI
     @Override
     public void finishGame() {
         FloatingZone.closeAll(); //ensure floating card areas cleared and closed after the game
+        StreamlinedPriority.clear();
         selectionZonesShown.clear();
         revealZonesShown.clear();
         if (isNetGame()) {
             writeMatchPreferences();
         }
-        StreamlinedPriority.clear();
         final GameView gameView = getGameView();
         if (Singletons.getControl().getCurrentScreen() != screen) {
             // the match screen is gone already (in a network game another player left the result
@@ -1622,13 +1606,9 @@ public final class CMatchUI
     }
 
     private void actuateMatchPreferences() {
-        // Hex Campaign fights: auto-pass, no delays and lean phase stops, just for this game
+        // games with streamlined priority: auto-pass, no delays and lean phase stops, just for this game
         StreamlinedPriority.applyFor(getGameView());
-        if (isNetGame() && forge.gamemodes.hexcrawl.HexNet.isGuest() && forge.gamemodes.hexcrawl.HexNet.isCampaignFight()
-                && forge.gamemodes.hexcrawl.HexNet.getFightMusic() != null) {
-            // a guest's match has no music of its own (the host's HostedMatch sets it there)
-            forge.sound.SoundSystem.instance.setBackgroundMusic(forge.gamemodes.hexcrawl.HexNet.getFightMusic());
-        }
+        MatchModeExtras.get().matchStarting(this);
         updateTeamControls();
         final ForgePreferences prefs = FModel.getPreferences();
         final List<VField> fieldViews = getFieldViews();
@@ -1856,7 +1836,7 @@ public final class CMatchUI
 
     @Override
     public void handleLandPlayed(CardView land) {
-        FThreads.invokeInEdtNowOrLater(() -> noteTeamLand(land));
+        FThreads.invokeInEdtNowOrLater(() -> MatchModeExtras.get().noteTeamLand(this, land));
         if (ForgeConstants.LAND_PLAYED_NOTIFICATION_NEVER.equals(FModel.getPreferences().getPref(FPref.UI_LAND_PLAYED_NOTIFICATION_POLICY))) {
             return;
         }

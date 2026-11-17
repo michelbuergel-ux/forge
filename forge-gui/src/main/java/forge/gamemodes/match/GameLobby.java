@@ -749,7 +749,7 @@ public abstract class GameLobby implements IHasGameType {
     }
 
     /**
-     * Starts a match with players prepared by the caller (the hex campaign), bypassing the deck
+     * Starts a match with players prepared by the caller (a game mode), bypassing the deck
      * choices and ready flags of the lobby screen. Human players sit on lobby seats and get the
      * screen of that seat (the host's own, or a connected guest's); all other players are AI.
      *

@@ -132,38 +132,15 @@ public class CPrompt implements ICDoc {
                 }
             });
         }
-        view.getBtnFlee().removeActionListener(actFlee);
-        view.getBtnFlee().addActionListener(actFlee);
-        view.getBtnFightOn().removeActionListener(actFightOn);
-        view.getBtnFightOn().addActionListener(actFightOn);
     }
 
-    private final ActionListener actFlee = evt -> onFlee();
-    private final ActionListener actFightOn = evt -> onFightOn();
-
-    private void onFlee() {
-        if (matchUI.getGameController() != null && forge.toolbox.FOptionPane.showConfirmDialog(
-                forge.util.Localizer.getInstance().getMessage("lblFleeConfirm",
-                        String.valueOf(forge.gamemodes.hexcrawl.HexNet.getFleePrice()), String.valueOf(forge.gamemodes.hexcrawl.HexFight.FLEE_MAX_TURN)),
-                forge.util.Localizer.getInstance().getMessage("lblFlee"))) {
-            matchUI.getGameController().voteFlee(true);
-        }
-    }
-
-    private void onFightOn() {
-        if (matchUI.getGameController() != null) {
-            matchUI.getGameController().voteFlee(false);
-        }
-    }
-
-    /** Team games show the signal buttons; Hex Campaign fights in their first turns also Flee and Fight on. */
-    public void showTeamControls(final boolean team, final boolean mayFlee) {
-        view.getPnlTeam().setVisible(team || mayFlee);
+    /** Team games show the signal buttons; a game mode may add buttons of its own (see MatchModeExtras). */
+    public void showTeamControls(final boolean team, final java.util.List<? extends javax.swing.JComponent> modeButtons) {
         for (final forge.toolbox.FButton b : view.getSignalButtons().values()) {
             b.setVisible(team);
         }
-        view.getBtnFlee().setVisible(mayFlee);
-        view.getBtnFightOn().setVisible(mayFlee && team);
+        view.setModeButtons(modeButtons);
+        view.getPnlTeam().setVisible(team || !modeButtons.isEmpty());
         view.getPnlTeam().revalidate();
     }
 

@@ -10,7 +10,7 @@ import forge.gamemodes.hexcrawl.HexPlayer;
 import forge.gamemodes.hexcrawl.HexPoi;
 import forge.gamemodes.hexcrawl.HexSession;
 import forge.gamemodes.hexcrawl.HexTile;
-import forge.gamemodes.net.event.HexActionEvent;
+import forge.gamemodes.hexcrawl.HexActionEvent;
 import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 

@@ -11,7 +11,7 @@ import forge.util.Localizer;
 import forge.util.ThreadUtil;
 
 /**
- * Hex Campaign fights (streamlined priority): a team mate's spell or ability on top of the stack waits for this
+ * Team games with streamlined priority: a team mate's spell or ability on top of the stack waits for this
  * player's OK, shown in a green box and OK'd by itself after a few seconds (at once with "Always OK my partner"),
  * unless the player holds or starts to act. Part of an InputPassPriority.
  */
@@ -40,7 +40,7 @@ final class PartnerPrompt {
 
     /**
      * The item on top of the stack if a team mate (not this player, not an opponent) put it there,
-     * in a game with streamlined priority (Hex Campaign fights); otherwise null.
+     * in a game with streamlined priority; otherwise null.
      */
     SpellAbilityStackInstance item() {
         final Game game = inp.getController().getGame();

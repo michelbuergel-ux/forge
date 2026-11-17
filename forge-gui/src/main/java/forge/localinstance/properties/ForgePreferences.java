@@ -151,9 +151,9 @@ public class ForgePreferences extends AbstractPreferences<ForgePreferences.FPref
         YIELD_AUTO_OK_PARTNER ("false"),
         /** Mana costs are paid by themselves (as with the Auto button) whenever the sources can pay all of it. */
         UI_ALWAYS_AUTO_PAY ("false"),
-        /** Games with streamlined priority (Hex fights): the player's own spell or ability on top of the stack is OK'd at once. */
+        /** Games with streamlined priority: the player's own spell or ability on top of the stack is OK'd at once. */
         YIELD_AUTO_OK_OWN ("true"),
-        /** Hex Campaign: the map's legend is open. */
+        /** Hydra Adventure: the map's legend is open. */
         HEXCRAWL_LEGEND_OPEN ("false"),
         YIELD_AUTO_PASS_RESPECTS_INTERRUPTS ("false"),
         YIELD_AVAILABLE_ACTIONS_BUDGET_MS ("0"),

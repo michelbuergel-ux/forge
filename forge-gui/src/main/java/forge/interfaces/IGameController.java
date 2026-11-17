@@ -65,7 +65,7 @@ public interface IGameController {
     /** Team play: a quick message ("Hold!", "Go ahead", "I'll block") to the team mates. */
     default void sendTeamSignal(forge.gamemodes.match.TeamSignal signal) { }
 
-    /** Hex Campaign fights: votes to flee in the first turns (true) or to fight on (false). */
+    /** A game mode that lets its players flee: votes to flee (true) or to fight on (false); see FleeVote. */
     default void voteFlee(boolean flee) { }
 
     // Auto-yield preferences

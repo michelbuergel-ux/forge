@@ -1,7 +1,9 @@
-package forge.gamemodes.net.event;
+package forge.gamemodes.hexcrawl;
+
+import forge.gamemodes.net.ModeChannel;
 
 /** Client -> server: something a guest wants to do in the hex campaign (vote, shop, reward, ...). */
-public final class HexActionEvent implements NetEvent {
+public final class HexActionEvent implements ModeChannel.Message {
     private static final long serialVersionUID = 1L;
 
     public static final String VOTE = "VOTE";

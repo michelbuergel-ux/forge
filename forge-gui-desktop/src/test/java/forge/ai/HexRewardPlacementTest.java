@@ -10,7 +10,7 @@ import forge.gamemodes.hexcrawl.HexCampaign;
 import forge.gamemodes.hexcrawl.HexPlayer;
 import forge.gamemodes.hexcrawl.HexReward;
 import forge.gamemodes.hexcrawl.HexSession;
-import forge.gamemodes.net.event.HexActionEvent;
+import forge.gamemodes.hexcrawl.HexActionEvent;
 
 /** A won card and treasure cards go into the deck or the sideboard, as the head says. */
 public class HexRewardPlacementTest extends AITest {

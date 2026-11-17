@@ -157,8 +157,8 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
     }
     @Override
     public void sendTeamSignal(final forge.gamemodes.match.TeamSignal signal) {
-        if (signal == null || signal == forge.gamemodes.match.TeamSignal.FLEE_VOTE) {
-            return; // the flee vote is announced by the fight itself
+        if (signal == null) {
+            return;
         }
         // like a ping: to every screen of the team, the own one too (as feedback)
         final Set<IGuiGame> guis = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -171,7 +171,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
 
     @Override
     public void voteFlee(final boolean flee) {
-        forge.gamemodes.hexcrawl.HexBattle.voteFlee(player, flee);
+        forge.gamemodes.match.FleeVote.cast(player, flee);
     }
 
     protected final InputProxy inputProxy;
@@ -1865,8 +1865,8 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         return defaultInput.getChosenSa();
     }
 
-    /** Team play (shared team turns) or a Hex Campaign fight: the games the team and Hex additions are meant for. */
-    private boolean isTeamOrHexGame() {
+    /** Team play (shared team turns) or streamlined priority: the games the team additions are meant for. */
+    private boolean isTeamOrStreamlinedGame() {
         final Game game = getGame();
         return game != null && (game.getRules().hasSharedTeamTurns() || game.getRules().hasStreamlinedPriority());
     }
@@ -1890,7 +1890,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
 
     private void updateWaitedFor() {
         final Game game = getGame();
-        if (player == null || game == null || !isTeamOrHexGame()) {
+        if (player == null || game == null || !isTeamOrStreamlinedGame()) {
             return; // other game modes stay as they were
         }
         final boolean waited = openInputs.get() > 0 && !okSaid;
@@ -2155,7 +2155,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         } else {
             final String title = sa == null || sa.getHostCard() == null ? "" : CardView.get(sa.getHostCard()).toString();
             final String source = sa == null || sa.getHostCard() == null ? null : sa.getHostCard().getName();
-            if (source == null || !isTeamOrHexGame()) {
+            if (source == null || !isTeamOrStreamlinedGame()) {
                 getGui().message(message, title); // other game modes: the plain window, as ever
                 return;
             }
@@ -4152,7 +4152,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
     }
 
     /**
-     * Games with streamlined priority (Hex fights): the player's own spell or ability on top of the stack is OK'd at
+     * Games with streamlined priority: the player's own spell or ability on top of the stack is OK'd at
      * once. The rules give priority back after casting (CR 117.3c), which is hardly ever wanted; an opponent's
      * response puts their item on top, and then the player is asked as usual.
      */

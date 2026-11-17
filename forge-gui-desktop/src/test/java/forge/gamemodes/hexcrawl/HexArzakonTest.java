@@ -259,18 +259,18 @@ public class HexArzakonTest extends AITest {
             @Override public void startFight() { fights.incrementAndGet(); }
         });
         s.setGuests(java.util.Collections.singletonList("Bob"));
-        final forge.gamemodes.net.event.HexActionEvent toCentre = new forge.gamemodes.net.event.HexActionEvent(
-                forge.gamemodes.net.event.HexActionEvent.VOTE, centre.q, centre.r, null, false, null);
+        final forge.gamemodes.hexcrawl.HexActionEvent toCentre = new forge.gamemodes.hexcrawl.HexActionEvent(
+                forge.gamemodes.hexcrawl.HexActionEvent.VOTE, centre.q, centre.r, null, false, null);
         s.handle("Ann", toCentre);
         s.handle("Bob", toCentre);
         AssertJUnit.assertTrue(c.arzakonWaitsForParty());
         AssertJUnit.assertFalse("not before everybody presses Fight", s.isFightRunning());
-        s.handle("Ann", new forge.gamemodes.net.event.HexActionEvent(forge.gamemodes.net.event.HexActionEvent.FIGHT, 0, 0, null, true, null));
+        s.handle("Ann", new forge.gamemodes.hexcrawl.HexActionEvent(forge.gamemodes.hexcrawl.HexActionEvent.FIGHT, 0, 0, null, true, null));
         AssertJUnit.assertFalse(s.isFightRunning());
 
         // they think better of it and walk away
-        final forge.gamemodes.net.event.HexActionEvent away = new forge.gamemodes.net.event.HexActionEvent(
-                forge.gamemodes.net.event.HexActionEvent.VOTE, before.q, before.r, null, false, null);
+        final forge.gamemodes.hexcrawl.HexActionEvent away = new forge.gamemodes.hexcrawl.HexActionEvent(
+                forge.gamemodes.hexcrawl.HexActionEvent.VOTE, before.q, before.r, null, false, null);
         s.handle("Ann", away);
         s.handle("Bob", away);
         AssertJUnit.assertSame(before, c.tile());
@@ -281,9 +281,9 @@ public class HexArzakonTest extends AITest {
         // back, and both press Fight
         s.handle("Ann", toCentre);
         s.handle("Bob", toCentre);
-        s.handle("Ann", new forge.gamemodes.net.event.HexActionEvent(forge.gamemodes.net.event.HexActionEvent.FIGHT, 0, 0, null, true, null));
+        s.handle("Ann", new forge.gamemodes.hexcrawl.HexActionEvent(forge.gamemodes.hexcrawl.HexActionEvent.FIGHT, 0, 0, null, true, null));
         AssertJUnit.assertFalse("Bob has not pressed it yet", s.isFightRunning());
-        s.handle("Bob", new forge.gamemodes.net.event.HexActionEvent(forge.gamemodes.net.event.HexActionEvent.FIGHT, 0, 0, null, true, null));
+        s.handle("Bob", new forge.gamemodes.hexcrawl.HexActionEvent(forge.gamemodes.hexcrawl.HexActionEvent.FIGHT, 0, 0, null, true, null));
         AssertJUnit.assertTrue(s.isFightRunning());
         AssertJUnit.assertEquals(1, fights.get());
     }

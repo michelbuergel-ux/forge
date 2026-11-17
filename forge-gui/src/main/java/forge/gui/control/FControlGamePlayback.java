@@ -54,7 +54,7 @@ public class FControlGamePlayback extends IGameEventVisitor.Base<Void> {
     private PlaybackSpeed playbackSpeed = PlaybackSpeed.NORMAL;
 
     private void pauseForEvent(final int delay0) {
-        // Hex Campaign fights (streamlined priority): short pauses, the heads see the stack and the log anyway
+        // streamlined priority: short pauses, the heads see the stack and the log anyway
         final int delay = getGame() != null && getGame().getRules().hasStreamlinedPriority() ? delay0 / 4 : delay0;
         try {
             Thread.sleep(playbackSpeed.applyModifier(delay));

@@ -16,6 +16,7 @@ import forge.localinstance.properties.ForgePreferences;
 import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.model.FModel;
 import forge.screens.match.CMatchUI;
+import forge.screens.match.MatchModeExtras;
 import forge.screens.match.VAutoYieldsAndTriggers;
 import forge.screens.match.VYieldSettings;
 import forge.toolbox.FSkin.SkinnedCheckBoxMenuItem;
@@ -50,27 +51,34 @@ public final class GameMenu {
         final SkinnedCheckBoxMenuItem autoPassItem = getMenuItem_AutoPass();
         menu.add(autoPassItem);
         menu.add(getMenuItem_AlwaysAutoPay());
-        // Hex Campaign fights only: elsewhere they do nothing, so they are not shown
-        final SkinnedCheckBoxMenuItem okOwnItem = getMenuItem_OkOwnSpells();
-        final SkinnedCheckBoxMenuItem okPartnerItem = getMenuItem_AlwaysOkPartner();
-        menu.add(okOwnItem);
-        menu.add(okPartnerItem);
         menu.add(getMenuItem_ClearRememberedAbilityOrders());
-        // a campaign fight on this computer (the host's): its way out when the fight hangs
-        final java.util.List<JMenuItem> hexHostItems = forge.screens.home.hexcrawl.HexFightHostMenu.items();
-        hexHostItems.forEach(menu::add);
+        MatchModeExtras.get().addMenuItems(menu, matchUI);
         menu.addMenuListener(new MenuListener() {
             @Override public void menuSelected(final MenuEvent e) {
                 autoPassItem.setState(prefs.getPrefBoolean(FPref.YIELD_AUTO_PASS_NO_ACTIONS));
-                forge.screens.home.hexcrawl.HexFightHostMenu.refresh(hexHostItems);
-                final boolean hexFight = matchUI.getGameView() != null && matchUI.getGameView().isStreamlinedPriority();
-                okOwnItem.setVisible(hexFight);
-                okPartnerItem.setVisible(hexFight);
+                MatchModeExtras.get().menuOpened(matchUI);
             }
             @Override public void menuDeselected(final MenuEvent e) {}
             @Override public void menuCanceled(final MenuEvent e) {}
         });
         return menu;
+    }
+
+    /** Mana costs paid by themselves whenever the sources can pay all of it (as with the Auto button). */
+    private SkinnedCheckBoxMenuItem getMenuItem_AlwaysAutoPay() {
+        final Localizer localizer = Localizer.getInstance();
+        final SkinnedCheckBoxMenuItem menuItem = new SkinnedCheckBoxMenuItem(localizer.getMessage("lblAlwaysAutoPay"));
+        menuItem.setToolTipText(localizer.getMessage("nlAlwaysAutoPay"));
+        menuItem.setState(prefs.getPrefBoolean(FPref.UI_ALWAYS_AUTO_PAY));
+        menuItem.addActionListener(e -> {
+            final boolean on = !prefs.getPrefBoolean(FPref.UI_ALWAYS_AUTO_PAY);
+            prefs.setPref(FPref.UI_ALWAYS_AUTO_PAY, String.valueOf(on));
+            prefs.save();
+            // in a network game the host pays on this player's behalf: it needs to know
+            matchUI.getGameController().setYieldPref(FPref.UI_ALWAYS_AUTO_PAY, String.valueOf(on));
+            menuItem.setState(on);
+        });
+        return menuItem;
     }
 
     private SkinnedMenuItem getMenuItem_ClearRememberedAbilityOrders() {
@@ -144,57 +152,6 @@ public final class GameMenu {
         final Localizer localizer = Localizer.getInstance();
         final SkinnedMenuItem menuItem = new SkinnedMenuItem(localizer.getMessage("lblYieldSettings"));
         menuItem.addActionListener(e -> new VYieldSettings(matchUI).showDialog());
-        return menuItem;
-    }
-
-    /** Team fights: a team mate's spells and abilities OK'd at once (saved for later fights too). */
-    private SkinnedCheckBoxMenuItem getMenuItem_AlwaysOkPartner() {
-        final Localizer localizer = Localizer.getInstance();
-        final SkinnedCheckBoxMenuItem menuItem = new SkinnedCheckBoxMenuItem(localizer.getMessage("lblAlwaysOkPartner"));
-        menuItem.setToolTipText(localizer.getMessage("lblAlwaysOkPartnerHint"));
-        menuItem.setState(prefs.getPrefBoolean(FPref.YIELD_AUTO_OK_PARTNER));
-        menuItem.addActionListener(e -> {
-            final boolean on = !prefs.getPrefBoolean(FPref.YIELD_AUTO_OK_PARTNER);
-            prefs.setPref(FPref.YIELD_AUTO_OK_PARTNER, String.valueOf(on));
-            prefs.save();
-            // the game is told at once (in a network game the host, which asks on this player's behalf)
-            matchUI.getGameController().setYieldPref(FPref.YIELD_AUTO_OK_PARTNER, String.valueOf(on));
-            menuItem.setState(on);
-        });
-        return menuItem;
-    }
-
-    /** Hex fights: the own spell or ability on top of the stack OK'd at once. */
-    private SkinnedCheckBoxMenuItem getMenuItem_OkOwnSpells() {
-        final Localizer localizer = Localizer.getInstance();
-        final SkinnedCheckBoxMenuItem menuItem = new SkinnedCheckBoxMenuItem(localizer.getMessage("lblOkOwnSpells"));
-        menuItem.setToolTipText(localizer.getMessage("nlOkOwnSpells"));
-        menuItem.setState(prefs.getPrefBoolean(FPref.YIELD_AUTO_OK_OWN));
-        menuItem.addActionListener(e -> {
-            final boolean on = !prefs.getPrefBoolean(FPref.YIELD_AUTO_OK_OWN);
-            prefs.setPref(FPref.YIELD_AUTO_OK_OWN, String.valueOf(on));
-            prefs.save();
-            // in a network game the host asks on this player's behalf: it needs to know
-            matchUI.getGameController().setYieldPref(FPref.YIELD_AUTO_OK_OWN, String.valueOf(on));
-            menuItem.setState(on);
-        });
-        return menuItem;
-    }
-
-    /** Mana costs paid by themselves whenever the sources can pay all of it (as with the Auto button). */
-    private SkinnedCheckBoxMenuItem getMenuItem_AlwaysAutoPay() {
-        final Localizer localizer = Localizer.getInstance();
-        final SkinnedCheckBoxMenuItem menuItem = new SkinnedCheckBoxMenuItem(localizer.getMessage("lblAlwaysAutoPay"));
-        menuItem.setToolTipText(localizer.getMessage("nlAlwaysAutoPay"));
-        menuItem.setState(prefs.getPrefBoolean(FPref.UI_ALWAYS_AUTO_PAY));
-        menuItem.addActionListener(e -> {
-            final boolean on = !prefs.getPrefBoolean(FPref.UI_ALWAYS_AUTO_PAY);
-            prefs.setPref(FPref.UI_ALWAYS_AUTO_PAY, String.valueOf(on));
-            prefs.save();
-            // in a network game the host pays on this player's behalf: it needs to know
-            matchUI.getGameController().setYieldPref(FPref.UI_ALWAYS_AUTO_PAY, String.valueOf(on));
-            menuItem.setState(on);
-        });
         return menuItem;
     }
 

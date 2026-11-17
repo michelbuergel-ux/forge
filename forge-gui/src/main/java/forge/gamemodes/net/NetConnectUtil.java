@@ -184,7 +184,7 @@ public class NetConnectUtil {
         final FGameClient client = new FGameClient(FModel.getPreferences().getPref(FPref.PLAYER_NAME), gui, hostname, port);
         onlineLobby.setClient(client);
         chatInterface.setGameClient(client);
-        forge.gamemodes.hexcrawl.HexNet.setServer(client); // the hex campaign of the host, if it runs one
+        ModeChannel.connected(client);
         final ClientGameLobby lobby = new ClientGameLobby();
         final ILobbyView view =  onlineLobby.setLobby(lobby);
         lobby.setListener(view);
@@ -203,7 +203,7 @@ public class NetConnectUtil {
             }
             @Override
             public void close() {
-                forge.gamemodes.hexcrawl.HexNet.setServer(null);
+                ModeChannel.connected(null);
                 onlineLobby.closeConn(Localizer.getInstance().getMessage("lblYourConnectionToHostWasInterrupted", url));
             }
             @Override

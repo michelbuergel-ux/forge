@@ -25,7 +25,7 @@ import forge.gamemodes.hexcrawl.HexPlayer;
 import forge.gamemodes.hexcrawl.HexPoi;
 import forge.gamemodes.hexcrawl.HexSession;
 import forge.gamemodes.hexcrawl.HexTile;
-import forge.gamemodes.net.event.HexActionEvent;
+import forge.gamemodes.hexcrawl.HexActionEvent;
 import forge.model.FModel;
 
 /** Several named decks per head, picked before every fight; and the groups of the deck window. */

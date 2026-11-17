@@ -97,7 +97,7 @@ public class YieldController {
         this.owner = owner;
     }
 
-    /** Always on in games with streamlined priority (Hex Campaign fights; see StreamlinedPriority), for remote players too. */
+    /** Always on in games with streamlined priority (see StreamlinedPriority), for remote players too. */
     private static final java.util.Set<FPref> STREAMLINED_ON = java.util.EnumSet.of(FPref.YIELD_AUTO_PASS_NO_ACTIONS,
             FPref.YIELD_SKIP_PHASE_DELAY, FPref.YIELD_SKIP_RESOLVE_DELAY);
 

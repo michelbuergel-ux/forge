@@ -11,7 +11,6 @@ import java.util.Set;
 
 import com.google.gson.Gson;
 
-import forge.gamemodes.net.event.HexActionEvent;
 
 /**
  * A running campaign with the people playing it. On the host (or when playing alone) the

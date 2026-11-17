@@ -1,8 +1,7 @@
 package forge.gamemodes.hexcrawl;
 
 import forge.gamemodes.net.IRemote;
-import forge.gamemodes.net.event.HexActionEvent;
-import forge.gamemodes.net.event.HexStateEvent;
+import forge.gamemodes.net.ModeChannel;
 
 /**
  * The meeting point between the network layer and the hex campaign: the server hands
@@ -128,6 +127,34 @@ public final class HexNet {
         if (listener != null && pending != null) {
             listener.onState(pending); // a state that arrived before the screen existed
         }
+    }
+
+    static {
+        ModeChannel.setHandler(new ModeChannel.Handler() {
+            @Override
+            public void connected(final IRemote server0) {
+                setServer(server0);
+            }
+
+            @Override
+            public void fromClient(final String userName, final ModeChannel.Message message) {
+                if (message instanceof HexActionEvent action) {
+                    HexNet.fromClient(userName, action);
+                }
+            }
+
+            @Override
+            public void fromServer(final ModeChannel.Message message) {
+                if (message instanceof HexStateEvent state) {
+                    HexNet.fromServer(state);
+                }
+            }
+        });
+    }
+
+    /** Makes sure the campaign listens on the network (its handler is set up when this class loads). */
+    public static void register() {
+        // the static block does the work
     }
 
     /** Called when this program joins a host (null when the connection ends). */

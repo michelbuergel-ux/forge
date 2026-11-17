@@ -24,6 +24,10 @@ import forge.player.GamePlayerUtil;
  * and every head after the first human one, are played by the AI.
  */
 public final class HexBattle {
+    static {
+        forge.gamemodes.match.FleeVote.setCounter(HexBattle::voteFlee);
+    }
+
     public static final int PARTY_TEAM = 0;
     public static final int ENEMY_TEAM = 1;
 

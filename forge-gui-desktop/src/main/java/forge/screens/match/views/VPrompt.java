@@ -61,14 +61,13 @@ public class VPrompt implements IVDoc<CPrompt> {
     // Various components
     private final FButton btnOK = new FButton(localizer.getMessage("lblOK"));
     private final FButton btnCancel = new FButton(localizer.getMessage("lblCancel"));
-    /** Team games with streamlined priority (Hex Campaign fights): OK the team mates' spells at once. */
     /** Team games: what a team mate just signalled ("Hold!"), on a coloured strip for a few seconds. */
     private final FLabel lblSignal = new FLabel.Builder().fontSize(13).fontStyle(Font.BOLD).fontAlign(SwingConstants.CENTER).opaque().build();
-    /** Team games: quick signals to the team mates; Hex Campaign fights also Flee / Fight on. */
+    /** Team games: quick signals to the team mates. */
     private final JPanel pnlTeam = new JPanel(new MigLayout("insets 0, gap 2px!, fillx"));
     private final java.util.Map<forge.gamemodes.match.TeamSignal, FButton> signalButtons = new java.util.EnumMap<>(forge.gamemodes.match.TeamSignal.class);
-    private final FButton btnFlee = new FButton(localizer.getMessage("lblFlee"));
-    private final FButton btnFightOn = new FButton(localizer.getMessage("lblFightOn"));
+    /** A game mode's own buttons below the signals (see MatchModeExtras). */
+    private final JPanel pnlMode = new JPanel(new MigLayout("insets 0, gap 2px!, fillx"));
     private final FHtmlViewer tarMessage = new FHtmlViewer();
     private final FScrollPane messageScroller = new FScrollPane(tarMessage, false,
     		ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
@@ -160,10 +159,9 @@ public class VPrompt implements IVDoc<CPrompt> {
                 signalButtons.put(signal, b);
                 pnlTeam.add(b, "h 22px!, growx, sg signal");
             }
-            btnFlee.setFont(FSkin.getFont(11));
-            btnFightOn.setFont(FSkin.getFont(11));
-            pnlTeam.add(btnFlee, "newline, h 22px!, growx, span 2, hidemode 3");
-            pnlTeam.add(btnFightOn, "h 22px!, growx, hidemode 3");
+            pnlMode.setOpaque(false);
+            pnlMode.setVisible(false);
+            pnlTeam.add(pnlMode, "newline, span, growx, hidemode 3");
             // how to point a team mate at a card: easy to forget, so it stays in sight
             final FLabel pingHint = new FLabel.Builder().text(localizer.getMessage("lblPingHint")).fontSize(11)
                     .fontAlign(SwingConstants.CENTER).build();
@@ -232,16 +230,20 @@ public class VPrompt implements IVDoc<CPrompt> {
         return this.pnlTeam;
     }
 
+    /** Shows these buttons below the team signals (none: the row is hidden). */
+    public void setModeButtons(final java.util.List<? extends javax.swing.JComponent> buttons) {
+        final java.util.List<java.awt.Component> shown = java.util.Arrays.asList(pnlMode.getComponents());
+        if (!shown.equals(buttons)) {
+            pnlMode.removeAll();
+            for (final javax.swing.JComponent b : buttons) {
+                pnlMode.add(b, "h 22px!, growx, sg mode");
+            }
+        }
+        pnlMode.setVisible(!buttons.isEmpty());
+    }
+
     public java.util.Map<forge.gamemodes.match.TeamSignal, FButton> getSignalButtons() {
         return this.signalButtons;
-    }
-
-    public FButton getBtnFlee() {
-        return this.btnFlee;
-    }
-
-    public FButton getBtnFightOn() {
-        return this.btnFightOn;
     }
 
     /** @return {@link javax.swing.JTextArea} */

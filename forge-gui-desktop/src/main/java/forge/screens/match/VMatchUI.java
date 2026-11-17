@@ -285,7 +285,7 @@ public class VMatchUI implements IVTopLevelUI {
                     FView.SINGLETON_INSTANCE.removeDragCell(c);
                 }
             }
-            getControl().placeFightBanner(); // a Hex Campaign fight: its banner above the fields
+            MatchModeExtras.get().placeOn(getControl());
         });
     }
 
@@ -524,7 +524,7 @@ public class VMatchUI implements IVTopLevelUI {
 
     @Override
     public boolean onSwitching(final FScreen fromScreen, final FScreen toScreen) {
-        getControl().removeFightBanner();
+        MatchModeExtras.get().removeFrom(getControl());
         return true;
     }
 

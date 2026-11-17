@@ -10,7 +10,7 @@ import java.util.EnumSet;
 import java.util.Set;
 
 /**
- * Settings for games with streamlined priority (Hex Campaign fights), applied on every player's
+ * Settings for games with streamlined priority (see GameRules#hasStreamlinedPriority), applied on every player's
  * computer while such a game is open. They are temporary: the saved preferences stay as they are,
  * and whatever a player changes during the game is kept.
  */

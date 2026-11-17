@@ -9,7 +9,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import forge.game.Game;
 import forge.game.GameEndReason;
 import forge.game.player.Player;
-import forge.gamemodes.match.TeamSignal;
 import forge.gui.interfaces.IGuiGame;
 import forge.player.PlayerControllerHuman;
 import forge.util.Localizer;
@@ -272,7 +271,7 @@ public final class HexFight {
         if (to.getController() instanceof PlayerControllerHuman pch) {
             final IGuiGame gui = pch.getGui();
             if (gui != null) {
-                gui.showTeamSignal(from.getView(), TeamSignal.FLEE_VOTE, detail);
+                gui.showTeamSignal(null, null, detail); // a notice of the fight, not a team mate's signal
             }
         }
     }
