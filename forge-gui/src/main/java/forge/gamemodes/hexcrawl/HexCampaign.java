@@ -339,7 +339,7 @@ public class HexCampaign {
     /** The party stands on a dungeon's field, outside, and may go in. */
     public boolean canEnterLabyrinth() {
         final HexDungeon d = dungeonHere();
-        return d != null && !d.cleared && !d.inside && !isBusy() && !won;
+        return d != null && !d.cleared && !d.inside && !isBusy();
     }
 
     /**
@@ -366,7 +366,7 @@ public class HexCampaign {
     /** May the party step into this room of its dungeon (next to its own, through an open door)? */
     public boolean canStepRoom(final int x, final int y) {
         final HexDungeon d = dungeonHere();
-        return d != null && d.inside && !isBusy() && !won && d.nextToParty(d.room(x, y));
+        return d != null && d.inside && !isBusy() && d.nextToParty(d.room(x, y));
     }
 
     /**
@@ -801,8 +801,8 @@ public class HexCampaign {
      * more life, and two more advantages (rolled among those not at their cap).
      */
     public boolean startNewGamePlus() {
-        if (!won || isBusy()) {
-            return false; // not before everybody has taken the reward of the last fight
+        if (!won || isBusy() || inLabyrinth()) {
+            return false; // not before everybody has taken the reward of the last fight, nor inside a dungeon
         }
         cycle++;
         newAdvantages.clear();
@@ -913,7 +913,7 @@ public class HexCampaign {
         if (target != null && target == tile()) {
             return canEnterLabyrinth(); // standing before a dungeon: in
         }
-        if (target == null || isHeld() || won || !isAdjacent(target) || inLabyrinth()) {
+        if (target == null || isHeld() || !isAdjacent(target) || inLabyrinth()) {
             return false;
         }
         return !(target.poi == HexPoi.BOSS && target.color == HexColor.COLORLESS && !allArchmagesDefeated());
@@ -1177,7 +1177,7 @@ public class HexCampaign {
 
     /** May the party set out for this far field (one it has seen, not next to it, not a fast-travel town)? */
     public boolean canRoute(final HexTile goal) {
-        if (goal == null || isHeld() || won || inLabyrinth() || goal == tile() || isAdjacent(goal) || !(goal.explored || goal.scouted)) {
+        if (goal == null || isHeld() || inLabyrinth() || goal == tile() || isAdjacent(goal) || !(goal.explored || goal.scouted)) {
             return false;
         }
         if (canFastTravel(goal)) {
@@ -1227,7 +1227,7 @@ public class HexCampaign {
     /** Moves the party one field. */
     public MoveResult moveTo(final int q, final int r) {
         final HexTile target = map.get(q, r);
-        if (isHeld() || won || inLabyrinth()) {
+        if (isHeld() || inLabyrinth()) {
             return MoveResult.BUSY;
         }
         if (!isAdjacent(target)) {
@@ -2187,7 +2187,7 @@ public class HexCampaign {
 
     /** Can the party travel from the town it is in to this town it has been to before? Every head pays a little gold. */
     public boolean canFastTravel(final HexTile target) {
-        if (target == null || !inTown() || won || target == tile() || target.poi != HexPoi.TOWN || !target.explored
+        if (target == null || !inTown() || target == tile() || target.poi != HexPoi.TOWN || !target.explored
                 || target.siege != null) {
             return false;
         }

@@ -534,7 +534,7 @@ public class HexMapPanel extends JPanel {
         }
 
         // where the party can go
-        if (!campaign.isHeld() && !campaign.won) {
+        if (!campaign.isHeld()) {
             g.setStroke(new BasicStroke(Math.max(2f, (float) size / 9)));
             for (final HexTile t : campaign.map.neighbors(here)) {
                 g.setColor(t == hover ? new Color(255, 255, 255, 240) : new Color(255, 255, 255, 120));

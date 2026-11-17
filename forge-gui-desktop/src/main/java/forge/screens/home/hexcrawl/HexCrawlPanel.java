@@ -916,7 +916,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         // the vote, or how the campaign stands
         final boolean myVoteMissing = !votes.isEmpty() && !votes.containsKey(me) && present.contains(me) && humans > 1;
         final java.awt.Color orange = new java.awt.Color(0xF5A55A);
-        if (campaign.won) {
+        if (campaign.won && votes.isEmpty()) {
             setText(voteBox, t("lblHexJournalVictory") + "\n" + t(guest ? "lblHexNewGamePlusWait" : "lblHexNewGamePlusHint"),
                     body(java.awt.Font.BOLD, 12.5f), GOLD_LIGHT, SIDE_W - 32);
         } else if (myVoteMissing) {
@@ -1469,7 +1469,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         }
         if (!campaign.canEnter(target)) {
             if (campaign.isAdjacent(target)) {
-                final String why = campaign.won ? "lblHexJournalVictory" : campaign.isHeld() ? "lblHexBusy" : "lblHexCenterLocked";
+                final String why = campaign.isHeld() ? "lblHexBusy" : "lblHexCenterLocked";
                 FOptionPane.showMessageDialog(t(why), campaign.name);
             }
             return; // only neighbouring fields can be entered; they are outlined on the map
@@ -1518,7 +1518,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
      */
     private void promptNewGamePlusIfWon() {
         final HexCampaign campaign = getCampaign();
-        if (campaign == null || session == null || !campaign.won || campaign.isBusy() || session.isFightRunning()
+        if (campaign == null || session == null || !campaign.won || campaign.isBusy() || campaign.inLabyrinth() || session.isFightRunning()
                 || !isShowing() || rewardPromptOpen || newGamePlusPromptedCycle == campaign.cycle) {
             return;
         }
@@ -2205,8 +2205,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         if (session == null || campaign == null || !campaign.won) {
             return;
         }
-        if (campaign.isBusy()) {
-            FOptionPane.showMessageDialog(t("lblHexNewGamePlusBusy"), campaign.name);
+        if (campaign.isBusy() || campaign.inLabyrinth()) {
+            FOptionPane.showMessageDialog(t(campaign.isBusy() ? "lblHexNewGamePlusBusy" : "lblHexNewGamePlusInDungeon"), campaign.name);
             return;
         }
         if (FOptionPane.showConfirmDialog(t("lblHexNewGamePlusConfirm", String.valueOf(campaign.cycle),

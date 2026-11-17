@@ -42,6 +42,46 @@ public class HexNewGamePlusTest extends AITest {
     }
 
     @Test
+    public void testAWonCycleStaysOpenUntilNewGamePlus() {
+        final HexCampaign c = wonCampaign();
+        c.encounterChance = 0;
+        c.encounterChanceExplored = 0;
+        // the party still walks the map
+        forge.gamemodes.hexcrawl.HexTile step = null;
+        for (final forge.gamemodes.hexcrawl.HexTile t : c.map.neighbors(c.tile())) {
+            if (t.poi == forge.gamemodes.hexcrawl.HexPoi.NONE && c.questAt(t.q, t.r) == null) {
+                t.enemy = null;
+                t.event = null;
+                step = t;
+                break;
+            }
+        }
+        AssertJUnit.assertNotNull(step);
+        AssertJUnit.assertTrue(c.canEnter(step));
+        c.moveTo(step.q, step.r);
+        AssertJUnit.assertEquals(step, c.tile());
+        AssertJUnit.assertTrue("still won", c.won);
+        // and goes into a dungeon; New Game Plus waits until it is out again
+        forge.gamemodes.hexcrawl.HexTile dungeon = null;
+        for (final forge.gamemodes.hexcrawl.HexTile t : c.map.tiles.values()) {
+            if (t.dungeon != null && !t.dungeon.cleared) {
+                dungeon = t;
+                break;
+            }
+        }
+        AssertJUnit.assertNotNull(dungeon);
+        c.partyQ = dungeon.q;
+        c.partyR = dungeon.r;
+        AssertJUnit.assertTrue(c.canEnterLabyrinth());
+        c.enterLabyrinth();
+        AssertJUnit.assertTrue(c.inLabyrinth());
+        AssertJUnit.assertFalse("not from inside a dungeon", c.startNewGamePlus());
+        dungeon.dungeon.inside = false;
+        AssertJUnit.assertTrue(c.startNewGamePlus());
+        AssertJUnit.assertFalse(c.won);
+    }
+
+    @Test
     public void testNewGamePlusKeepsTheParty() {
         final HexCampaign c = wonCampaign();
         final HexPlayer ann = c.player("Ann");
