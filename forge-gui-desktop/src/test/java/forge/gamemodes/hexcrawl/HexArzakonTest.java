@@ -26,9 +26,12 @@ public class HexArzakonTest extends AITest {
         final HexCampaign c = HexCampaign.create("Arzakon", 31L, 7, Arrays.asList(new HexPlayer("Ann", false), new HexPlayer("Bob", false)));
         c.defeatedBosses.addAll(Arrays.asList(HexColor.COLORS));
         if (rainbowCleared) {
+            // every dungeon cleared, the five-colour one as well
             c.battlesWon = c.rainbowAt();
             c.maybeOpenRainbowDungeon();
-            c.rainbowDungeon().dungeon.cleared = true;
+            for (final HexTile t : c.dungeons()) {
+                t.dungeon.cleared = true;
+            }
         }
         for (final HexTile any : c.map.tiles.values()) {
             any.enemy = null;
@@ -299,5 +302,37 @@ public class HexArzakonTest extends AITest {
         AssertJUnit.assertTrue(theirs.arzakonAwake);
         AssertJUnit.assertTrue(theirs.arzakonWaits(centre(theirs)));
         AssertJUnit.assertTrue(theirs.enemyAt(centre(theirs)).secretBoss);
+    }
+
+    @Test
+    public void heWaitsForEveryDungeonNotOnlyTheFiveColourOne() {
+        final HexCampaign c = beforeTheCentre(false);
+        c.battlesWon = c.rainbowAt();
+        c.maybeOpenRainbowDungeon();
+        c.rainbowDungeon().dungeon.cleared = true;
+        AssertJUnit.assertTrue("other dungeons still stand", c.dungeons().stream().anyMatch(t -> !t.dungeon.cleared));
+        c.defeatedBosses.add(HexColor.COLORLESS);
+        AssertJUnit.assertFalse(c.wakeArzakonIfReady());
+        AssertJUnit.assertFalse(c.arzakonAwake);
+    }
+
+    @Test
+    public void heWakesWhenTheLastDungeonFallsAfterEmrakul() {
+        final HexCampaign c = beforeTheCentre(false);
+        c.defeatedBosses.add(HexColor.COLORLESS); // Emrakul first
+        c.won = true;
+        c.battlesWon = c.rainbowAt();
+        c.maybeOpenRainbowDungeon();
+        for (final HexTile t : c.dungeons()) {
+            t.dungeon.cleared = true;
+        }
+        AssertJUnit.assertTrue("the last dungeon opens the gate", c.wakeArzakonIfReady());
+        AssertJUnit.assertTrue(c.arzakonAwake);
+        AssertJUnit.assertTrue(c.arzakonWaits(centre(c)));
+        AssertJUnit.assertFalse("once", c.wakeArzakonIfReady());
+        // lost: he withdraws for this cycle and does not wake again
+        c.arzakonAwake = false;
+        c.arzakonWithdrew = true;
+        AssertJUnit.assertFalse(c.wakeArzakonIfReady());
     }
 }

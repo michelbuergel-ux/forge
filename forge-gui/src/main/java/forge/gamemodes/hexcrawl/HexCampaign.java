@@ -205,10 +205,12 @@ public class HexCampaign {
     public int rainbowTownAt;
     /** The five-colour town of this cycle has opened. */
     public boolean rainbowTownPlaced;
-    /** Arzakon waits on the centre field: Emrakul fell in a cycle whose five-colour dungeon was cleared. */
+    /** Arzakon waits on the centre field: Emrakul is beaten and every dungeon cleared, the five-colour one too. */
     public boolean arzakonAwake;
     /** Arzakon was beaten in this cycle: the campaign's true ending. */
     public boolean arzakonBeaten;
+    /** The party lost to Arzakon in this cycle: he withdrew and does not return before the next one. */
+    public boolean arzakonWithdrew;
     /** The last town the party freed (thanked once on every screen), and a counter for it. */
     public String freedTown;
     public String freedFrom;
@@ -726,15 +728,46 @@ public class HexCampaign {
         }
     }
 
-    /** Arzakon waits on this field: the centre's, after Emrakul fell in a cycle whose five-colour dungeon was cleared. */
+    /** Arzakon waits on this field: the centre's, once Emrakul is beaten and every dungeon cleared. */
     public boolean arzakonWaits(final HexTile t) {
         return arzakonAwake && t != null && t.poi == HexPoi.BOSS && t.color == HexColor.COLORLESS;
     }
 
-    /** The five-colour dungeon of this cycle has opened and its lord is beaten: the way to Arzakon. */
+    /** The five-colour dungeon of this cycle has opened and its lord is beaten. */
     public boolean rainbowCleared() {
         final HexTile t = rainbowDungeon();
         return t != null && t.dungeon.cleared;
+    }
+
+    /** Every dungeon of the map is cleared, the five-colour one (opened in the course of the cycle) as well. */
+    public boolean allDungeonsCleared() {
+        if (!rainbowCleared()) {
+            return false;
+        }
+        for (final HexTile t : dungeons()) {
+            if (t.dungeon != null && !t.dungeon.cleared) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Arzakon steps through the gate at the centre once Emrakul is beaten and every dungeon is cleared, in whichever
+     * order the party does it (once a cycle; not after he was beaten or withdrew). Returns whether he woke now.
+     */
+    boolean wakeArzakonIfReady() {
+        if (arzakonAwake || arzakonBeaten || arzakonWithdrew || !defeatedBosses.contains(HexColor.COLORLESS) || !allDungeonsCleared()
+                || HexContent.get().arzakonEncounter() == null) {
+            return false;
+        }
+        arzakonAwake = true;
+        for (final HexTile t : map.tilesWith(HexPoi.BOSS)) {
+            if (t.color == HexColor.COLORLESS) {
+                t.name = HexContent.ARZAKON;
+            }
+        }
+        return true;
     }
 
     /** The last enemy of this cycle's victory: Arzakon, if the party beat him, else Emrakul. */
@@ -896,6 +929,7 @@ public class HexCampaign {
         rainbowTownPlaced = false;
         arzakonAwake = false;
         arzakonBeaten = false;
+        arzakonWithdrew = false;
         defeatedBosses.clear();
         pendingEncounter = null;
         pendingRewards.clear();
@@ -1504,6 +1538,10 @@ public class HexCampaign {
                     dungeon.cleared = true;
                     dungeon.reset(); // the party is out again, on the dungeon's field
                     log(msg("lblHexJournalDungeonCleared", enc.enemyName));
+                    if (wakeArzakonIfReady()) {
+                        // the last dungeon after Emrakul's fall: the gate at the centre opens now
+                        log(msg("lblHexJournalArzakonWakesLate"));
+                    }
                 }
             }
             final boolean treasure = treasureWaits(room);
@@ -1575,12 +1613,8 @@ public class HexCampaign {
                     log(msg("lblHexJournalVictory"));
                 } else {
                     defeatedBosses.add(enc.color);
-                    if (enc.color == HexColor.COLORLESS && rainbowCleared() && !arzakonBeaten && HexContent.get().arzakonEncounter() != null) {
+                    if (enc.color == HexColor.COLORLESS && wakeArzakonIfReady()) {
                         // Emrakul was only the gatekeeper: the ground splits, throws the party back, and Arzakon steps through
-                        arzakonAwake = true;
-                        if (t != null) {
-                            t.name = HexContent.ARZAKON;
-                        }
                         partyQ = prevQ;
                         partyR = prevR;
                         log(msg("lblHexJournalArzakonWakes"));
@@ -1601,6 +1635,7 @@ public class HexCampaign {
             if (enc.secretBoss) {
                 // one try a cycle: he withdraws, and Emrakul's fall still wins the cycle
                 arzakonAwake = false;
+                arzakonWithdrew = true;
                 won = true;
                 log(msg("lblHexJournalArzakonWithdraws"));
                 log(msg("lblHexJournalVictory"));

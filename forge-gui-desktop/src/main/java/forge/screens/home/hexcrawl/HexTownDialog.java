@@ -316,9 +316,12 @@ final class HexTownDialog {
         refreshHook.accept(this::fill); // what others do arrives a moment later, with the next state from the host
         final javax.swing.Timer clock = new javax.swing.Timer(1000, e -> fillParty()); // the vote's clock runs down
         clock.start();
+        final java.awt.KeyEventDispatcher keys = e -> e.getID() == java.awt.event.KeyEvent.KEY_PRESSED && dialog.isFocused() && onKey(e);
+        java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(keys);
         try {
             dialog.setVisible(true);
         } finally {
+            java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(keys);
             clock.stop();
             refreshHook.accept(null);
             dialog.dispose();
@@ -360,6 +363,7 @@ final class HexTownDialog {
         final JPanel messageRow = transparent(new MigLayout("insets 0, gap 12, fillx, hidemode 3", "[grow, fill][]", "[26!]"));
         messageRow.add(lblMessage, "aligny center");
         btnUndo = new GoldButton(t("lblHexUndo"), GoldButton.Kind.OUTLINE, 11.5f);
+        btnUndo.setToolTipText("[Ctrl+Z]");
         btnUndo.addActionListener(e -> undoLastBuy());
         btnUndo.setVisible(false);
         messageRow.add(btnUndo, "h 26!");
@@ -446,7 +450,7 @@ final class HexTownDialog {
             @Override public void removeUpdate(final javax.swing.event.DocumentEvent e) { onSearch(); }
             @Override public void changedUpdate(final javax.swing.event.DocumentEvent e) { onSearch(); }
         });
-        search.setToolTipText(t("lblHexTownSearchHint"));
+        search.setToolTipText(t("lblHexTownSearchHint") + "  [Ctrl+F]");
         side.add(search, "h 32!, gapbottom 14");
         side.add(heading(t("lblHexMerchants")), "gapleft 12, gapbottom 6");
         for (final HexShopType type : HexShopType.values()) {
@@ -462,11 +466,21 @@ final class HexTownDialog {
             addNav(side, TAB_TRADE, t("lblHexTabTrade"), GOLD);
         }
         addNav(side, TAB_PRACTICE, t("lblHexPractice"), GOLD);
+        // the keys: one line, the whole list when the mouse rests on it
+        final JLabel keys = label(t("lblHexTownKeysTitle"), body(Font.PLAIN, 12f), HexTownStyle.FAINT);
+        keys.setToolTipText("<html>" + t("lblHexTownKeys").replace(" · ", "<br>") + "</html>");
+        side.add(keys, "gaptop 14, gapleft 12");
         return side;
     }
 
     private void addNav(final JPanel side, final String key, final String text, final Color gem) {
         final NavItem item = new NavItem(text, palette, gem);
+        final int shop = isShopKey(key) ? java.util.Arrays.asList(HexShopType.CARD_SHOPS).indexOf(HexShopType.valueOf(key)) : -1;
+        final String keyName = shop >= 0 ? String.valueOf(shop + 1) : HexShopType.RELIC.name().equals(key) ? "8"
+                : TAB_SELL.equals(key) ? "V" : TAB_QUESTS.equals(key) ? "Q" : null;
+        if (keyName != null) {
+            item.setToolTipText(text + "  [" + keyName + "]");
+        }
         item.addActionListener(e -> {
             tab = key;
             setMessage("", false);
@@ -475,6 +489,15 @@ final class HexTownDialog {
         });
         navItems.put(key, item);
         side.add(item, "h 44!, gapbottom 4");
+    }
+
+    private static boolean isShopKey(final String key) {
+        for (final HexShopType type : HexShopType.values()) {
+            if (type.name().equals(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String query() {
@@ -553,7 +576,7 @@ final class HexTownDialog {
         }
         final PillTray importTray = new PillTray();
         importPill = new Pill(" ", true);
-        importPill.setToolTipText(t("lblHexImportTip"));
+        importPill.setToolTipText(t("lblHexImportTip") + "  [I]");
         importPill.addActionListener(e -> openImportMenu());
         importTray.add(importPill, "h 34!");
         row.add(importTray, "pushx, alignx right");
@@ -601,17 +624,17 @@ final class HexTownDialog {
                 sources.add(c.name());
             }
         }
-        sources.add(HexCampaign.IMPORT_RAINBOW);
+        if (campaign().importsOpen()) {
+            sources.add(HexCampaign.IMPORT_RAINBOW); // only once it is free: no hint before
+        }
         for (final String source : sources) {
-            final boolean rainbow = HexCampaign.IMPORT_RAINBOW.equals(source);
-            final boolean open = !rainbow || campaign().importsOpen();
             final boolean chosen = java.util.Objects.equals(source, current);
-            final javax.swing.JMenuItem item = new javax.swing.JMenuItem(importLabel(source) + (open ? "" : "  (" + t("lblHexImportRainbowLater") + ")"));
+            final javax.swing.JMenuItem item = new javax.swing.JMenuItem(importLabel(source));
             item.setFont(body(chosen ? Font.BOLD : Font.PLAIN, 13f));
             item.setOpaque(true);
             item.setBackground(palette.mid());
             item.setForeground(chosen ? GOLD : HexTownStyle.TEXT);
-            item.setEnabled(may && open && !chosen);
+            item.setEnabled(may && !chosen);
             item.addActionListener(e -> {
                 session.chooseImport(p.name, source);
                 setMessage(t("lblHexImportChosen", importLabel(source)), false);
@@ -629,7 +652,7 @@ final class HexTownDialog {
     private GoldButton restockButton() {
         final GoldButton button = new GoldButton(t("lblHexRestockShort"), GoldButton.Kind.OUTLINE, 13f).withGlyph(Glyph.RESTOCK);
         button.setSuffix(String.valueOf(campaign().townPrice(HexCampaign.RESTOCK_PRICE)));
-        button.setToolTipText(t("lblHexRestockHint"));
+        button.setToolTipText(t("lblHexRestockHint") + "  [N]");
         button.addActionListener(e -> onRestock());
         return button;
     }
@@ -917,6 +940,7 @@ final class HexTownDialog {
         panel.add(previewFace, "w " + faceW + "!, h " + faceH + "!, alignx center");
         panel.add(lblPreviewInfo, "gaptop 12");
         btnPreviewBuy = new GoldButton(t("lblHexBuy"), GoldButton.Kind.GOLD, 15f);
+        btnPreviewBuy.setToolTipText(t("lblHexKeyBuyTip"));
         btnPreviewBuy.addActionListener(e -> {
             if (previewOffer != null) {
                 buy(previewType, previewTab, previewOffer);
@@ -1095,6 +1119,8 @@ final class HexTownDialog {
             final int keepDown = keepOffset;
             tilesShown = shown.toString();
             pnlTiles.removeAll();
+            tileOrder.clear();
+            tileViews.clear();
             sectionHeads.clear();
             for (int section = 0; section < SECTIONS; section++) {
                 final int tab = section;
@@ -1141,10 +1167,14 @@ final class HexTownDialog {
     }
 
     /** One card on offer: its picture (pointing at it shows it big, a click buys it), its price and the copies in the deck. */
+    /** The tiles of the page in the order they are shown (and their offers), for the arrow keys. */
+    private final List<Found> tileOrder = new ArrayList<>();
+    private final List<JComponent> tileViews = new ArrayList<>();
+
     private void addTile(final HexPlayer buyer, final HexShopType type, final int section, final HexShopOffer o) {
         final int price = price(buyer, o);
         final int inDeck = Collections.frequency(buyer.deck, o.card);
-        pnlTiles.add(new ShopTile(content.getCard(o.card, o.theme), tileW, String.valueOf(price),
+        final ShopTile tile = new ShopTile(content.getCard(o.card, o.theme), tileW, String.valueOf(price),
                 inDeck > 0 ? t("lblHexInDeck", String.valueOf(inDeck)) : null, buyer.gold < price, new TileListener() {
                     @Override
                     public void hovered() {
@@ -1155,7 +1185,125 @@ final class HexTownDialog {
                     public void clicked() {
                         buy(type, section, o);
                     }
-                }));
+                });
+        pnlTiles.add(tile);
+        tileOrder.add(new Found(type, section, o));
+        tileViews.add(tile);
+    }
+
+    // ------------------------------------------------------------------ keys
+
+    /** The keys of the town window; none while a text field has the focus or a menu is open (only Esc, Ctrl+F there). */
+    private boolean onKey(final java.awt.event.KeyEvent e) {
+        final int code = e.getKeyCode();
+        final boolean ctrl = e.isControlDown() || e.isMetaDown();
+        if (javax.swing.MenuSelectionManager.defaultManager().getSelectedPath().length > 0) {
+            return false; // a menu is open: its own keys
+        }
+        if (ctrl && code == java.awt.event.KeyEvent.VK_F) {
+            search.requestFocusInWindow();
+            return true;
+        }
+        if (code == java.awt.event.KeyEvent.VK_ESCAPE) {
+            if (searching()) {
+                clearSearch();
+            } else {
+                dialog.setVisible(false);
+            }
+            return true;
+        }
+        if (java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner() instanceof javax.swing.text.JTextComponent) {
+            return false; // typing
+        }
+        if (e.isAltDown() || ctrl && code != java.awt.event.KeyEvent.VK_Z) {
+            return false;
+        }
+        final HexShopType[] shops = HexShopType.CARD_SHOPS;
+        if (code >= java.awt.event.KeyEvent.VK_1 && code < java.awt.event.KeyEvent.VK_1 + shops.length) {
+            goTo(shops[code - java.awt.event.KeyEvent.VK_1].name());
+            return true;
+        }
+        switch (code) {
+            case java.awt.event.KeyEvent.VK_8:
+                goTo(HexShopType.RELIC.name());
+                return true;
+            case java.awt.event.KeyEvent.VK_V:
+                goTo(TAB_SELL);
+                return true;
+            case java.awt.event.KeyEvent.VK_Q:
+                goTo(TAB_QUESTS);
+                return true;
+            case java.awt.event.KeyEvent.VK_N:
+                if (btnRestock != null && btnRestock.isEnabled()) {
+                    onRestock();
+                }
+                return true;
+            case java.awt.event.KeyEvent.VK_ENTER:
+                if (previewOffer != null && previewType != null && (isCardShop() || searching())) {
+                    buy(previewType, previewTab, previewOffer);
+                }
+                return true;
+            case java.awt.event.KeyEvent.VK_LEFT:
+            case java.awt.event.KeyEvent.VK_RIGHT:
+                stepPreview(code == java.awt.event.KeyEvent.VK_RIGHT ? 1 : -1);
+                return true;
+            case java.awt.event.KeyEvent.VK_Z:
+                if (ctrl && btnUndo.isVisible()) {
+                    undoLastBuy();
+                }
+                return ctrl;
+            case java.awt.event.KeyEvent.VK_D:
+            case java.awt.event.KeyEvent.VK_S:
+                buyToSideboard = code == java.awt.event.KeyEvent.VK_S;
+                fillBuyInto();
+                setMessage(t(buyToSideboard ? "lblHexKeySideboard" : "lblHexKeyDeck"), false);
+                return true;
+            case java.awt.event.KeyEvent.VK_I:
+                if (importPill != null && isCardShop()) {
+                    openImportMenu();
+                }
+                return true;
+            case java.awt.event.KeyEvent.VK_SLASH:
+                search.requestFocusInWindow();
+                return true;
+            case java.awt.event.KeyEvent.VK_TAB:
+                if (heads.size() > 1) {
+                    selectHead(Math.floorMod(headIndex + (e.isShiftDown() ? -1 : 1), heads.size()));
+                    return true;
+                }
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    /** To a merchant or a page of the town, as a click on its entry in the side bar. */
+    private void goTo(final String key) {
+        if (!navItems.containsKey(key)) {
+            return;
+        }
+        tab = key;
+        setMessage("", false);
+        clearSearch();
+        fill();
+    }
+
+    /** The preview to the next (or previous) card of the page, shown in view. */
+    private void stepPreview(final int by) {
+        if (tileOrder.isEmpty()) {
+            return;
+        }
+        int at = -1;
+        for (int i = 0; i < tileOrder.size(); i++) {
+            if (tileOrder.get(i).offer() == previewOffer) {
+                at = i;
+            }
+        }
+        final int next = at < 0 ? 0 : Math.floorMod(at + by, tileOrder.size());
+        final Found f = tileOrder.get(next);
+        showPreview(f.type(), f.section(), f.offer());
+        final JComponent view = tileViews.get(next);
+        view.scrollRectToVisible(new Rectangle(0, 0, view.getWidth(), view.getHeight()));
     }
 
     /** One offer found by the search: where it is sold (merchant and section) and the offer. */
@@ -1205,6 +1353,8 @@ final class HexTownDialog {
         final boolean newSearch = !tilesShown.startsWith("?");
         tilesShown = shown.toString();
         pnlTiles.removeAll();
+        tileOrder.clear();
+        tileViews.clear();
         sectionHeads.clear();
         boolean first = true;
         for (final Map.Entry<HexShopType, List<Found>> e : byShop.entrySet()) {
