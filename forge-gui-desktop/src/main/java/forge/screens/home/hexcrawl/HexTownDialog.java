@@ -137,6 +137,8 @@ final class HexTownDialog {
     private static final int SECTIONS = HexCampaign.TAB_PICKED + HexCampaign.PICKED_THEMES;
     private final ThemePill[] themePills = new ThemePill[SECTIONS];
     private GoldButton btnRestock;
+    /** The same on the relic dealer's page (restocking brings new relics too). */
+    private GoldButton btnRelicRestock;
     /** The section the page shows at its top (its chip is lit). */
     private int sectionInView = HexCampaign.TAB_TOWN;
     /** A section to scroll to once the page is built again (after a theme was picked), or -1. */
@@ -159,6 +161,9 @@ final class HexTownDialog {
     /** Where bought cards go: the deck played or the sideboard (remembered while the program runs). */
     private static boolean buyToSideboard;
     private final List<Pill> buyIntoPills = new ArrayList<>();
+    /** The deck the head plays (new cards go into it): a menu of its decks, shown when it has several. */
+    private Pill deckPill;
+    private JPanel deckRow;
     /** The last purchase, while it can still be undone (sold back at what it cost); null if none. */
     private record LastBuy(String head, String card, int price, boolean toSideboard) { }
     private LastBuy lastBuy;
@@ -546,12 +551,18 @@ final class HexTownDialog {
             themePills[i] = pill;
             row.add(pill, "h 46!");
         }
-        btnRestock = new GoldButton(t("lblHexRestockShort"), GoldButton.Kind.OUTLINE, 13f).withGlyph(Glyph.RESTOCK);
-        btnRestock.setSuffix(String.valueOf(campaign().townPrice(HexCampaign.RESTOCK_PRICE)));
-        btnRestock.setToolTipText(t("lblHexRestockHint"));
-        btnRestock.addActionListener(e -> onRestock());
+        btnRestock = restockButton();
         row.add(btnRestock, "pushx, alignx right, h 42!");
         return row;
+    }
+
+    /** "New goods": new shelves of the head's own in every shop and at the relic dealer, for gold. */
+    private GoldButton restockButton() {
+        final GoldButton button = new GoldButton(t("lblHexRestockShort"), GoldButton.Kind.OUTLINE, 13f).withGlyph(Glyph.RESTOCK);
+        button.setSuffix(String.valueOf(campaign().townPrice(HexCampaign.RESTOCK_PRICE)));
+        button.setToolTipText(t("lblHexRestockHint"));
+        button.addActionListener(e -> onRestock());
+        return button;
     }
 
     private void onThemePill(final int tabIndex, final ThemePill pill) {
@@ -729,6 +740,9 @@ final class HexTownDialog {
             }
         }
         btnRestock.setEnabled(!session.isFightRunning());
+        if (btnRelicRestock != null) {
+            btnRelicRestock.setEnabled(!session.isFightRunning());
+        }
     }
 
     // ------------------------------------------------------------------ refresh
@@ -748,6 +762,7 @@ final class HexTownDialog {
             headPills.get(i).setActive(i == headIndex);
         }
         goldChip.setAmount(p.gold);
+        fillBuyInto();
         String purse = t("lblHexGoldAndCards", String.valueOf(p.gold), String.valueOf(p.deck.size()));
         if (!p.relics.isEmpty()) {
             purse += "  –  " + t("lblHexRelicsCarried", String.join(", ", p.relics));
@@ -850,6 +865,15 @@ final class HexTownDialog {
         }
         into.add(tray);
         panel.add(into, "gaptop 10, alignx center");
+        deckRow = transparent(new MigLayout("insets 0, gap 10, aligny center, hidemode 3", "[][]", "[36!]"));
+        deckRow.add(label(t("lblHexShopDeck"), body(Font.PLAIN, 13f), MUTED));
+        final PillTray deckTray = new PillTray();
+        deckPill = new Pill(" ", true);
+        deckPill.setToolTipText(t("lblHexShopDeckTip"));
+        deckPill.addActionListener(e -> openDeckMenu());
+        deckTray.add(deckPill, "h 28!");
+        deckRow.add(deckTray);
+        panel.add(deckRow, "gaptop 4, alignx center, hidemode 3");
         fillBuyInto();
         return panel;
     }
@@ -858,6 +882,56 @@ final class HexTownDialog {
         for (int i = 0; i < buyIntoPills.size(); i++) {
             buyIntoPills.get(i).setActive((i == 1) == buyToSideboard);
         }
+        final HexPlayer p = head();
+        if (deckRow != null) {
+            deckRow.setVisible(p != null && p.deckCount() > 1);
+            if (p != null) {
+                final String name = deckLabel(p, p.activeDeckIndex());
+                deckPill.setText(name.length() > 22 ? name.substring(0, 21).trim() + "..." : name);
+            }
+        }
+    }
+
+    private String deckLabel(final HexPlayer p, final int index) {
+        final String name = p.deckName(index);
+        return name == null ? t("lblHexDeckMain") : name;
+    }
+
+    /** The head's decks: the one picked is played from now on (the cards change hands between deck and sideboard). */
+    private void openDeckMenu() {
+        final HexPlayer p = head();
+        if (p == null) {
+            return;
+        }
+        final boolean may = !session.isFightRunning() && session.mayActFor(session.getMyHead(), p.name);
+        final javax.swing.JPopupMenu menu = new javax.swing.JPopupMenu();
+        menu.setBackground(palette.mid());
+        menu.setBorder(BorderFactory.createLineBorder(HexTownStyle.alpha(GOLD, .5)));
+        final int active = p.activeDeckIndex();
+        for (int i = 0; i < p.deckCount(); i++) {
+            final int index = i;
+            final javax.swing.JMenuItem item = new javax.swing.JMenuItem(deckLabel(p, i) + "   "
+                    + t("lblHexCardsCount", String.valueOf(Math.max(p.deckSize(i), HexCampaign.MIN_DECK_SIZE))));
+            item.setFont(body(i == active ? Font.BOLD : Font.PLAIN, 13f));
+            item.setOpaque(true);
+            item.setBackground(palette.mid());
+            item.setForeground(i == active ? GOLD : HexTownStyle.TEXT);
+            item.setEnabled(may);
+            item.addActionListener(e -> pickDeck(index));
+            menu.add(item);
+        }
+        menu.show(deckPill, 0, deckPill.getHeight() + 6);
+    }
+
+    private void pickDeck(final int index) {
+        final HexPlayer p = head();
+        if (p == null || index == p.activeDeckIndex()) {
+            return;
+        }
+        final boolean filled = p.deckSize(index) < HexCampaign.MIN_DECK_SIZE;
+        session.selectDeck(p.name, index);
+        setMessage(t(filled ? "lblHexDeckPlayingFilled" : "lblHexDeckPlaying", deckLabel(p, index)) + " " + t("lblHexShopDeckColours"), false);
+        fill();
     }
 
     /** The name of a section: its kind (the town's, any cards, yours) and its theme. */
@@ -1097,6 +1171,10 @@ final class HexTownDialog {
         if (sideboard > 0) {
             info += " · " + t("lblHexPreviewSideboard", String.valueOf(sideboard));
         }
+        final int surcharge = o.shop == HexShopType.RELIC ? 0 : campaign().importSurcharge(o.card);
+        if (surcharge > 0) {
+            info += "  ·  " + t("lblHexImportPrice", String.valueOf(surcharge), String.valueOf(HexCampaign.IMPORT_DISCOUNT_PER_TOWN));
+        }
         lblPreviewInfo.setText(info);
         final int price = price(p, o);
         btnPreviewBuy.setText(t("lblHexBuyForGold", String.valueOf(price)));
@@ -1153,14 +1231,18 @@ final class HexTownDialog {
 
     /** What the head pays for an offer (its discount perks included). */
     private int price(final HexPlayer p, final HexShopOffer o) {
-        return p == null ? o.price : campaign().priceFor(p, o.price);
+        return p == null ? o.price : campaign().priceFor(p, o);
     }
 
     // ------------------------------------------------------------------ relics
 
     private JPanel buildRelicPage() {
         final JPanel page = transparent(new MigLayout("insets 0, gap 0, wrap 1, fill", "[grow, fill]", "[]14[grow, fill]"));
-        page.add(title(t("lblHexRelicDealer")));
+        final JPanel head = transparent(new MigLayout("insets 0, gap 8, aligny center", "[grow, fill][]"));
+        head.add(title(t("lblHexRelicDealer")));
+        btnRelicRestock = restockButton();
+        head.add(btnRelicRestock, "h 42!");
+        page.add(head);
         final String col = "[" + relicW + "!, fill]";
         pnlRelics = transparent(new MigLayout("insets 0 0 8 0, gap " + GAP, col + col + col, "[top]"));
         page.add(scroller(pnlRelics), "wmin 0, hmin 0");
@@ -1453,11 +1535,18 @@ final class HexTownDialog {
 
     // ------------------------------------------------------------------ selling cards
 
+    /** Sells every card the head marked for sale in its deck window, at once. */
+    private GoldButton btnSellMarked;
+
     private JPanel buildSellPage() {
         final JPanel page = transparent(new MigLayout("insets 0, gap 0, wrap 1, fill", "[grow, fill]", "[]14[grow, fill]"));
-        final JPanel top = transparent(new MigLayout("insets 0, gap 16, aligny bottom, fillx", "[][]push[]"));
+        final JPanel top = transparent(new MigLayout("insets 0, gap 16, aligny bottom, fillx, hidemode 3", "[][]push[][]"));
         top.add(title(t("lblHexTabSell")));
         top.add(label(t("lblHexSellHint", String.valueOf(HexCampaign.MIN_DECK_SIZE)), body(Font.PLAIN, 13f), MUTED), "gapbottom 4");
+        btnSellMarked = new GoldButton(" ", GoldButton.Kind.GOLD, 13f);
+        btnSellMarked.setToolTipText(t("lblHexSellMarkedTip"));
+        btnSellMarked.addActionListener(e -> sellMarked());
+        top.add(btnSellMarked, "h 40!");
         top.add(sourcePills(salePills));
         page.add(top);
         pnlSale = transparent(new MigLayout("insets 0 0 8 0, gap 14, wrap " + COUNTER_COLUMNS, "", "[top]"));
@@ -1519,7 +1608,15 @@ final class HexTownDialog {
 
     private void fillDeck(final HexPlayer p) {
         final List<SaleRow> rows = shownRows(p, salePills);
-        final String shown = p.name + '/' + rows;
+        final List<String> marked = campaign().markedForSale(p);
+        int markedCopies = 0;
+        for (final String card : marked) {
+            markedCopies += Collections.frequency(p.sideboard, card);
+        }
+        btnSellMarked.setVisible(markedCopies > 0);
+        btnSellMarked.setText(t("lblHexSellMarked", String.valueOf(markedCopies), String.valueOf(campaign().markedSaleValue(p))));
+        btnSellMarked.setEnabled(!session.isFightRunning());
+        final String shown = p.name + '/' + rows + '/' + marked;
         if (shown.equals(saleShown)) {
             return;
         }
@@ -1529,8 +1626,11 @@ final class HexTownDialog {
             // a card bought during this visit goes back for what it cost
             final int price = campaign().sellBackPrice(p, row.card());
             final boolean back = !row.sideboard() && campaign().isBoughtHere(p, row.card());
-            final CounterTile tile = new CounterTile(content.getCard(row.card()), row.card(), counterW, palette,
-                    back ? copies(row) + " \u00b7 " + t("lblHexSellBackMark") : copies(row), "+" + price,
+            String note = back ? copies(row) + " \u00b7 " + t("lblHexSellBackMark") : copies(row);
+            if (row.sideboard() && marked.contains(row.card())) {
+                note += " \u00b7 " + t("lblHexForSale");
+            }
+            final CounterTile tile = new CounterTile(content.getCard(row.card()), row.card(), counterW, palette, note, "+" + price,
                     new TileListener() {
                         @Override
                         public void hovered() { }
@@ -1560,6 +1660,24 @@ final class HexTownDialog {
                     String.valueOf(back ? campaign().sellBackPrice(p, row.card()) : campaign().sellPriceFor(p, row.card()))), false);
             session.sell(p.name, row.card(), row.sideboard());
         }
+        fill();
+    }
+
+    private void sellMarked() {
+        final HexPlayer p = head();
+        if (p == null) {
+            return;
+        }
+        final int gold = campaign().markedSaleValue(p);
+        int copies = 0;
+        for (final String card : campaign().markedForSale(p)) {
+            copies += Collections.frequency(p.sideboard, card);
+        }
+        if (copies == 0) {
+            return;
+        }
+        session.sellMarked(p.name);
+        setMessage(t("lblHexSoldMarked", p.name, String.valueOf(copies), String.valueOf(gold)), false);
         fill();
     }
 

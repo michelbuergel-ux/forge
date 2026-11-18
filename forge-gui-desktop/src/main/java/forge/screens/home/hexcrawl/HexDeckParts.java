@@ -159,6 +159,8 @@ final class HexDeckParts {
         void move();
         /** The row was clicked elsewhere than on its arrow: show the card big. */
         default void open() { }
+        /** A right click on the row (at x, y of the row): its menu. */
+        default void menu(final JComponent row, final int x, final int y) { }
     }
 
     /**
@@ -181,6 +183,8 @@ final class HexDeckParts {
         private boolean selected;
         private boolean hover;
         private boolean overArrow;
+        /** A sideboard card marked for sale: this word in gold instead of whether it fits. */
+        private String saleLabel;
 
         CardRow(final Palette p0, final boolean inDeck0, final PaperCard card, final String name0, final int copies, final boolean warn0,
                 final String fitLabel0, final boolean fits0, final boolean editable0, final String moveTip0, final String warnTip0,
@@ -227,6 +231,11 @@ final class HexDeckParts {
 
                 @Override
                 public void mousePressed(final MouseEvent e) {
+                    if (javax.swing.SwingUtilities.isRightMouseButton(e)) {
+                        listener.menu(CardRow.this, e.getX(), e.getY());
+                        pressedAt = null;
+                        return;
+                    }
                     pressedAt = e.getButton() == MouseEvent.BUTTON1 ? e.getPoint() : null;
                 }
 
@@ -248,6 +257,11 @@ final class HexDeckParts {
             };
             addMouseListener(mouse);
             addMouseMotionListener(mouse);
+        }
+
+        void setSaleLabel(final String label) {
+            saleLabel = label;
+            repaint();
         }
 
         void setSelected(final boolean selected0) {
@@ -311,10 +325,11 @@ final class HexDeckParts {
             // the right end: the mana cost (and in the sideboard whether the card fits)
             int right = inDeck ? ax - 8 : w - 6;
             if (!inDeck) {
+                final String label = saleLabel != null ? saleLabel : fitLabel;
                 g2.setFont(body(Font.BOLD, 11f));
-                g2.setColor(fits ? p.light() : new Color(0x8e887b));
-                final int fw = g2.getFontMetrics().stringWidth(fitLabel);
-                g2.drawString(fitLabel, right - fw, 21);
+                g2.setColor(saleLabel != null ? GOLD : fits ? p.light() : new Color(0x8e887b));
+                final int fw = g2.getFontMetrics().stringWidth(label);
+                g2.drawString(label, right - fw, 21);
                 right -= Math.max(fw, 52) + 10;
             }
             if (cost != null && !cost.isNoCost()) {
@@ -327,7 +342,7 @@ final class HexDeckParts {
             // the name
             final int nx = inDeck ? 46 : 82;
             g2.setFont(body(Font.PLAIN, 13.5f));
-            g2.setColor(inDeck || fits ? TEXT : new Color(0xa39d8f));
+            g2.setColor(saleLabel != null ? new Color(0x8e887b) : inDeck || fits ? TEXT : new Color(0xa39d8f));
             final String shown = HexSidebarParts.fit(g2, name, right - nx - (warn ? 24 : 0));
             g2.drawString(shown, nx, 22);
             if (warn) {

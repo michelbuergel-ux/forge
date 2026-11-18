@@ -1793,6 +1793,53 @@ public class HexCampaign {
         return gold * (100 + HexPerk.GOLD_BONUS_PERCENT * HexPerk.GOLD_BONUS.count(p)) / 100;
     }
 
+    /** Cards outside the town's colour cost this much more, in percent ... */
+    public static final int IMPORT_SURCHARGE_PERCENT = 30;
+    /** ... and this much less for every town of the card's colour the party has been to in this cycle. */
+    public static final int IMPORT_DISCOUNT_PER_TOWN = 10;
+
+    /** The towns of a colour the party has stood in on this map. */
+    public int visitedTowns(final HexColor color) {
+        int n = 0;
+        for (final HexTile t : map.tiles.values()) {
+            if (t.poi == HexPoi.TOWN && t.explored && t.color == color) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /**
+     * What a card costs more in the town the party is in, in percent: nothing for a colourless card or one of the
+     * town's colour; else the surcharge of its colour the party knows least (IMPORT_SURCHARGE_PERCENT, less
+     * IMPORT_DISCOUNT_PER_TOWN for every town of that colour it has been to).
+     */
+    public int importSurcharge(final String card) {
+        final forge.item.PaperCard paper = card == null || tile().poi != HexPoi.TOWN ? null : HexContent.get().getCard(card);
+        if (paper == null) {
+            return 0;
+        }
+        final byte bits = paper.getRules().getColor().getColor();
+        if (bits == 0 || (bits & HexContent.bitOf(tile().color)) != 0) {
+            return 0;
+        }
+        int worst = 0;
+        for (final HexColor c : HexColor.COLORS) {
+            if ((bits & HexContent.bitOf(c)) != 0) {
+                worst = Math.max(worst, Math.max(0, IMPORT_SURCHARGE_PERCENT - IMPORT_DISCOUNT_PER_TOWN * visitedTowns(c)));
+            }
+        }
+        return worst;
+    }
+
+    /** What a head pays for an offer in the town the party is in: an import costs its surcharge, then the head's perks count. */
+    public int priceFor(final HexPlayer p, final HexShopOffer offer) {
+        if (offer.shop == HexShopType.RELIC) {
+            return priceFor(p, offer.price);
+        }
+        return priceFor(p, offer.price * (100 + importSurcharge(offer.card)) / 100);
+    }
+
     /** What a head pays for an offer in the shops, with its discount perks (and less in a freed town). */
     public int priceFor(final HexPlayer p, final int price) {
         return townPrice(Math.max(1, price * (100 - HexPerk.DISCOUNT_PERCENT * HexPerk.DISCOUNT.count(p)) / 100));
@@ -2327,7 +2374,7 @@ public class HexCampaign {
             for (final Map.Entry<String, String> e : wanted.entrySet()) {
                 final Integer at = themeStockedAt.get(key + "|" + e.getKey() + "|" + e.getValue());
                 if (at == null || at != fights()) {
-                    stockTab(stock, e.getKey(), e.getValue());
+                    stockTab(stock, e.getKey(), e.getValue(), deckColours(p)); // the head's own colours, wherever the town is
                 }
             }
         }
@@ -2364,11 +2411,43 @@ public class HexCampaign {
         return result;
     }
 
-    /** New shelves for one theme tab of the town the party is in. */
+    /**
+     * The colours a head's own tabs stock: one entry for every colour of every card of its deck (no lands), so that its
+     * main colours come up most; the town's colour for a deck without colours.
+     */
+    List<HexColor> deckColours(final HexPlayer p) {
+        final List<HexColor> result = new ArrayList<>();
+        for (final String name : p.deck) {
+            final forge.item.PaperCard card = HexContent.get().getCard(name);
+            if (card == null || card.getRules().getType().isLand()) {
+                continue;
+            }
+            final byte bits = card.getRules().getColor().getColor();
+            for (final HexColor c : HexColor.COLORS) {
+                if ((bits & HexContent.bitOf(c)) != 0) {
+                    result.add(c);
+                }
+            }
+        }
+        if (result.isEmpty()) {
+            result.add(tile().color);
+        }
+        return result;
+    }
+
+    /** New shelves for one theme tab of the town the party is in: the town's own tab in its colour. */
     private void stockTab(final List<HexShopOffer> stock, final String tab, final String themeId) {
+        stockTab(stock, tab, themeId, null);
+    }
+
+    /** New shelves for one theme tab: in the town's colour, or (a head's own tab) in the colours of the head's deck. */
+    private void stockTab(final List<HexShopOffer> stock, final String tab, final String themeId, final List<HexColor> deckColours) {
         final String key = tile().key();
         stock.removeIf(o -> tab.equals(o.tab));
-        for (final HexShopOffer o : HexContent.get().themeStock(tile().color, borderColours(tile()), HexTheme.get(themeId), random())) {
+        final List<HexShopOffer> offers = deckColours == null
+                ? HexContent.get().themeStock(tile().color, borderColours(tile()), HexTheme.get(themeId), random())
+                : HexContent.get().deckStock(deckColours, HexTheme.get(themeId), random());
+        for (final HexShopOffer o : offers) {
             o.tab = tab;
             if (o.theme == null) {
                 o.theme = themeId; // the random tab's any cards: marked, or the stock would look like an old save's
@@ -2463,7 +2542,7 @@ public class HexCampaign {
         }
         p.themes[slot] = theme.id;
         p.themesPickedAt[slot] = fights();
-        stockTab(shop(), tabKey(p.name, TAB_PICKED + slot), theme.id); // a fresh assortment
+        stockTab(shop(), tabKey(p.name, TAB_PICKED + slot), theme.id, deckColours(p)); // a fresh assortment, in the head's colours
         log(msg("lblHexJournalTheme", p.name, theme.getLabel()));
         return true;
     }
@@ -2482,7 +2561,7 @@ public class HexCampaign {
         if (offer.shop == HexShopType.RELIC) {
             return buyRelic(p, offer, stock);
         }
-        final int price = priceFor(p, offer.price);
+        final int price = priceFor(p, offer);
         if (p.gold < price) {
             return false;
         }
@@ -3030,6 +3109,54 @@ public class HexCampaign {
         tally(p, s -> s.cardsSold++);
         log(msg("lblHexJournalSold", p.name, card, String.valueOf(price)));
         return true;
+    }
+
+    /** Marks a card of the head's sideboard for sale (all its copies there), or takes the mark away. */
+    public boolean markForSale(final String playerName, final String card, final boolean mark) {
+        final HexPlayer p = player(playerName);
+        if (p == null || card == null) {
+            return false;
+        }
+        if (!mark) {
+            return p.forSale.remove(card);
+        }
+        if (!p.sideboard.contains(card) || p.forSale.contains(card)) {
+            return false;
+        }
+        p.forSale.add(card);
+        return true;
+    }
+
+    /** The cards the head marked for sale that are still in its sideboard (a card moved to the deck keeps no mark). */
+    public List<String> markedForSale(final HexPlayer p) {
+        p.forSale.removeIf(card -> !p.sideboard.contains(card));
+        return p.forSale;
+    }
+
+    /** What selling the marked cards brings the head: every copy in its sideboard. */
+    public int markedSaleValue(final HexPlayer p) {
+        int gold = 0;
+        for (final String card : markedForSale(p)) {
+            gold += sellBackPrice(p, card) * java.util.Collections.frequency(p.sideboard, card);
+        }
+        return gold;
+    }
+
+    /** Sells every copy in the sideboard of each card the head marked for sale; the marks are gone. Returns the gold it brought. */
+    public int sellMarked(final String playerName) {
+        final HexPlayer p = player(playerName);
+        if (!inTown() || p == null) {
+            return 0;
+        }
+        final int before = p.gold;
+        for (final String card : new ArrayList<>(markedForSale(p))) {
+            final int copies = java.util.Collections.frequency(p.sideboard, card);
+            for (int i = 0; i < copies; i++) {
+                sell(playerName, card, true);
+            }
+        }
+        p.forSale.clear();
+        return p.gold - before;
     }
 
     /** Where a card the head bought during this visit of the town is in its purchases (the last copy), or -1. */

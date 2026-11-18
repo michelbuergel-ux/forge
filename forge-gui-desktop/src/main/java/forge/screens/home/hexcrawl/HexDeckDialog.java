@@ -122,6 +122,8 @@ final class HexDeckDialog {
     private JPanel sideCards;
     private JPanel pnlSide;
     private final List<Pill> filterPills = new ArrayList<>();
+    /** The sideboard's search, as in the shops. */
+    private HexTownStyle.SearchField search;
     /** The deck played, a click opens the list of the head's decks. */
     private Pill deckPill;
     private JPanel pnlRelics;
@@ -372,8 +374,30 @@ final class HexDeckDialog {
 
         sideCards = new JPanel(sidePages);
         sideCards.setOpaque(false);
-        final JPanel side = transparent(new MigLayout("insets 0, gap 0 10, wrap 1, fill", "[grow, fill]", "[][][grow, fill]"));
-        side.add(label(t("lblHexSideNote"), body(Font.PLAIN, 12f), HexTownStyle.FAINT));
+        final JPanel side = transparent(new MigLayout("insets 0, gap 0 10, wrap 1, fill", "[grow, fill]", "[][][][grow, fill]"));
+        final JPanel notes = transparent(new MigLayout("insets 0, gap 0 2, wrap 1", "[grow, fill]"));
+        notes.add(label(t("lblHexSideNote"), body(Font.PLAIN, 12f), HexTownStyle.FAINT), "wmin 0");
+        notes.add(label(t("lblHexSaleHint"), body(Font.PLAIN, 12f), HexTownStyle.FAINT), "wmin 0");
+        side.add(notes, "wmin 0");
+        // the shops' search: a card by its name, type or rules text
+        search = new HexTownStyle.SearchField(t("lblHexDeckSearch"));
+        search.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override
+            public void insertUpdate(final javax.swing.event.DocumentEvent e) {
+                fill();
+            }
+
+            @Override
+            public void removeUpdate(final javax.swing.event.DocumentEvent e) {
+                fill();
+            }
+
+            @Override
+            public void changedUpdate(final javax.swing.event.DocumentEvent e) {
+                fill();
+            }
+        });
+        side.add(search, "h 32!, wmin 0");
         final JPanel filters = transparent(new MigLayout("insets 0, gap 6, wrap 2"));
         final String[][] choices = { { "all", "lblHexFilterAll" }, { "fits", "lblHexFilterFits" }, { KIND, "lblHexFilterKind" } };
         for (final String[] choice : choices) {
@@ -582,7 +606,9 @@ final class HexDeckDialog {
     }
 
     private void fillLists(final HexPlayer p, final HexDeckStats stats, final boolean editable) {
-        final String shown = p.name + '|' + p.deck + '|' + p.sideboard + '|' + filter + '|' + editable + '|' + palette;
+        final String query = search == null ? "" : search.getText().trim();
+        final String shown = p.name + '|' + p.deck + '|' + p.sideboard + '|' + filter + '|' + editable + '|' + palette + '|' + query
+                + '|' + p.forSale;
         if (shown.equals(listsShown)) {
             return;
         }
@@ -626,7 +652,8 @@ final class HexDeckDialog {
         for (final Map.Entry<String, Integer> e : counts(p.sideboard).entrySet()) {
             final PaperCard card = content.getCard(e.getKey());
             final boolean fits = card == null || stats.fits(card.getRules());
-            if ("all".equals(filter) || ("fits".equals(filter) ? fits : kind(card) == kindShown)) {
+            if (("all".equals(filter) || ("fits".equals(filter) ? fits : kind(card) == kindShown))
+                    && (query.isEmpty() || forge.gamemodes.hexcrawl.HexCardSearch.matches(card, query))) {
                 side.add(e);
                 copies += e.getValue();
             }
@@ -642,8 +669,12 @@ final class HexDeckDialog {
             final String name = e.getKey();
             final PaperCard card = content.getCard(name);
             final boolean fits = card == null || stats.fits(card.getRules());
-            addRow(pnlSide, name, new CardRow(palette, false, card, name, e.getValue(), false, t(fits ? "lblHexFits" : "lblHexOffColour"), fits,
-                    editable, t("lblHexMoveToDeck", name), null, listener(name, false)));
+            final CardRow row = new CardRow(palette, false, card, name, e.getValue(), false, t(fits ? "lblHexFits" : "lblHexOffColour"), fits,
+                    editable, t("lblHexMoveToDeck", name), null, listener(name, false));
+            if (p.forSale.contains(name)) {
+                row.setSaleLabel(t("lblHexForSale"));
+            }
+            addRow(pnlSide, name, row);
         }
         if (side.isEmpty()) {
             pnlSide.add(label(t("lblHexNothingHere"), body(Font.PLAIN, 13f), HexTownStyle.FAINT), "gaptop 12");
@@ -685,6 +716,13 @@ final class HexDeckDialog {
             @Override
             public void open() {
                 showCardBig(name);
+            }
+
+            @Override
+            public void menu(final JComponent row, final int x, final int y) {
+                if (!toSideboard) {
+                    openSaleMenu(name, row, x, y); // only sideboard cards are marked for sale
+                }
             }
         };
     }
@@ -741,6 +779,28 @@ final class HexDeckDialog {
         item.addActionListener(e -> action.run());
         menu.add(item);
         return item;
+    }
+
+    /** A sideboard card's menu: marked for sale (every copy in the sideboard, sold together in the next town), or not. */
+    private void openSaleMenu(final String name, final JComponent row, final int x, final int y) {
+        final HexPlayer p = head();
+        if (p == null || !mayEdit(p)) {
+            return;
+        }
+        final boolean marked = p.forSale.contains(name);
+        final JPopupMenu menu = popup();
+        menuItem(menu, t(marked ? "lblHexUnmarkSale" : "lblHexMarkSale"), false, true, () -> {
+            session.markForSale(p.name, name, !marked);
+            // shown at once (a guest's mark reaches the host a moment later; the host's is set already)
+            if (!marked && !p.forSale.contains(name)) {
+                p.forSale.add(name);
+            } else if (marked) {
+                p.forSale.removeIf(name::equals);
+            }
+            setMessage(t(marked ? "lblHexUnmarkedSale" : "lblHexMarkedSale", name), false);
+            fill();
+        });
+        menu.show(row, x, y);
     }
 
     /** The kinds of cards the sideboard can show (those it has are marked with their number). */

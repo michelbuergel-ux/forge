@@ -321,7 +321,7 @@ public final class HexContent {
         return shop == HexShopType.LAND ? rules.getColorIdentity().getColor() : rules.getColor().getColor();
     }
 
-    private static byte bitOf(final HexColor color) {
+    static byte bitOf(final HexColor color) {
         switch (color) {
             case WHITE: return MagicColor.WHITE;
             case BLUE: return MagicColor.BLUE;
@@ -1452,6 +1452,24 @@ public final class HexContent {
         return offers;
     }
 
+    /**
+     * The stock of a head's own tab: like {@link #themeStock}, but every draw takes its colour from the head's deck
+     * (the list holds a colour once for every card of it, so the deck's main colours come up most), and its
+     * multicoloured cards are mostly pairs of the deck's colours. Cards outside the town's colour are imports
+     * (see HexCampaign#importSurcharge).
+     */
+    public List<HexShopOffer> deckStock(final List<HexColor> deckColours, final HexTheme theme, final Random rnd) {
+        final List<HexShopOffer> offers = new ArrayList<>();
+        for (final HexShopType shop : HexShopType.CARD_SHOPS) {
+            final Set<String> names = new HashSet<>();
+            stockShop(offers, names, shop, deckColours, theme, theme, rnd);
+            if (theme != null && !theme.isStrict() && names.size() < CARDS_PER_SHOP) {
+                stockShop(offers, names, shop, deckColours, null, theme, rnd);
+            }
+        }
+        return offers;
+    }
+
     /** Out of GOLD_ROLLS draws for a shop: how many are multicoloured (in a border town more), and how many colourless. */
     static final int GOLD_ROLLS = 60;
     static final int GOLD_SHARE = 10;
@@ -1489,14 +1507,33 @@ public final class HexContent {
         return shelf(shop, color, theme);
     }
 
+    /** Draws cards for one shop of a head's own tab: each draw in one of the deck's colours, its pairs with the others. */
+    private void stockShop(final List<HexShopOffer> offers, final Set<String> names, final HexShopType shop, final List<HexColor> deckColours,
+            final HexTheme theme, final HexTheme tabTheme, final Random rnd) {
+        final Set<HexColor> all = EnumSet.noneOf(HexColor.class);
+        all.addAll(deckColours);
+        stockShop(offers, names, shop, () -> deckColours.get(rnd.nextInt(deckColours.size())), c -> {
+            final Set<HexColor> others = EnumSet.copyOf(all);
+            others.remove(c);
+            return others;
+        }, theme, tabTheme, rnd);
+    }
+
     /** Draws cards for one shop until it holds CARDS_PER_SHOP (or nothing more fits); offers are marked with the given tab theme. */
     private void stockShop(final List<HexShopOffer> offers, final Set<String> names, final HexShopType shop, final HexColor color,
             final Set<HexColor> neighbours, final HexTheme theme, final HexTheme tabTheme, final Random rnd) {
+        stockShop(offers, names, shop, () -> color, c -> neighbours, theme, tabTheme, rnd);
+    }
+
+    private void stockShop(final List<HexShopOffer> offers, final Set<String> names, final HexShopType shop,
+            final java.util.function.Supplier<HexColor> colours, final java.util.function.Function<HexColor, Set<HexColor>> neighboursOf,
+            final HexTheme theme, final HexTheme tabTheme, final Random rnd) {
         int guard = CARDS_PER_SHOP * 40;
         while (names.size() < CARDS_PER_SHOP && guard-- > 0) {
             final int roll = rnd.nextInt(100);
             final CardRarity rarity = roll < 45 ? CardRarity.Common : roll < 78 ? CardRarity.Uncommon : roll < 96 ? CardRarity.Rare : CardRarity.MythicRare;
-            final Map<CardRarity, List<PaperCard>> shelf = drawShelf(shop, color, neighbours, theme, rnd);
+            final HexColor color = colours.get();
+            final Map<CardRarity, List<PaperCard>> shelf = drawShelf(shop, color, neighboursOf.apply(color), theme, rnd);
             List<PaperCard> list = shelf.get(rarity);
             if ((list == null || list.isEmpty()) && theme != null) {
                 list = shelf.get(null); // a theme has few cards: any of its rarities will do

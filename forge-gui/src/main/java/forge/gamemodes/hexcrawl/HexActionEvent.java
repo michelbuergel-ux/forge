@@ -53,6 +53,10 @@ public final class HexActionEvent implements ModeChannel.Message {
     public static final String GIVE_RELIC = "GIVE_RELIC";
     /** The host renames the campaign (text: the new name). */
     public static final String RENAME = "RENAME";
+    /** A card of the sideboard marked for sale (flag) or unmarked; text: the card. */
+    public static final String MARK_SALE = "MARK_SALE";
+    /** Every card of the head marked for sale is sold. */
+    public static final String SELL_MARKED = "SELL_MARKED";
     /** A guest's first message: it only tells the host the guest's build. */
     public static final String HELLO = "HELLO";
 

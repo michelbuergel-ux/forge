@@ -13,6 +13,8 @@ public class HexPlayer {
     public List<String> deck = new ArrayList<>();
     /** Cards the head owns but does not play, one entry per copy. Not touched by losses. */
     public List<String> sideboard = new ArrayList<>();
+    /** Cards of the sideboard marked for sale (all their copies there), sold together in the next town. */
+    public List<String> forSale = new ArrayList<>();
     /**
      * The head's decks, by name (empty in older saves: then its deck is the only one). The one it plays is
      * {@link #activeDeck}; its cards are {@link #deck}. See {@link HexDeck}.

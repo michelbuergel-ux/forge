@@ -319,6 +319,16 @@ public class HexSession {
     }
 
     /** Moves a card between the deck and the sideboard of a head; not while a fight runs. */
+    /** Marks a card of a head's sideboard for sale (or takes the mark away). */
+    public void markForSale(final String head, final String card, final boolean mark) {
+        act(new HexActionEvent(HexActionEvent.MARK_SALE, 0, 0, card, mark, head));
+    }
+
+    /** Sells every card the head marked for sale (in a town). */
+    public void sellMarked(final String head) {
+        act(new HexActionEvent(HexActionEvent.SELL_MARKED, 0, 0, null, false, head));
+    }
+
     public void moveCard(final String head, final String card, final boolean toSideboard) {
         act(new HexActionEvent(HexActionEvent.MOVE, 0, 0, card, toSideboard, head));
     }
@@ -476,6 +486,10 @@ public class HexSession {
                 campaign.acceptQuest(action.getQ());
             } else if (HexActionEvent.SELL.equals(type)) {
                 campaign.sell(head, action.getText(), action.getFlag());
+            } else if (HexActionEvent.MARK_SALE.equals(type)) {
+                campaign.markForSale(head, action.getText(), action.getFlag());
+            } else if (HexActionEvent.SELL_MARKED.equals(type)) {
+                campaign.sellMarked(head);
             } else if (HexActionEvent.MOVE.equals(type)) {
                 if (!fightRunning && !campaign.deckLocked()) {
                     campaign.moveCard(head, action.getText(), action.getFlag());
