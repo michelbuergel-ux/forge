@@ -1444,7 +1444,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             }
             return;
         }
-        if (!campaign.isAdjacent(target) && target.poi == HexPoi.TOWN && target.explored && !campaign.canRoute(target)) {
+        if (!campaign.isAdjacent(target) && target.poi == HexPoi.TOWN && (target.explored || target.rainbow && target.siege == null)
+                && !campaign.canRoute(target)) {
             if (campaign.canFastTravel(target)) {
                 final boolean go = FOptionPane.showConfirmDialog(
                         t("lblHexFastTravelConfirm", target.name, String.valueOf(HexCampaign.FAST_TRAVEL_GOLD)), t("lblHexFastTravel"));

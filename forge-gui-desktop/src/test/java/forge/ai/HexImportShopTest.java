@@ -9,13 +9,11 @@ import forge.gamemodes.hexcrawl.HexPoi;
 import forge.gamemodes.hexcrawl.HexShopOffer;
 import forge.gamemodes.hexcrawl.HexShopType;
 import forge.gamemodes.hexcrawl.HexTile;
-import forge.item.PaperCard;
 import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 /** Imports: a head's own shelves sell its deck's colours in any town, at a surcharge that falls with every town of the colour. */
@@ -28,6 +26,7 @@ public class HexImportShopTest extends AITest {
         for (final HexTile t : c.map.tiles.values()) {
             if (t.poi == HexPoi.TOWN) {
                 t.explored = false;
+                t.siege = null; // no sieges, unless a test sets one
                 if (town == null && t.color == color) {
                     town = t;
                 }
@@ -57,48 +56,98 @@ public class HexImportShopTest extends AITest {
         AssertJUnit.assertEquals("the town's colour", 0, c.importSurcharge("Lightning Bolt"));
         AssertJUnit.assertEquals("colourless", 0, c.importSurcharge("Sol Ring"));
         AssertJUnit.assertEquals("of the town's colour too", 0, c.importSurcharge("Izzet Charm"));
-        AssertJUnit.assertEquals(HexCampaign.IMPORT_SURCHARGE_PERCENT, c.importSurcharge("Counterspell"));
+        // 10% for every blue town not visited yet
         final List<HexTile> blue = townsOf(c, HexColor.BLUE);
         AssertJUnit.assertTrue("blue towns: " + blue.size(), blue.size() >= 2);
+        final int per = HexCampaign.IMPORT_PERCENT_PER_TOWN;
+        AssertJUnit.assertEquals(per * blue.size(), c.importSurcharge("Counterspell"));
         blue.get(0).explored = true;
-        AssertJUnit.assertEquals(HexCampaign.IMPORT_SURCHARGE_PERCENT - HexCampaign.IMPORT_DISCOUNT_PER_TOWN, c.importSurcharge("Counterspell"));
+        AssertJUnit.assertEquals(per * (blue.size() - 1), c.importSurcharge("Counterspell"));
         // a white and blue card: the colour the party knows least
-        AssertJUnit.assertEquals(HexCampaign.IMPORT_SURCHARGE_PERCENT, c.importSurcharge("Azorius Charm"));
-        blue.get(1).explored = true;
-        if (blue.size() > 2) {
-            blue.get(2).explored = true;
-            AssertJUnit.assertEquals("three towns: no surcharge", 0, c.importSurcharge("Counterspell"));
+        AssertJUnit.assertEquals(per * Math.max(blue.size() - 1, townsOf(c, HexColor.WHITE).size()), c.importSurcharge("Azorius Charm"));
+        for (final HexTile t : blue) {
+            t.explored = true;
         }
+        AssertJUnit.assertEquals("every blue town visited: no surcharge", 0, c.importSurcharge("Counterspell"));
+        // a besieged blue town: 20% more
+        blue.get(0).siege = forge.gamemodes.hexcrawl.HexContent.get().randomEncounter(HexColor.BLUE, 0.5, new java.util.Random(3));
+        AssertJUnit.assertEquals(HexCampaign.IMPORT_PERCENT_PER_SIEGE, c.importSurcharge("Counterspell"));
+        blue.get(0).siege = null;
 
         final HexPlayer ann = c.player("Ann");
         final HexShopOffer offer = new HexShopOffer(HexShopType.INSTANT, "Azorius Charm", 100);
         AssertJUnit.assertEquals(c.priceFor(ann, 100 * (100 + c.importSurcharge("Azorius Charm")) / 100), c.priceFor(ann, offer));
     }
 
-    @Test
-    public void aHeadsOwnShelvesFollowItsDeck() {
-        final HexCampaign c = inTownOf(HexColor.RED);
-        final HexPlayer ann = c.player("Ann");
-        ann.deck = new ArrayList<>(Collections.nCopies(20, "Counterspell"));
-        ann.deck.addAll(Collections.nCopies(20, "Island"));
-        c.shop();
-        int ownCards = 0;
-        int townCards = 0;
-        for (final HexShopOffer o : c.shop()) {
-            if (o.shop == HexShopType.RELIC || !"Ann".equals(HexCampaign.ownerOfTab(o.tab))) {
-                continue;
-            }
-            final PaperCard card = HexContent.get().getCard(o.card);
-            final ColorSet color = card.getRules().getColor();
-            if (o.tab.equals(HexCampaign.tabKey("Ann", HexCampaign.TAB_TOWN))) {
-                townCards++;
-                AssertJUnit.assertTrue("the town's tab: red or colourless " + o.card, color.isColorless() || color.hasRed());
-            } else {
-                ownCards++;
-                AssertJUnit.assertTrue("Ann's own tabs: blue or colourless " + o.card, color.isColorless() || color.hasBlue());
+    /** Opens imports: a five-colour town (on a free field far from the party) whose siege is lifted. */
+    private static void openImports(final HexCampaign c) {
+        for (final HexTile t : c.map.tiles.values()) {
+            if (t.poi == HexPoi.NONE && forge.gamemodes.hexcrawl.HexMap.distance(t.q, t.r, c.partyQ, c.partyR) > 2) {
+                t.poi = HexPoi.TOWN;
+                t.rainbow = true;
+                t.siege = null;
+                break;
             }
         }
-        AssertJUnit.assertTrue(ownCards > 20);
-        AssertJUnit.assertTrue(townCards > 20);
+        AssertJUnit.assertTrue(c.importsOpen());
+    }
+
+    /** Ann's own tabs (random and picked): every card must suit the colour test. */
+    private static int ownCards(final HexCampaign c, final java.util.function.Predicate<ColorSet> fits) {
+        int n = 0;
+        for (final HexShopOffer o : c.shop()) {
+            if (o.shop == HexShopType.RELIC || !"Ann".equals(HexCampaign.ownerOfTab(o.tab))
+                    || o.tab.equals(HexCampaign.tabKey("Ann", HexCampaign.TAB_TOWN))) {
+                continue;
+            }
+            final ColorSet color = HexContent.get().getCard(o.card).getRules().getColor();
+            AssertJUnit.assertTrue(o.card, color.isColorless() || fits.test(color));
+            n++;
+        }
+        return n;
+    }
+
+    @Test
+    public void ownShelvesSellTheTownsGoodsUntilAnImportIsChosen() {
+        final HexCampaign c = inTownOf(HexColor.RED);
+        AssertJUnit.assertNull(c.importSource(c.player("Ann")));
+        AssertJUnit.assertTrue(ownCards(c, ColorSet::hasRed) > 20);
+    }
+
+    @Test
+    public void aHeadImportsFromTheColourItChooses() {
+        final HexCampaign c = inTownOf(HexColor.RED);
+        AssertJUnit.assertTrue("any colour from the start", c.chooseImport("Ann", HexColor.BLUE.name()));
+        AssertJUnit.assertEquals(HexColor.BLUE.name(), c.importSource(c.player("Ann")));
+        AssertJUnit.assertTrue("blue at once", ownCards(c, ColorSet::hasBlue) > 20);
+        for (final HexShopOffer o : c.shop()) {
+            if (o.tab.equals(HexCampaign.tabKey("Ann", HexCampaign.TAB_TOWN)) && o.shop != HexShopType.RELIC) {
+                final ColorSet color = HexContent.get().getCard(o.card).getRules().getColor();
+                AssertJUnit.assertTrue("the town's tab keeps its colour " + o.card, color.isColorless() || color.hasRed());
+            }
+        }
+        AssertJUnit.assertFalse("once between two fights", c.chooseImport("Ann", HexColor.GREEN.name()));
+        AssertJUnit.assertTrue("Bob chooses for himself", c.chooseImport("Bob", null));
+    }
+
+    @Test
+    public void theFiveColourTownOnlyOnceItIsFree() {
+        final HexCampaign c = inTownOf(HexColor.RED);
+        AssertJUnit.assertFalse("not before it is free", c.chooseImport("Ann", HexCampaign.IMPORT_RAINBOW));
+        openImports(c);
+        AssertJUnit.assertTrue(c.chooseImport("Ann", HexCampaign.IMPORT_RAINBOW));
+        final java.util.Set<HexColor> seen = java.util.EnumSet.noneOf(HexColor.class);
+        ownCards(c, color -> {
+            for (final HexColor h : HexColor.COLORS) {
+                if (color.hasAnyColor(forge.card.MagicColor.fromName(h.getSymbol()))) {
+                    seen.add(h);
+                }
+            }
+            return true;
+        });
+        AssertJUnit.assertEquals("every colour", 5, seen.size());
+        // besieged again (a new cycle's town not yet free): back to the town's goods
+        c.rainbowTown().siege = HexContent.get().randomEncounter(HexColor.BLUE, 0.5, new java.util.Random(3));
+        AssertJUnit.assertNull(c.importSource(c.player("Ann")));
     }
 }

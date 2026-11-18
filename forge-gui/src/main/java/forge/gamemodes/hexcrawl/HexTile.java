@@ -22,6 +22,8 @@ public class HexTile {
     public String event;
     /** Towns only: the enemy that besieges the town (beat it to enter), or null. Stays when the land around changes. */
     public HexEncounter siege;
+    /** The five-colour town: it opens in the course of a cycle, besieged, and sells every colour as its own. */
+    public boolean rainbow;
     /** Towns only: the party lifted the town's siege in this cycle, and its shops sell cheaper. */
     public boolean freed;
     /** Dungeons only: its fights, and how far the party got in it. */

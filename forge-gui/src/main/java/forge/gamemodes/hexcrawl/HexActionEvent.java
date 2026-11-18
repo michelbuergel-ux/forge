@@ -55,6 +55,8 @@ public final class HexActionEvent implements ModeChannel.Message {
     public static final String RENAME = "RENAME";
     /** A card of the sideboard marked for sale (flag) or unmarked; text: the card. */
     public static final String MARK_SALE = "MARK_SALE";
+    /** Where a head's own tabs import from; text: a colour's name, IMPORT_RAINBOW, or null for the town's own goods. */
+    public static final String IMPORT_FROM = "IMPORT_FROM";
     /** Every card of the head marked for sale is sold. */
     public static final String SELL_MARKED = "SELL_MARKED";
     /** A guest's first message: it only tells the host the guest's build. */

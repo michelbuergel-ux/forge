@@ -319,6 +319,11 @@ public class HexSession {
     }
 
     /** Moves a card between the deck and the sideboard of a head; not while a fight runs. */
+    /** Chooses where a head's own tabs import from (null: the town's own goods). */
+    public void chooseImport(final String head, final String source) {
+        act(new HexActionEvent(HexActionEvent.IMPORT_FROM, 0, 0, source, false, head));
+    }
+
     /** Marks a card of a head's sideboard for sale (or takes the mark away). */
     public void markForSale(final String head, final String card, final boolean mark) {
         act(new HexActionEvent(HexActionEvent.MARK_SALE, 0, 0, card, mark, head));
@@ -486,6 +491,10 @@ public class HexSession {
                 campaign.acceptQuest(action.getQ());
             } else if (HexActionEvent.SELL.equals(type)) {
                 campaign.sell(head, action.getText(), action.getFlag());
+            } else if (HexActionEvent.IMPORT_FROM.equals(type)) {
+                if (!fightRunning) {
+                    campaign.chooseImport(head, action.getText());
+                }
             } else if (HexActionEvent.MARK_SALE.equals(type)) {
                 campaign.markForSale(head, action.getText(), action.getFlag());
             } else if (HexActionEvent.SELL_MARKED.equals(type)) {

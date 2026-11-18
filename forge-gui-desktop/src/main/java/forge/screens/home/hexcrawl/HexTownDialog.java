@@ -331,7 +331,7 @@ final class HexTownDialog {
             campaign().shop(); // makes sure the shelves are filled; guests get them from the host
         }
         final HexTile town = campaign().tile();
-        palette = HexTownStyle.palette(town.color);
+        palette = HexTownStyle.palette(town.rainbow ? HexColor.COLORLESS : town.color);
         pageW = width - SIDEBAR_W - 2 * 24 - 16; // the page's padding and room for a scroll bar
         // the tiles' room: the page without its padding, the preview and its gap, the tiles' insets, the scroll bar
         final int tilesRoom = width - SIDEBAR_W - 4 - 2 * 24 - 20 - PREVIEW_W - 4 - scrollBarWidth() - 6;
@@ -375,11 +375,11 @@ final class HexTownDialog {
 
     private JPanel buildBanner(final HexTile town) {
         final Banner banner = new Banner(palette, new MigLayout("insets 0 28 10 22, gap 18, aligny center", "[][]push[][][]", "[" + Banner.CLOTH + "!]"));
-        banner.add(new Shield(palette, town.color), "w 46!, h 54!");
+        banner.add(new Shield(palette, town.rainbow ? HexColor.COLORLESS : town.color), "w 46!, h 54!");
         final JPanel names = transparent(new MigLayout("insets 0, gap 2, wrap 1"));
         names.add(new ShadowLabel(town.name == null ? t("lblHexTown") : town.name, decorative(28f), TEXT_BRIGHT));
         final HexTheme theme = HexTheme.get(town.theme);
-        String subtitle = t("lblHexTownKind" + town.color.getSymbol());
+        String subtitle = t(town.rainbow ? "lblHexTownKindRainbow" : "lblHexTownKind" + town.color.getSymbol());
         if (theme != null) {
             subtitle = t("lblHexTownRenowned", subtitle, theme.getName());
         }
@@ -551,9 +551,78 @@ final class HexTownDialog {
             themePills[i] = pill;
             row.add(pill, "h 46!");
         }
+        final PillTray importTray = new PillTray();
+        importPill = new Pill(" ", true);
+        importPill.setToolTipText(t("lblHexImportTip"));
+        importPill.addActionListener(e -> openImportMenu());
+        importTray.add(importPill, "h 34!");
+        row.add(importTray, "pushx, alignx right");
         btnRestock = restockButton();
-        row.add(btnRestock, "pushx, alignx right, h 42!");
+        row.add(btnRestock, "h 42!");
         return row;
+    }
+
+    /** Where the head's own tabs import from: a pill with a menu of the sources. */
+    private Pill importPill;
+
+    private String importLabel(final String source) {
+        if (source == null) {
+            return t("lblHexImportLocal");
+        }
+        if (HexCampaign.IMPORT_RAINBOW.equals(source)) {
+            final HexTile town = campaign().rainbowTown();
+            return town == null || town.name == null ? t("lblHexRainbowTown") : town.name;
+        }
+        return t(COLOR_KEYS[java.util.Arrays.asList(HexColor.COLORS).indexOf(HexColor.valueOf(source))]);
+    }
+
+    private static final String[] COLOR_KEYS = { "lblWhite", "lblBlue", "lblBlack", "lblRed", "lblGreen" };
+
+    private void fillImport(final HexPlayer p) {
+        if (importPill != null) {
+            importPill.setText(t("lblHexImportFrom", importLabel(campaign().importSource(p))));
+        }
+    }
+
+    private void openImportMenu() {
+        final HexPlayer p = head();
+        if (p == null) {
+            return;
+        }
+        final boolean may = !session.isFightRunning() && campaign().mayChooseImport(p.name);
+        final javax.swing.JPopupMenu menu = new javax.swing.JPopupMenu();
+        menu.setBackground(palette.mid());
+        menu.setBorder(BorderFactory.createLineBorder(HexTownStyle.alpha(GOLD, .5)));
+        final String current = campaign().importSource(p);
+        final List<String> sources = new ArrayList<>();
+        sources.add(null);
+        for (final HexColor c : HexColor.COLORS) {
+            if (c != campaign().tile().color || campaign().tile().rainbow) {
+                sources.add(c.name());
+            }
+        }
+        sources.add(HexCampaign.IMPORT_RAINBOW);
+        for (final String source : sources) {
+            final boolean rainbow = HexCampaign.IMPORT_RAINBOW.equals(source);
+            final boolean open = !rainbow || campaign().importsOpen();
+            final boolean chosen = java.util.Objects.equals(source, current);
+            final javax.swing.JMenuItem item = new javax.swing.JMenuItem(importLabel(source) + (open ? "" : "  (" + t("lblHexImportRainbowLater") + ")"));
+            item.setFont(body(chosen ? Font.BOLD : Font.PLAIN, 13f));
+            item.setOpaque(true);
+            item.setBackground(palette.mid());
+            item.setForeground(chosen ? GOLD : HexTownStyle.TEXT);
+            item.setEnabled(may && open && !chosen);
+            item.addActionListener(e -> {
+                session.chooseImport(p.name, source);
+                setMessage(t("lblHexImportChosen", importLabel(source)), false);
+                fill();
+            });
+            menu.add(item);
+        }
+        if (!may) {
+            setMessage(t("lblHexImportLocked"), true);
+        }
+        menu.show(importPill, 0, importPill.getHeight() + 6);
     }
 
     /** "New goods": new shelves of the head's own in every shop and at the relic dealer, for gold. */
@@ -732,14 +801,17 @@ final class HexTownDialog {
             }
             themePills[i].set(text, i == sectionInView && !searching(), picked);
             themePills[i].setEnabled(theme != null || picked);
+            String tip;
             if (picked) {
                 final boolean mayPick = !session.isFightRunning() && campaign().mayPickTheme(p.name, i - HexCampaign.TAB_PICKED);
-                themePills[i].setToolTipText(mayPick ? t("lblHexThemePickHint") : t("lblHexThemeLocked"));
+                tip = mayPick ? t("lblHexThemePickHint") : t("lblHexThemeLocked");
             } else {
-                themePills[i].setToolTipText(theme == null ? null : theme.getLabel());
+                tip = theme == null ? null : theme.getLabel();
             }
+            themePills[i].setToolTipText(tip);
         }
         btnRestock.setEnabled(!session.isFightRunning());
+        fillImport(p);
         if (btnRelicRestock != null) {
             btnRelicRestock.setEnabled(!session.isFightRunning());
         }
@@ -930,7 +1002,7 @@ final class HexTownDialog {
         }
         final boolean filled = p.deckSize(index) < HexCampaign.MIN_DECK_SIZE;
         session.selectDeck(p.name, index);
-        setMessage(t(filled ? "lblHexDeckPlayingFilled" : "lblHexDeckPlaying", deckLabel(p, index)) + " " + t("lblHexShopDeckColours"), false);
+        setMessage(t(filled ? "lblHexDeckPlayingFilled" : "lblHexDeckPlaying", deckLabel(p, index)), false);
         fill();
     }
 
@@ -1173,7 +1245,7 @@ final class HexTownDialog {
         }
         final int surcharge = o.shop == HexShopType.RELIC ? 0 : campaign().importSurcharge(o.card);
         if (surcharge > 0) {
-            info += "  ·  " + t("lblHexImportPrice", String.valueOf(surcharge), String.valueOf(HexCampaign.IMPORT_DISCOUNT_PER_TOWN));
+            info += "  ·  " + t("lblHexImportPrice", String.valueOf(surcharge), String.valueOf(HexCampaign.IMPORT_PERCENT_PER_TOWN), String.valueOf(HexCampaign.IMPORT_PERCENT_PER_SIEGE));
         }
         lblPreviewInfo.setText(info);
         final int price = price(p, o);

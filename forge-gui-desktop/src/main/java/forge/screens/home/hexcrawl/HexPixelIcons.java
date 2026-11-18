@@ -241,6 +241,36 @@ final class HexPixelIcons {
         });
     }
 
+    /** The five-colour town: its roof striped in white, blue, black, red and green, in a golden glow (and on fire while besieged). */
+    static synchronized BufferedImage rainbowTown(final boolean besieged) {
+        return CACHE.computeIfAbsent("rainbowTown" + besieged, k -> {
+            final String[] rows = HOUSE.clone();
+            final char[] stripes = { '1', '2', '3', '4', '5' };
+            for (int y = 0; y < rows.length; y++) {
+                final char[] row = rows[y].toCharArray();
+                for (int x = 0; x < row.length; x++) {
+                    if (row[x] == 'R' || row[x] == 'r') {
+                        row[x] = stripes[Math.min(4, x * 5 / row.length)];
+                    }
+                }
+                rows[y] = new String(row);
+            }
+            final BufferedImage house = paint(rows, palette('k', 0x2A1E14, 'W', besieged ? 0xD2BFA4 : 0xF2E8D0, 'w', besieged ? 0xA8957A : 0xCDBB96,
+                    'y', besieged ? 0xFF8A3A : 0xFFD45A, 'D', 0x6B4423,
+                    '1', 0xF4EDC4, '2', 0x4F86C6, '3', 0x6A4A86, '4', 0xD8402E, '5', 0x4FB35A));
+            if (!besieged) {
+                return outlined(house, 0x90FFD23F);
+            }
+            final BufferedImage fire = paint(FLAMES, palette('F', 0xF2741B, 'Y', 0xFFD23F, 'f', 0xC0391B));
+            final BufferedImage both = new BufferedImage(16, 16 + FLAMES_ABOVE, BufferedImage.TYPE_INT_ARGB);
+            final Graphics2D g = both.createGraphics();
+            g.drawImage(house, 0, FLAMES_ABOVE, null);
+            g.drawImage(fire, 0, 0, null);
+            g.dispose();
+            return outlined(both, 0x96C81E2D);
+        });
+    }
+
     /**
      * The five-colour dungeon: the stones framing its mouth in the five colours, white, blue, black, red and green
      * from either side up to the top, five gems of them on its hill, and a golden glow about it (18 pixels; its

@@ -435,7 +435,7 @@ public class HexMapPanel extends JPanel {
         if (t == null) {
             return null;
         }
-        final StringBuilder sb = new StringBuilder(loc.getMessage(t.color.getLabelKey()));
+        final StringBuilder sb = new StringBuilder(loc.getMessage(t.rainbow ? "lblHexRainbowTown" : t.color.getLabelKey()));
         final forge.gamemodes.hexcrawl.HexBiomeRule rule = forge.gamemodes.hexcrawl.HexBiomeRule.forField(campaign, t);
         if (t.poi == HexPoi.TOWN) {
             sb.append(" – ").append(loc.getMessage("lblHexTown")).append(' ').append(t.name);
@@ -501,7 +501,7 @@ public class HexMapPanel extends JPanel {
         if (t.freed) {
             sb.append('\n').append(loc.getMessage("lblHexTownFreed", String.valueOf(forge.gamemodes.hexcrawl.HexCampaign.SIEGE_DISCOUNT_PERCENT)));
         }
-        if (t.poi == HexPoi.TOWN && t.explored && t.siege == null && t != campaign.tile() && !campaign.isAdjacent(t)) {
+        if (t.poi == HexPoi.TOWN && (t.explored || t.rainbow) && t.siege == null && t != campaign.tile() && !campaign.isAdjacent(t)) {
             sb.append('\n').append(loc.getMessage("lblHexFastTravelHint", String.valueOf(forge.gamemodes.hexcrawl.HexCampaign.FAST_TRAVEL_GOLD)));
         }
         final String text = sb.toString().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
@@ -552,7 +552,12 @@ public class HexMapPanel extends JPanel {
             final int cy = (int) Math.round(centerY(t, size));
             final int s = (int) Math.round(size * 0.42);
             if (t.poi == HexPoi.TOWN) {
-                drawTown(g, cx, cy, s, size, t.siege != null);
+                if (t.rainbow) {
+                    // the house's middle as with any town; the glow (and the flames) about it
+                    HexPixelIcons.draw(g, HexPixelIcons.rainbowTown(t.siege != null), cx, cy, s * PIXEL, 9, t.siege != null ? 12.5 : 9.5);
+                } else {
+                    drawTown(g, cx, cy, s, size, t.siege != null);
+                }
                 if (t.freed) {
                     drawDiscount(g, cx + s, cy - s, size);
                 }

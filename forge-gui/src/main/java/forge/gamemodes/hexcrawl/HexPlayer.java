@@ -63,6 +63,10 @@ public class HexPlayer {
     public String[] themes = new String[HexCampaign.PICKED_THEMES];
     /** For each picked theme: the number of fights fought when it was picked (it can change after the next fight). */
     public int[] themesPickedAt = { -1, -1 };
+    /** Where the head's own tabs import from: a colour (HexColor name), the five-colour town (HexCampaign.IMPORT_RAINBOW), or null for the town's own goods. */
+    public String importFrom;
+    /** The fights fought when the head last chose where to import from (once between two fights, like a theme). */
+    public int importPickedAt = -1;
     /** The perks the head has taken (HexPerk names, one entry per stack). */
     public List<String> perks = new ArrayList<>();
     /** The perks the head may choose from right now (empty if no choice is due). */

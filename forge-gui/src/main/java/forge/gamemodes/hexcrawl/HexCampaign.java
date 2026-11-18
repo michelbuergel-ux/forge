@@ -90,8 +90,11 @@ public class HexCampaign {
     /** A treasure room's gold, for every head. */
     public static final int DUNGEON_TREASURE_GOLD = 100;
     /** Won fights of a cycle after which the five-colour dungeon opens: at random, at least so many and at most so many. */
-    public static final int RAINBOW_MIN_WINS = 5;
-    public static final int RAINBOW_MAX_WINS = 15;
+    public static final int RAINBOW_MIN_WINS = 10;
+    public static final int RAINBOW_MAX_WINS = 30;
+    /** Won fights of a cycle after which the five-colour town opens: at random, at least so many and at most so many. */
+    public static final int RAINBOW_TOWN_MIN_WINS = 10;
+    public static final int RAINBOW_TOWN_MAX_WINS = 30;
     /** The five-colour dungeon's chest holds this many times the gold of another one. */
     public static final int RAINBOW_CHEST_GOLD = 2;
     /** A shrine's life (for the rest of the visit, even above full life), and what weakens the enemies. */
@@ -198,6 +201,10 @@ public class HexCampaign {
     public int rainbowAt;
     /** The five-colour dungeon of this cycle has opened. */
     public boolean rainbowPlaced;
+    /** Won fights of this cycle after which the five-colour town opens (0: not rolled yet, see {@link #rainbowTownAt()}). */
+    public int rainbowTownAt;
+    /** The five-colour town of this cycle has opened. */
+    public boolean rainbowTownPlaced;
     /** Arzakon waits on the centre field: Emrakul fell in a cycle whose five-colour dungeon was cleared. */
     public boolean arzakonAwake;
     /** Arzakon was beaten in this cycle: the campaign's true ending. */
@@ -601,9 +608,10 @@ public class HexCampaign {
         return Math.max(1, players.size());
     }
 
-    /** An enemy of the town's colour sets up camp before its gates. */
+    /** An enemy of the town's colour sets up camp before its gates (before the five-colour town: one of any colour). */
     private boolean besiege(final HexTile town, final Random rnd, final boolean late) {
-        final HexEncounter enc = HexContent.get().siegeEncounter(town.color, rnd, cycle);
+        final HexColor color = town.rainbow ? HexColor.COLORS[rnd.nextInt(HexColor.COLORS.length)] : town.color;
+        final HexEncounter enc = HexContent.get().siegeEncounter(color, rnd, cycle);
         if (enc == null) {
             return false;
         }
@@ -614,11 +622,11 @@ public class HexCampaign {
         return true;
     }
 
-    /** The towns besieged right now, in a stable order. */
+    /** The ordinary towns besieged right now, in a stable order (the five-colour town's siege is its own, never counted). */
     public List<HexTile> besiegedTowns() {
         final List<HexTile> result = new ArrayList<>();
         for (final HexTile t : map.tilesWith(HexPoi.TOWN)) {
-            if (t.siege != null) {
+            if (t.siege != null && !t.rainbow) {
                 result.add(t);
             }
         }
@@ -656,6 +664,66 @@ public class HexCampaign {
             rainbowAt = RAINBOW_MIN_WINS + new Random(seed * 131L + cycle * 7919L + 53L).nextInt(RAINBOW_MAX_WINS - RAINBOW_MIN_WINS + 1);
         }
         return rainbowAt;
+    }
+
+    /** Won fights of this cycle after which its five-colour town opens: rolled once a cycle, from the seed. */
+    public int rainbowTownAt() {
+        if (rainbowTownAt == 0) {
+            rainbowTownAt = RAINBOW_TOWN_MIN_WINS
+                    + new Random(seed * 131L + cycle * 7919L + 71L).nextInt(RAINBOW_TOWN_MAX_WINS - RAINBOW_TOWN_MIN_WINS + 1);
+        }
+        return rainbowTownAt;
+    }
+
+    /** The five-colour town of this cycle, or null while it has not opened. */
+    public HexTile rainbowTown() {
+        for (final HexTile t : map.tilesWith(HexPoi.TOWN)) {
+            if (t.rainbow) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * After a won fight: once the cycle has its {@link #rainbowTownAt()} wins, the five-colour town opens on a free field
+     * away from the party and the other places, besieged (once a cycle; should there be no field, after the next win).
+     */
+    void maybeOpenRainbowTown() {
+        if (rainbowTownPlaced || cycleBattles(HexBattle.Result.WON) < rainbowTownAt()) {
+            return;
+        }
+        final Random rnd = new Random(seed * 131L + cycle * 7919L + battlesWon * 41L + 73L);
+        for (int pass = 0; pass < 2; pass++) {
+            final List<HexTile> fields = new ArrayList<>();
+            for (final HexTile t : map.tiles.values()) {
+                if (t.poi == HexPoi.NONE && t != tile() && HexMap.distance(t.q, t.r, partyQ, partyR) >= 2 && questAt(t.q, t.r) == null
+                        && enemyAt(t) == null && t.color != HexColor.COLORLESS && farFromPlaces(t, pass == 0)) {
+                    fields.add(t);
+                }
+            }
+            if (fields.isEmpty()) {
+                continue;
+            }
+            fields.sort((a, b) -> a.key().compareTo(b.key())); // a stable order, so seeds are reproducible
+            final HexTile t = fields.get(rnd.nextInt(fields.size()));
+            t.poi = HexPoi.TOWN;
+            t.rainbow = true;
+            t.name = msg("lblHexRainbowTownName");
+            t.enemy = null;
+            t.event = null;
+            final List<HexTheme> worlds = new ArrayList<>();
+            for (final HexTheme theme : HexTheme.all()) {
+                if (theme.isMulticoloured()) {
+                    worlds.add(theme);
+                }
+            }
+            t.theme = worlds.isEmpty() ? rollTheme(t, null).id : worlds.get(rnd.nextInt(worlds.size())).id;
+            besiege(t, rnd, true);
+            rainbowTownPlaced = true;
+            log(msg("lblHexJournalRainbowTown", t.name, t.siege == null ? "-" : t.siege.enemyName));
+            return;
+        }
     }
 
     /** Arzakon waits on this field: the centre's, after Emrakul fell in a cycle whose five-colour dungeon was cleared. */
@@ -824,6 +892,8 @@ public class HexCampaign {
         won = false;
         rainbowAt = 0; // the new cycle rolls when its five-colour dungeon opens
         rainbowPlaced = false;
+        rainbowTownAt = 0;
+        rainbowTownPlaced = false;
         arzakonAwake = false;
         arzakonBeaten = false;
         defeatedBosses.clear();
@@ -1412,10 +1482,14 @@ public class HexCampaign {
                 freedFrom = enc.enemyName;
                 freedSerial++;
                 log(msg("lblHexJournalFreed", besieged.name, String.valueOf(SIEGE_DISCOUNT_PERCENT)));
+                if (besieged.rainbow) {
+                    log(msg("lblHexJournalImportsOpen")); // its merchants bring every colour to every town from now on
+                }
             } else {
                 maybeBesiegeAnotherTown(siegeRandom());
             }
             maybeOpenRainbowDungeon();
+            maybeOpenRainbowTown();
             final HexDungeon dungeon = dungeonOf(enc);
             final HexRoom room = dungeon == null ? null : dungeon.room(enc.roomX, enc.roomY);
             if (room != null) {
@@ -1793,16 +1867,38 @@ public class HexCampaign {
         return gold * (100 + HexPerk.GOLD_BONUS_PERCENT * HexPerk.GOLD_BONUS.count(p)) / 100;
     }
 
-    /** Cards outside the town's colour cost this much more, in percent ... */
-    public static final int IMPORT_SURCHARGE_PERCENT = 30;
-    /** ... and this much less for every town of the card's colour the party has been to in this cycle. */
-    public static final int IMPORT_DISCOUNT_PER_TOWN = 10;
+    /** A card outside the town's colour costs this much more, in percent, for every town of its colour not visited yet ... */
+    public static final int IMPORT_PERCENT_PER_TOWN = 10;
+    /** ... and this much more for every town of its colour that is besieged. */
+    public static final int IMPORT_PERCENT_PER_SIEGE = 20;
+
+    /** The towns of a colour besieged right now (the five-colour town is of no colour). */
+    public int besiegedTowns(final HexColor color) {
+        int n = 0;
+        for (final HexTile t : map.tiles.values()) {
+            if (t.poi == HexPoi.TOWN && !t.rainbow && t.siege != null && t.color == color) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** The towns of a colour on this map. */
+    public int towns(final HexColor color) {
+        int n = 0;
+        for (final HexTile t : map.tiles.values()) {
+            if (t.poi == HexPoi.TOWN && !t.rainbow && t.color == color) {
+                n++;
+            }
+        }
+        return n;
+    }
 
     /** The towns of a colour the party has stood in on this map. */
     public int visitedTowns(final HexColor color) {
         int n = 0;
         for (final HexTile t : map.tiles.values()) {
-            if (t.poi == HexPoi.TOWN && t.explored && t.color == color) {
+            if (t.poi == HexPoi.TOWN && !t.rainbow && t.explored && t.color == color) {
                 n++;
             }
         }
@@ -1811,11 +1907,11 @@ public class HexCampaign {
 
     /**
      * What a card costs more in the town the party is in, in percent: nothing for a colourless card or one of the
-     * town's colour; else the surcharge of its colour the party knows least (IMPORT_SURCHARGE_PERCENT, less
-     * IMPORT_DISCOUNT_PER_TOWN for every town of that colour it has been to).
+     * town's colour; else the highest surcharge of its colours: IMPORT_PERCENT_PER_TOWN for every town of that colour
+     * on the map the party has not been to yet, and IMPORT_PERCENT_PER_SIEGE for every one of them that is besieged.
      */
     public int importSurcharge(final String card) {
-        final forge.item.PaperCard paper = card == null || tile().poi != HexPoi.TOWN ? null : HexContent.get().getCard(card);
+        final forge.item.PaperCard paper = card == null || tile().poi != HexPoi.TOWN || tile().rainbow ? null : HexContent.get().getCard(card);
         if (paper == null) {
             return 0;
         }
@@ -1826,7 +1922,8 @@ public class HexCampaign {
         int worst = 0;
         for (final HexColor c : HexColor.COLORS) {
             if ((bits & HexContent.bitOf(c)) != 0) {
-                worst = Math.max(worst, Math.max(0, IMPORT_SURCHARGE_PERCENT - IMPORT_DISCOUNT_PER_TOWN * visitedTowns(c)));
+                worst = Math.max(worst, IMPORT_PERCENT_PER_TOWN * Math.max(0, towns(c) - visitedTowns(c))
+                        + IMPORT_PERCENT_PER_SIEGE * besiegedTowns(c));
             }
         }
         return worst;
@@ -2234,7 +2331,8 @@ public class HexCampaign {
 
     /** Can the party travel from the town it is in to this town it has been to before? Every head pays a little gold. */
     public boolean canFastTravel(final HexTile target) {
-        if (target == null || !inTown() || target == tile() || target.poi != HexPoi.TOWN || !target.explored
+        // the five-colour town: from any town, once its siege is lifted
+        if (target == null || !inTown() || target == tile() || target.poi != HexPoi.TOWN || !(target.explored || target.rainbow)
                 || target.siege != null) {
             return false;
         }
@@ -2374,7 +2472,7 @@ public class HexCampaign {
             for (final Map.Entry<String, String> e : wanted.entrySet()) {
                 final Integer at = themeStockedAt.get(key + "|" + e.getKey() + "|" + e.getValue());
                 if (at == null || at != fights()) {
-                    stockTab(stock, e.getKey(), e.getValue(), deckColours(p)); // the head's own colours, wherever the town is
+                    stockTab(stock, e.getKey(), e.getValue(), importColours(p)); // the head's own colours, once imports are open
                 }
             }
         }
@@ -2411,28 +2509,66 @@ public class HexCampaign {
         return result;
     }
 
+    /** The import source of the five-colour town (see HexPlayer#importFrom). */
+    public static final String IMPORT_RAINBOW = "RAINBOW";
+
+    /** The five-colour town of this cycle has opened and its siege is lifted: it may be imported from. */
+    public boolean importsOpen() {
+        final HexTile town = rainbowTown();
+        return town != null && town.siege == null;
+    }
+
+    /** Where the head imports from right now: its choice while it still holds (the five-colour town only while free), else null. */
+    public String importSource(final HexPlayer p) {
+        if (p.importFrom == null) {
+            return null;
+        }
+        if (IMPORT_RAINBOW.equals(p.importFrom)) {
+            return importsOpen() ? IMPORT_RAINBOW : null;
+        }
+        final HexColor c = HexColor.valueOf(p.importFrom);
+        return c == tile().color ? null : p.importFrom; // the town's own colour is no import
+    }
+
+    /** May the head choose where to import from (once between two fights, like a theme)? */
+    public boolean mayChooseImport(final String playerName) {
+        final HexPlayer p = player(playerName);
+        return p != null && p.importPickedAt != fights();
+    }
+
     /**
-     * The colours a head's own tabs stock: one entry for every colour of every card of its deck (no lands), so that its
-     * main colours come up most; the town's colour for a deck without colours.
+     * A head chooses where its own tabs import from: a colour's towns (any from the start), the five-colour town (once it
+     * is free), or null for the town's own goods. The tabs are stocked anew at once.
      */
-    List<HexColor> deckColours(final HexPlayer p) {
-        final List<HexColor> result = new ArrayList<>();
-        for (final String name : p.deck) {
-            final forge.item.PaperCard card = HexContent.get().getCard(name);
-            if (card == null || card.getRules().getType().isLand()) {
-                continue;
-            }
-            final byte bits = card.getRules().getColor().getColor();
-            for (final HexColor c : HexColor.COLORS) {
-                if ((bits & HexContent.bitOf(c)) != 0) {
-                    result.add(c);
-                }
+    public boolean chooseImport(final String playerName, final String source) {
+        final HexPlayer p = player(playerName);
+        if (!inTown() || p == null || !mayChooseImport(playerName)) {
+            return false;
+        }
+        if (source != null && !(IMPORT_RAINBOW.equals(source) ? importsOpen()
+                : java.util.Arrays.stream(HexColor.COLORS).anyMatch(c -> c.name().equals(source)))) {
+            return false;
+        }
+        p.importFrom = source;
+        p.importPickedAt = fights();
+        final List<HexShopOffer> stock = shop();
+        stockTab(stock, tabKey(p.name, TAB_RANDOM), ANY_CARDS, importColours(p));
+        for (int slot = 0; slot < PICKED_THEMES; slot++) {
+            final String id = tabTheme(p.name, TAB_PICKED + slot);
+            if (id != null) {
+                stockTab(stock, tabKey(p.name, TAB_PICKED + slot), id, importColours(p));
             }
         }
-        if (result.isEmpty()) {
-            result.add(tile().color);
+        return true;
+    }
+
+    /** The colours a head's own tabs stock: those of its import source, or null (the town's own goods). */
+    private List<HexColor> importColours(final HexPlayer p) {
+        final String source = importSource(p);
+        if (source == null) {
+            return null;
         }
-        return result;
+        return IMPORT_RAINBOW.equals(source) ? java.util.Arrays.asList(HexColor.COLORS) : java.util.Collections.singletonList(HexColor.valueOf(source));
     }
 
     /** New shelves for one theme tab of the town the party is in: the town's own tab in its colour. */
@@ -2444,7 +2580,9 @@ public class HexCampaign {
     private void stockTab(final List<HexShopOffer> stock, final String tab, final String themeId, final List<HexColor> deckColours) {
         final String key = tile().key();
         stock.removeIf(o -> tab.equals(o.tab));
-        final List<HexShopOffer> offers = deckColours == null
+        final List<HexShopOffer> offers = deckColours == null && tile().rainbow
+                ? HexContent.get().deckStock(java.util.Arrays.asList(HexColor.COLORS), HexTheme.get(themeId), random())
+                : deckColours == null
                 ? HexContent.get().themeStock(tile().color, borderColours(tile()), HexTheme.get(themeId), random())
                 : HexContent.get().deckStock(deckColours, HexTheme.get(themeId), random());
         for (final HexShopOffer o : offers) {
@@ -2542,7 +2680,7 @@ public class HexCampaign {
         }
         p.themes[slot] = theme.id;
         p.themesPickedAt[slot] = fights();
-        stockTab(shop(), tabKey(p.name, TAB_PICKED + slot), theme.id, deckColours(p)); // a fresh assortment, in the head's colours
+        stockTab(shop(), tabKey(p.name, TAB_PICKED + slot), theme.id, importColours(p)); // a fresh assortment
         log(msg("lblHexJournalTheme", p.name, theme.getLabel()));
         return true;
     }

@@ -106,15 +106,16 @@ public class HexShopThemesTest extends AITest {
         AssertJUnit.assertNotNull(c.tile().theme);
         AssertJUnit.assertFalse("a town is not renowned for expensive cards", town.isStrict());
         AssertJUnit.assertFalse(c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_TOWN).isEmpty());
-        // the random tab: no theme, any cards of Ann's deck's colours (or colourless; imports elsewhere), and full shelves
+        // the random tab: no theme, any cards of the town's colour (or colourless) until imports open, and full shelves
         AssertJUnit.assertEquals(HexCampaign.ANY_CARDS, c.tabTheme("Ann", HexCampaign.TAB_RANDOM));
         final List<HexShopOffer> any = c.shop(HexShopType.CREATURE, "Ann", HexCampaign.TAB_RANDOM);
         AssertJUnit.assertEquals(HexContent.CARDS_PER_SHOP, any.size());
-        final byte deck = HexContent.get().deckColors(c.player("Ann").deck);
         for (final HexShopOffer o : any) {
             AssertJUnit.assertEquals(HexCampaign.ANY_CARDS, o.theme);
             final byte color = HexContent.get().getCard(o.card).getRules().getColor().getColor();
-            AssertJUnit.assertTrue(o.card + " suits Ann's deck", color == forge.card.MagicColor.COLORLESS || (color & deck) != 0);
+            AssertJUnit.assertTrue(o.card + " suits the town", color == forge.card.MagicColor.COLORLESS
+                    || HexContent.get().getCard(o.card).getRules().getColor().hasAnyColor(
+                            forge.card.MagicColor.fromName(c.tile().color.getSymbol())));
         }
         AssertJUnit.assertSame("the stock is kept (not taken for an old save's)", c.shop(), c.shop());
         AssertJUnit.assertFalse(c.shop(HexShopType.RELIC, "Ann", HexCampaign.TAB_TOWN).isEmpty() && stock.isEmpty());
