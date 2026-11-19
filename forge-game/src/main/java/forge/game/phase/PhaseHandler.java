@@ -911,7 +911,7 @@ public class PhaseHandler implements IHasForgeLog {
     private boolean mayDeclareBlockers(final Player p) {
         // Apply Odric's effect here
         final Player whoDeclaresBlockers = Objects.requireNonNullElse(p.getDeclaresBlockers(), p);
-        if (!CombatUtil.canBlock(p, combat)) {
+        if (!canBlockOrRedo(p)) {
             return false;
         }
         // Replacement effects (for Camouflage)
@@ -927,10 +927,51 @@ public class PhaseHandler implements IHasForgeLog {
         return true;
     }
 
+    /**
+     * Can the player block, or (a team declaring again after an illegal combined block) change blocks it made? A head
+     * whose creatures all block already "can't block" any more, yet must be asked again to take a block back.
+     */
+    private boolean canBlockOrRedo(final Player p) {
+        return CombatUtil.canBlock(p, combat) || !CardLists.filterControlledBy(combat.getAllBlockers(), p).isEmpty();
+    }
+
+    /** Who blocks what: to see whether a team's new declaration changed anything. */
+    private Map<Card, List<Card>> blockSnapshot(final PlayerCollection team) {
+        final Map<Card, List<Card>> blocks = new HashMap<>();
+        for (final Card blocker : CardLists.filterControlledBy(combat.getAllBlockers(), team)) {
+            blocks.put(blocker, new ArrayList<>(combat.getAttackersBlockedBy(blocker)));
+        }
+        return blocks;
+    }
+
+    /**
+     * The team declared the same illegal block again (nobody could or would change it): rather than ask forever, the
+     * blocks on attackers blocked by an illegal number of creatures are undone; should the block still be illegal, the
+     * team does not block at all (always legal as a whole).
+     */
+    private String undoIllegalTeamBlocks(final PlayerCollection team, final Player p) {
+        for (final Card attacker : combat.getAttackers()) {
+            final int count = combat.getBlockers(attacker).size();
+            if (count > 0 && !CombatUtil.canAttackerBeBlockedWithAmount(attacker, count, combat)) {
+                for (final Card blocker : CardLists.filterControlledBy(combat.getBlockers(attacker), team)) {
+                    combat.removeBlockAssignment(attacker, blocker);
+                }
+            }
+        }
+        String error = CombatUtil.validateTeamBlock(combat, p);
+        if (error != null) {
+            for (final Card blocker : CardLists.filterControlledBy(combat.getAllBlockers(), team)) {
+                combat.removeFromCombat(blocker);
+            }
+            error = CombatUtil.validateTeamBlock(combat, p);
+        }
+        return error;
+    }
+
     private void declareBlockersFor(final Player p) {
         // Apply Odric's effect here
         Player whoDeclaresBlockers = Objects.requireNonNullElse(p.getDeclaresBlockers(), p);
-        if (CombatUtil.canBlock(p, combat)) {
+        if (canBlockOrRedo(p)) {
             // Replacement effects (for Camouflage)
             final Map<AbilityKey, Object> repRunParams = AbilityKey.mapFromAffected(p);
             repRunParams.put(AbilityKey.Player, whoDeclaresBlockers);
@@ -958,6 +999,7 @@ public class PhaseHandler implements IHasForgeLog {
             final PlayerCollection defendingTeam = p.getSharedTeam();
             declared.addAll(defendingTeam);
             String teamError;
+            Map<Card, List<Card>> lastIllegal = null;
             do {
                 if (actsTogether() && defendingTeam.size() > 1) {
                     // Multi-Headed Giant: the heads at their own screens block at the same time
@@ -982,6 +1024,15 @@ public class PhaseHandler implements IHasForgeLog {
                 }
                 teamError = defendingTeam.size() > 1 ? CombatUtil.validateTeamBlock(combat, p) : null;
                 if (teamError != null) {
+                    final Map<Card, List<Card>> blocks = blockSnapshot(defendingTeam);
+                    if (blocks.equals(lastIllegal)) {
+                        // asked again, nothing changed: undo the illegal blocks instead of asking forever
+                        teamError = undoIllegalTeamBlocks(defendingTeam, p);
+                        if (teamError == null) {
+                            break;
+                        }
+                    }
+                    lastIllegal = blocks;
                     for (final Player defender : defendingTeam) {
                         Objects.requireNonNullElse(defender.getDeclaresBlockers(), defender).getController().notifyOfValue(null, null, teamError);
                     }
