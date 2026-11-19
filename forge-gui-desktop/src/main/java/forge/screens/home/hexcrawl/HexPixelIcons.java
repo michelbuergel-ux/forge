@@ -292,6 +292,12 @@ final class HexPixelIcons {
         });
     }
 
+    /** The Vault of the Lost: a dungeon of dark stone, its mouth glowing violet, in a violet glow (18 pixels). */
+    static synchronized BufferedImage vault() {
+        return CACHE.computeIfAbsent("vault", k -> outlined(paint(DUNGEON, palette('k', 0x1E1A24, 'L', 0x8A7FA0, 'S', 0x655A7A, 's', 0x463D58,
+                'M', 0xB070FF, 'm', 0x6A3AA8)), 0x90B070FF));
+    }
+
     static synchronized BufferedImage dungeon(final boolean collapsed) {
         return CACHE.computeIfAbsent("dungeon" + collapsed, k -> collapsed
                 ? paint(COLLAPSED, palette('k', 0x2A2A2A, 'L', 0xB4B4B4, 'S', 0x8C8C8C, 's', 0x626262, 'M', 0x1E1E1E,

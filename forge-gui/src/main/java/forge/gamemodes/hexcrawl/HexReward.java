@@ -10,6 +10,8 @@ public class HexReward {
     public java.util.List<String> cards = new java.util.ArrayList<>();
     /** A doppelganger beaten: the cards on offer are the head's own deck cards, and the one chosen is copied. */
     public boolean copy;
+    /** The Collector beaten: the cards the head had lost, back in its sideboard already. */
+    public java.util.List<String> recovered = new java.util.ArrayList<>();
     /** A beaten boss's trophy the head won with the fight (a relic name), or null. Not a choice: it is the head's already. */
     public String trophy;
     /** Arzakon beaten: his angel of this cycle, in the head's sideboard already (else null). */

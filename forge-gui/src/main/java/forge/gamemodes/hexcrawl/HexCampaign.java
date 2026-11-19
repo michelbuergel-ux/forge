@@ -95,6 +95,11 @@ public class HexCampaign {
     /** Won fights of a cycle after which the five-colour town opens: at random, at least so many and at most so many. */
     public static final int RAINBOW_TOWN_MIN_WINS = 10;
     public static final int RAINBOW_TOWN_MAX_WINS = 30;
+    /** Cards the party lost in a cycle after which the Vault of the Lost opens. */
+    public static final int VAULT_LOST_CARDS = 15;
+    /** The Collector starts with these in play; the second only from New Game Plus on. */
+    public static final String COLLECTOR_ENGINE = "Maelstrom Nexus";
+    public static final String COLLECTOR_ENGINE_HARD = "Mind's Dilation";
     /** The five-colour dungeon's chest holds this many times the gold of another one. */
     public static final int RAINBOW_CHEST_GOLD = 2;
     /** A shrine's life (for the rest of the visit, even above full life), and what weakens the enemies. */
@@ -745,7 +750,7 @@ public class HexCampaign {
             return false;
         }
         for (final HexTile t : dungeons()) {
-            if (t.dungeon != null && !t.dungeon.cleared) {
+            if (t.dungeon != null && !t.dungeon.vault && !t.dungeon.cleared) {
                 return false;
             }
         }
@@ -789,6 +794,114 @@ public class HexCampaign {
      * After a won fight: once the cycle has its {@link #rainbowAt()} wins, the five-colour dungeon opens on a free field
      * away from the party, the towns and the other dungeons (once a cycle; should there be no field, after the next win).
      */
+    /** The cards the party lost in this cycle and has not won back. */
+    public int lostCardsInParty() {
+        int n = 0;
+        for (final HexPlayer p : players) {
+            n += p.lostCards.size();
+        }
+        return n;
+    }
+
+    /** The Vault of the Lost that is open now (not cleared), or null. */
+    public HexTile openVault() {
+        for (final HexTile t : dungeons()) {
+            if (t.dungeon != null && t.dungeon.vault && !t.dungeon.cleared) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+    /** The colour most of the party's lost cards share (colourless if none has a colour). */
+    HexColor lostCardsColour() {
+        final int[] count = new int[HexColor.COLORS.length];
+        for (final HexPlayer p : players) {
+            for (final String card : p.lostCards) {
+                final forge.item.PaperCard paper = HexContent.get().getCard(card);
+                final byte bits = paper == null ? 0 : paper.getRules().getColor().getColor();
+                for (int i = 0; i < HexColor.COLORS.length; i++) {
+                    if ((bits & HexContent.bitOf(HexColor.COLORS[i])) != 0) {
+                        count[i]++;
+                    }
+                }
+            }
+        }
+        int best = -1;
+        for (int i = 0; i < count.length; i++) {
+            if (count[i] > 0 && (best < 0 || count[i] > count[best])) {
+                best = i;
+            }
+        }
+        return best < 0 ? HexColor.COLORLESS : HexColor.COLORS[best];
+    }
+
+    /**
+     * After a lost fight: once the party has lost VAULT_LOST_CARDS cards in this cycle (never on a level where nothing
+     * is lost), the Vault of the Lost opens on a free field, of the colour most of them share; its guardian is the
+     * Collector. One at a time: a new one only after the last was cleared and enough was lost again.
+     */
+    void maybeOpenVault() {
+        if (difficulty().cardsLost <= 0 || lostCardsInParty() < VAULT_LOST_CARDS || openVault() != null) {
+            return;
+        }
+        final Random rnd = new Random(seed * 131L + cycle * 7919L + (battlesWon + battlesLost) * 43L + 79L);
+        for (int pass = 0; pass < 2; pass++) {
+            final List<HexTile> fields = new ArrayList<>();
+            for (final HexTile t : map.tiles.values()) {
+                if (t.poi == HexPoi.NONE && t != tile() && HexMap.distance(t.q, t.r, partyQ, partyR) >= 2 && questAt(t.q, t.r) == null
+                        && enemyAt(t) == null && farFromPlaces(t, pass == 0)) {
+                    fields.add(t);
+                }
+            }
+            if (fields.isEmpty()) {
+                continue;
+            }
+            fields.sort((a, b) -> a.key().compareTo(b.key())); // a stable order, so seeds are reproducible
+            final HexTile t = fields.get(rnd.nextInt(fields.size()));
+            final HexDungeon dungeon = new HexDungeon();
+            dungeon.vault = true;
+            dungeon.color = lostCardsColour();
+            HexLabyrinth.build(dungeon, t.q, t.r, rnd, cycle);
+            final HexRoom keep = dungeon.room(dungeon.bossX, dungeon.bossY);
+            if (keep != null) {
+                final HexEncounter collector = collectorGuardian(dungeon.color, rnd);
+                collector.collector = true;
+                collector.enemyName = msg("lblHexCollector");
+                collector.intro = msg("lblHexCollectorIntro");
+                keep.guard = collector;
+            }
+            t.poi = HexPoi.DUNGEON;
+            t.dungeon = dungeon;
+            t.enemy = null;
+            t.event = null;
+            log(msg("lblHexJournalVaultOpens"));
+            return;
+        }
+    }
+
+    /**
+     * The Collector's own deck: a dungeon guardian's whose deck plays the vault's colour (so that the lost cards fit
+     * in), else an ordinary enemy of that colour; any guardian for a colourless vault.
+     */
+    private HexEncounter collectorGuardian(final HexColor color, final Random rnd) {
+        final HexContent content = HexContent.get();
+        final byte bit = HexContent.bitOf(color);
+        for (int i = 0; i < 12; i++) {
+            final HexEncounter enc = content.dungeonGuardian(color, rnd, cycle);
+            final List<String> names = new ArrayList<>();
+            for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : content.loadEnemyDeck(enc).getMain()) {
+                names.add(e.getKey().getName());
+            }
+            if (bit == 0 || (content.deckColors(names) & bit) != 0) {
+                return enc;
+            }
+        }
+        final HexEncounter enc = content.randomEncounter(color, 1.0, rnd);
+        enc.dungeonStage = HexDungeon.BOSS;
+        return enc;
+    }
+
     void maybeOpenRainbowDungeon() {
         if (rainbowPlaced || cycleBattles(HexBattle.Result.WON) < rainbowAt()) {
             return;
@@ -930,6 +1043,9 @@ public class HexCampaign {
         arzakonAwake = false;
         arzakonBeaten = false;
         arzakonWithdrew = false;
+        for (final HexPlayer p : players) {
+            p.lostCards.clear(); // what the last cycle lost stays lost
+        }
         defeatedBosses.clear();
         pendingEncounter = null;
         pendingRewards.clear();
@@ -1578,7 +1694,15 @@ public class HexCampaign {
                         log(msg("lblHexJournalBossCard", p.name, angel));
                     }
                 }
-                if (room != null && enc.isGuardian()) {
+                if (room != null && enc.isGuardian() && dungeon.vault) {
+                    // the Collector beaten: every head gets back what it lost (into the sideboard)
+                    reward.recovered.addAll(p.lostCards);
+                    p.sideboard.addAll(p.lostCards);
+                    if (!p.lostCards.isEmpty()) {
+                        log(msg("lblHexJournalRecovered", p.name, String.join(", ", p.lostCards)));
+                    }
+                    p.lostCards.clear();
+                } else if (room != null && enc.isGuardian()) {
                     openChest(p, reward, dungeon.roomColor(room), chestRandom, treasures, dungeon.multicolor);
                 } else if (treasure) {
                     openTreasure(p, reward, room.content, dungeon.roomColor(room), chestRandom, treasures);
@@ -1644,13 +1768,16 @@ public class HexCampaign {
             final HexFightSummary summary = lastFight != null && "LOST".equals(lastFight.result)
                     && enc.enemyName != null && enc.enemyName.equals(lastFight.enemyName) ? lastFight : null;
             final HexDifficulty level = difficulty();
+            final HexDungeon lostAt = dungeonOf(enc);
+            final boolean inVault = lostAt != null && lostAt.vault; // the Collector holds enough already: nothing more is lost
             for (final HexPlayer p : players) {
                 final HexFightSummary.Head h = summary == null ? null : summary.head(p.name);
-                for (int i = 0; i < level.cardsLost; i++) {
+                for (int i = 0; i < level.cardsLost && !inVault; i++) {
                     final String lost = loseRandomCard(p, level.lossMaxPrice);
                     if (lost == null) {
                         break;
                     }
+                    p.lostCards.add(lost);
                     log(msg("lblHexJournalAnteLost", p.name, lost));
                     if (h != null) {
                         h.lostCards().add(lost);
@@ -1660,6 +1787,7 @@ public class HexCampaign {
                     }
                 }
             }
+            maybeOpenVault();
             final HexDungeon lostIn = dungeonOf(enc);
             if (lostIn != null && lostIn.inside) {
                 lostIn.reset(); // thrown out: the dungeon starts anew

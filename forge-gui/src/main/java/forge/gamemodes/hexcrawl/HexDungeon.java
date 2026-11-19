@@ -39,6 +39,8 @@ public class HexDungeon {
      * richer chest, and a second rule card. Its {@link #color} is colourless.
      */
     public boolean multicolor;
+    /** The Vault of the Lost: its guardian, the Collector, holds the cards the party lost; beaten, it gives them back. */
+    public boolean vault;
     /** The five-colour dungeon's second rule card, of another colour than the first (null in any other dungeon). */
     public String secondRuleCard;
 

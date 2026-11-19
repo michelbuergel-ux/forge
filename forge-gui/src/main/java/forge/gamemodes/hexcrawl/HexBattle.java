@@ -93,11 +93,19 @@ public final class HexBattle {
         final HexContent content = HexContent.get();
         final int life = campaign.enemyLife(enc);
         int avatar = firstAvatar;
-        final RegisteredPlayer enemy = new RegisteredPlayer(enc.doppelganger ? mirrorDeck(campaign, enc, 0) : content.loadEnemyDeck(enc));
+        final RegisteredPlayer enemy = new RegisteredPlayer(enc.doppelganger ? mirrorDeck(campaign, enc, 0)
+                : enc.collector ? collectorDeck(campaign, enc) : content.loadEnemyDeck(enc));
         enemy.setPlayer(GamePlayerUtil.createAiPlayer(enc.enemyName, avatar++));
         enemy.setTeamNumber(ENEMY_TEAM);
         enemy.setStartingLife(life);
         addEquipment(enemy, enc);
+        if (enc.collector) {
+            // the Collector casts a spell for free every turn (and from New Game Plus on, from the party's own libraries too)
+            final List<forge.item.IPaperCard> engine = new ArrayList<>();
+            addStartCards(engine, campaign.cycle > 1 ? java.util.Arrays.asList(HexCampaign.COLLECTOR_ENGINE, HexCampaign.COLLECTOR_ENGINE_HARD)
+                    : java.util.Collections.singletonList(HexCampaign.COLLECTOR_ENGINE));
+            enemy.addExtraCardsOnBattlefield(engine);
+        }
         // an archmage brings its presence and the card that awakens it at half life (the lead head only:
         // the life total is shared, and one awakening is enough)
         final List<forge.item.IPaperCard> bossCards = content.bossCommandCards(enc, campaign.cycle);
@@ -140,7 +148,7 @@ public final class HexBattle {
         }
         if (enc.headsAlike()) {
             for (int n = 2; n <= campaign.enemyHeads(); n++) {
-                final RegisteredPlayer rp = new RegisteredPlayer(content.loadEnemyDeck(enc));
+                final RegisteredPlayer rp = new RegisteredPlayer(enc.collector ? collectorDeck(campaign, enc) : content.loadEnemyDeck(enc));
                 rp.setPlayer(GamePlayerUtil.createAiPlayer(enc.enemyName + " " + n, avatar++)); // every player needs a name of its own
                 rp.setTeamNumber(ENEMY_TEAM);
                 rp.setStartingLife(life);
@@ -159,6 +167,65 @@ public final class HexBattle {
             applyCycle(campaign, enc, rp, head++);
             players.add(rp);
         }
+    }
+
+    /**
+     * The Collector's deck: its own deck (an Adventure enemy's, of the vault's colour), with up to a third of its spells
+     * swapped for spells the party lost that suit its colours, each for one of the same kind and a similar cost. The
+     * same every time the fight is set up.
+     */
+    static Deck collectorDeck(final HexCampaign campaign, final HexEncounter enc) {
+        final HexContent content = HexContent.get();
+        final Deck own = content.loadEnemyDeck(enc);
+        final List<String> names = new ArrayList<>();
+        for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : own.getMain()) {
+            for (int i = 0; i < e.getValue(); i++) {
+                names.add(e.getKey().getName());
+            }
+        }
+        final byte colours = content.deckColors(names);
+        final List<String> lost = new ArrayList<>();
+        for (final HexPlayer p : campaign.players) {
+            for (final String card : p.lostCards) {
+                final forge.item.PaperCard paper = content.getCard(card);
+                if (paper == null || paper.getRules().getType().isLand()) {
+                    continue; // lands lie in its hoard
+                }
+                final byte bits = paper.getRules().getColor().getColor();
+                if ((bits & ~colours) == 0) {
+                    lost.add(card); // of its colours (or colourless)
+                }
+            }
+        }
+        java.util.Collections.sort(lost);
+        java.util.Collections.shuffle(lost, new java.util.Random(campaign.seed * 31L + enc.q * 977L + enc.r));
+        int spells = 0;
+        for (final String name : names) {
+            final forge.item.PaperCard paper = content.getCard(name);
+            spells += paper != null && !paper.getRules().getType().isLand() ? 1 : 0;
+        }
+        final int swaps = Math.min(lost.size(), spells / 3);
+        for (int i = 0; i < swaps; i++) {
+            final forge.item.PaperCard in = content.getCard(lost.get(i));
+            final boolean creature = in.getRules().getType().isCreature();
+            final int cost = in.getRules().getManaCost().getCMC();
+            int best = -1;
+            for (int j = 0; j < names.size(); j++) {
+                final forge.item.PaperCard out = content.getCard(names.get(j));
+                if (out == null || out.getRules().getType().isLand() || out.getRules().getType().isCreature() != creature
+                        || lost.subList(0, i).contains(names.get(j))) {
+                    continue;
+                }
+                final int diff = Math.abs(out.getRules().getManaCost().getCMC() - cost);
+                if (best < 0 || diff < Math.abs(content.getCard(names.get(best)).getRules().getManaCost().getCMC() - cost)) {
+                    best = j;
+                }
+            }
+            if (best >= 0) {
+                names.set(best, lost.get(i));
+            }
+        }
+        return content.toDeck(enc.enemyName, names);
     }
 
     /** The deck a doppelganger's head plays (0 for the first): the deck of a head of the party (see HexCampaign#mirroredHeads). */

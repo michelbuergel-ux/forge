@@ -15,6 +15,8 @@ public class HexPlayer {
     public List<String> sideboard = new ArrayList<>();
     /** Cards of the sideboard marked for sale (all their copies there), sold together in the next town. */
     public List<String> forSale = new ArrayList<>();
+    /** The cards the head lost in defeats in this cycle and has not won back (see HexCampaign#maybeOpenVault). */
+    public List<String> lostCards = new ArrayList<>();
     /**
      * The head's decks, by name (empty in older saves: then its deck is the only one). The one it plays is
      * {@link #activeDeck}; its cards are {@link #deck}. See {@link HexDeck}.

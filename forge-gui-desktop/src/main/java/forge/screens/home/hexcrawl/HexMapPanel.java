@@ -448,7 +448,7 @@ public class HexMapPanel extends JPanel {
             }
         } else if (t.poi == HexPoi.DUNGEON && t.dungeon != null) {
             final forge.gamemodes.hexcrawl.HexDungeon d = t.dungeon;
-            sb.append(" – ").append(loc.getMessage(d.multicolor ? "lblHexRainbowDungeon" : "lblHexDungeon"));
+            sb.append(" – ").append(loc.getMessage(d.vault ? "lblHexVault" : d.multicolor ? "lblHexRainbowDungeon" : "lblHexDungeon"));
             if (d.cleared) {
                 sb.append(" (").append(loc.getMessage("lblHexDungeonCleared")).append(')');
             } else {
@@ -563,7 +563,11 @@ public class HexMapPanel extends JPanel {
                 }
             } else if (t.poi == HexPoi.DUNGEON) {
                 final forge.gamemodes.hexcrawl.HexDungeon d = t.dungeon;
-                drawDungeon(g, cx, cy, s, d == null || d.cleared, d != null && d.multicolor);
+                if (d != null && d.vault && !d.cleared) {
+                    HexPixelIcons.draw(g, HexPixelIcons.vault(), cx, cy, s * PIXEL, 9, 10); // a pixel of glow about it
+                } else {
+                    drawDungeon(g, cx, cy, s, d == null || d.cleared, d != null && d.multicolor);
+                }
             } else {
                 if (campaign.arzakonWaits(t)) {
                     drawArzakon(g, cx, cy, s);

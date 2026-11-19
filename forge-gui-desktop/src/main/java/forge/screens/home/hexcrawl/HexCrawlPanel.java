@@ -1639,6 +1639,10 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             message += "\n\n" + t(worn ? "lblHexRewardTrophyWorn" : "lblHexRewardTrophy", trophy.name) + "\n"
                     + relicEffects(trophy, campaign.cycle).trim();
         }
+        if (reward.recovered != null && !reward.recovered.isEmpty()) {
+            // the Collector beaten: what the head had lost is back
+            message += "\n\n" + t("lblHexRewardRecovered", String.join(", ", reward.recovered));
+        }
         final PaperCard bossCard = reward.bossCard == null ? null : HexContent.get().getCard(reward.bossCard);
         if (bossCard != null) {
             // Arzakon's angel: the head's already, it stands first, apart from the choice

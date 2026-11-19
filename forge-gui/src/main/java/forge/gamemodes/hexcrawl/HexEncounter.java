@@ -27,6 +27,8 @@ public class HexEncounter {
     public boolean archenemy;
     /** A doppelganger: its heads fight with the decks of the party's heads (see HexCampaign#mirroredHeads). */
     public boolean doppelganger;
+    /** The Collector, the Vault of the Lost's guardian: its deck holds some of the party's lost cards (see HexBattle). */
+    public boolean collector;
     /** A boss's own words before the fight and after beating the party (Adventure data), or null. */
     public String intro;
     public String insult;
