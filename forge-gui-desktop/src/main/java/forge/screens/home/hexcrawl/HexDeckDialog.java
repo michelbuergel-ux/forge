@@ -504,7 +504,10 @@ final class HexDeckDialog {
             headPills.get(i).setActive(i == headIndex);
         }
         fillSigil(stats, p);
-        lblDeckCount.setText(t("lblHexCardsCount", String.valueOf(p.deck.size())));
+        final boolean small = p.deck.size() < HexCampaign.MIN_DECK_SIZE;
+        lblDeckCount.setText(small ? t("lblHexDeckBelowMin", String.valueOf(p.deck.size()), String.valueOf(HexCampaign.MIN_DECK_SIZE))
+                : t("lblHexCardsCount", String.valueOf(p.deck.size())));
+        lblDeckCount.setForeground(small ? HexTownStyle.BAD : MUTED);
         tabSide.set(String.valueOf(p.sideboard.size()), TAB_SIDE.equals(tab));
         tabRelics.set(p.relics.size() + "/" + SLOTS.length, TAB_RELICS.equals(tab));
         sidePages.show(sideCards, tab);
@@ -844,7 +847,7 @@ final class HexDeckDialog {
         final int active = p.activeDeckIndex();
         for (int i = 0; i < p.deckCount(); i++) {
             final int index = i;
-            final int size = Math.max(p.deckSize(i), HexCampaign.MIN_DECK_SIZE);
+            final int size = p.deckSize(i);
             menuItem(menu, deckLabel(p, i) + "   " + t("lblHexCardsCount", String.valueOf(size)), i == active, may, () -> pickDeck(index));
         }
         menu.addSeparator();
@@ -863,9 +866,10 @@ final class HexDeckDialog {
         if (!mayChangeDecks(p) || index == p.activeDeckIndex()) {
             return;
         }
-        final boolean filled = p.deckSize(index) < HexCampaign.MIN_DECK_SIZE;
+        final boolean small = p.deckSize(index) < HexCampaign.MIN_DECK_SIZE;
         session.selectDeck(p.name, index);
-        setMessage(t(filled ? "lblHexDeckPlayingFilled" : "lblHexDeckPlaying", deckLabel(p, index)), false);
+        setMessage(small ? t("lblHexDeckPlayingSmall", deckLabel(p, index), String.valueOf(HexCampaign.MIN_DECK_SIZE))
+                : t("lblHexDeckPlaying", deckLabel(p, index)), small);
         fill();
     }
 
@@ -931,7 +935,7 @@ final class HexDeckDialog {
             setMessage(t("lblHexDeckLocked"), true);
         } else if (!mayEdit(p)) {
             setMessage(t("lblHexViewOnly", p.name), true);
-        } else if (toSideboard && p.deck.size() <= HexCampaign.MIN_DECK_SIZE) {
+        } else if (toSideboard && !campaign().mayShrinkDeck(p)) {
             setMessage(t("lblHexDeckTooSmall", String.valueOf(HexCampaign.MIN_DECK_SIZE)), true);
         } else {
             session.moveCard(p.name, card, toSideboard);

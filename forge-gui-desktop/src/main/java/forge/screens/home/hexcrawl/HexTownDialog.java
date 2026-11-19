@@ -642,9 +642,6 @@ final class HexTownDialog {
             });
             menu.add(item);
         }
-        if (!may) {
-            setMessage(t("lblHexImportLocked"), true);
-        }
         menu.show(importPill, 0, importPill.getHeight() + 6);
     }
 
@@ -1007,7 +1004,7 @@ final class HexTownDialog {
         for (int i = 0; i < p.deckCount(); i++) {
             final int index = i;
             final javax.swing.JMenuItem item = new javax.swing.JMenuItem(deckLabel(p, i) + "   "
-                    + t("lblHexCardsCount", String.valueOf(Math.max(p.deckSize(i), HexCampaign.MIN_DECK_SIZE))));
+                    + t("lblHexCardsCount", String.valueOf(p.deckSize(i))));
             item.setFont(body(i == active ? Font.BOLD : Font.PLAIN, 13f));
             item.setOpaque(true);
             item.setBackground(palette.mid());
@@ -1024,9 +1021,10 @@ final class HexTownDialog {
         if (p == null || index == p.activeDeckIndex()) {
             return;
         }
-        final boolean filled = p.deckSize(index) < HexCampaign.MIN_DECK_SIZE;
+        final boolean small = p.deckSize(index) < HexCampaign.MIN_DECK_SIZE;
         session.selectDeck(p.name, index);
-        setMessage(t(filled ? "lblHexDeckPlayingFilled" : "lblHexDeckPlaying", deckLabel(p, index)), false);
+        setMessage(small ? t("lblHexDeckPlayingSmall", deckLabel(p, index), String.valueOf(HexCampaign.MIN_DECK_SIZE))
+                : t("lblHexDeckPlaying", deckLabel(p, index)), small);
         fill();
     }
 

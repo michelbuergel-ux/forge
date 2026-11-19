@@ -61,8 +61,14 @@ public class HexDecksTest extends AITest {
 
         AssertJUnit.assertTrue(c.newDeck("Ann", "  Elfen   und  mehr "));
         AssertJUnit.assertEquals(2, ann.deckCount());
-        AssertJUnit.assertEquals("a copy, played at once", 1, ann.activeDeckIndex());
+        AssertJUnit.assertEquals("played at once", 1, ann.activeDeckIndex());
         AssertJUnit.assertEquals("Elfen und mehr", ann.deckName(1));
+        AssertJUnit.assertTrue("it starts empty", ann.deck.isEmpty());
+        AssertJUnit.assertEquals("nothing lost", owned, sorted(ann.ownedCards()));
+        AssertJUnit.assertTrue("a small deck may shrink while another can fight", c.mayShrinkDeck(ann));
+        for (final String card : main) {
+            AssertJUnit.assertTrue(card, c.moveCard("Ann", card, false)); // built from the sideboard
+        }
         AssertJUnit.assertEquals(main, sorted(ann.deck));
         AssertJUnit.assertTrue(c.moveCard("Ann", "Llanowar Elves", false));
         AssertJUnit.assertTrue(c.moveCard("Ann", "Llanowar Elves", false));
@@ -108,13 +114,25 @@ public class HexDecksTest extends AITest {
         final int forestsOwned = Collections.frequency(ann.ownedCards(), "Forest");
         AssertJUnit.assertEquals(22, ann.deckSize(1));
 
+        // picked, it stays as it is (no lands added): it is still being built
         AssertJUnit.assertTrue(c.selectDeck("Ann", 1));
-        AssertJUnit.assertEquals(HexCampaign.MIN_DECK_SIZE, ann.deck.size());
+        AssertJUnit.assertEquals(22, ann.deck.size());
         AssertJUnit.assertFalse(ann.deck.contains("Llanowar Elves"));
+        AssertJUnit.assertEquals(owned, ann.ownedCards().size());
+        // before a fight: the biggest deck that has enough is played instead
+        c.readyDecksForFight();
+        AssertJUnit.assertEquals(0, ann.activeDeckIndex());
+        AssertJUnit.assertTrue(ann.deck.size() >= HexCampaign.MIN_DECK_SIZE);
+
+        // without another deck to fight with: the small one is filled up with its own basic land
+        AssertJUnit.assertTrue(c.selectDeck("Ann", 1));
+        ann.decks.get(0).cards.clear();
+        ann.decks.get(0).cards.add("Forest");
+        c.readyDecksForFight();
+        AssertJUnit.assertEquals(1, ann.activeDeckIndex());
+        AssertJUnit.assertEquals(HexCampaign.MIN_DECK_SIZE, ann.deck.size());
         AssertJUnit.assertEquals("the deck's own basic land fills it up", 2 + 18, Collections.frequency(ann.deck, "Forest"));
-        // its own forests first, then new ones: the head owns as many more cards as forests had to be made
-        final int made = 20 - forestsOwned;
-        AssertJUnit.assertEquals(owned + Math.max(0, made), ann.ownedCards().size());
+        AssertJUnit.assertTrue("the forests are hers", Collections.frequency(ann.ownedCards(), "Forest") >= 20);
     }
 
     @Test

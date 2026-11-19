@@ -2635,7 +2635,7 @@ public class HexCampaign {
             for (final Map.Entry<String, String> e : wanted.entrySet()) {
                 final Integer at = themeStockedAt.get(key + "|" + e.getKey() + "|" + e.getValue());
                 if (at == null || at != fights()) {
-                    stockTab(stock, e.getKey(), e.getValue(), importColours(p)); // the head's own colours, once imports are open
+                    stockOwnTab(stock, p, e.getKey(), e.getValue()); // from where the head imports
                 }
             }
         }
@@ -2693,15 +2693,22 @@ public class HexCampaign {
         return c == tile().color ? null : p.importFrom; // the town's own colour is no import
     }
 
-    /** May the head choose where to import from (once between two fights, like a theme)? */
+    /** May the head choose where to import from? As often as it likes (its shelves for each source stay the same until the next fight). */
     public boolean mayChooseImport(final String playerName) {
-        final HexPlayer p = player(playerName);
-        return p != null && p.importPickedAt != fights();
+        return player(playerName) != null;
+    }
+
+    /**
+     * The random of one of a head's own tabs: the same for the same town, fights, tab, theme, import source and paid
+     * restocks, so that switching sources back and forth shows the same shelves again instead of new ones.
+     */
+    private Random ownShelfRandom(final HexPlayer p, final String tab, final String themeId) {
+        return new Random(java.util.Objects.hash(seed, tile().key(), fights(), tab, themeId, String.valueOf(importSource(p)), p.restocks));
     }
 
     /**
      * A head chooses where its own tabs import from: a colour's towns (any from the start), the five-colour town (once it
-     * is free), or null for the town's own goods. The tabs are stocked anew at once.
+     * is free), or null for the town's own goods, as often as it likes. The tabs show that source's shelves at once.
      */
     public boolean chooseImport(final String playerName, final String source) {
         final HexPlayer p = player(playerName);
@@ -2713,13 +2720,12 @@ public class HexCampaign {
             return false;
         }
         p.importFrom = source;
-        p.importPickedAt = fights();
         final List<HexShopOffer> stock = shop();
-        stockTab(stock, tabKey(p.name, TAB_RANDOM), ANY_CARDS, importColours(p));
+        stockOwnTab(stock, p, tabKey(p.name, TAB_RANDOM), ANY_CARDS);
         for (int slot = 0; slot < PICKED_THEMES; slot++) {
             final String id = tabTheme(p.name, TAB_PICKED + slot);
             if (id != null) {
-                stockTab(stock, tabKey(p.name, TAB_PICKED + slot), id, importColours(p));
+                stockOwnTab(stock, p, tabKey(p.name, TAB_PICKED + slot), id);
             }
         }
         return true;
@@ -2736,18 +2742,24 @@ public class HexCampaign {
 
     /** New shelves for one theme tab of the town the party is in: the town's own tab in its colour. */
     private void stockTab(final List<HexShopOffer> stock, final String tab, final String themeId) {
-        stockTab(stock, tab, themeId, null);
+        stockTab(stock, tab, themeId, null, random());
+    }
+
+    /** New shelves for one of a head's own tabs: from its import source, the same ones for the same source (see ownShelfRandom). */
+    private void stockOwnTab(final List<HexShopOffer> stock, final HexPlayer p, final String tab, final String themeId) {
+        stockTab(stock, tab, themeId, importColours(p), ownShelfRandom(p, tab, themeId));
     }
 
     /** New shelves for one theme tab: in the town's colour, or (a head's own tab) in the colours of the head's deck. */
-    private void stockTab(final List<HexShopOffer> stock, final String tab, final String themeId, final List<HexColor> deckColours) {
+    private void stockTab(final List<HexShopOffer> stock, final String tab, final String themeId, final List<HexColor> deckColours,
+            final Random rnd) {
         final String key = tile().key();
         stock.removeIf(o -> tab.equals(o.tab));
         final List<HexShopOffer> offers = deckColours == null && tile().rainbow
-                ? HexContent.get().deckStock(java.util.Arrays.asList(HexColor.COLORS), HexTheme.get(themeId), random())
+                ? HexContent.get().deckStock(java.util.Arrays.asList(HexColor.COLORS), HexTheme.get(themeId), rnd)
                 : deckColours == null
-                ? HexContent.get().themeStock(tile().color, borderColours(tile()), HexTheme.get(themeId), random())
-                : HexContent.get().deckStock(deckColours, HexTheme.get(themeId), random());
+                ? HexContent.get().themeStock(tile().color, borderColours(tile()), HexTheme.get(themeId), rnd)
+                : HexContent.get().deckStock(deckColours, HexTheme.get(themeId), rnd);
         for (final HexShopOffer o : offers) {
             o.tab = tab;
             if (o.theme == null) {
@@ -2781,6 +2793,7 @@ public class HexCampaign {
         final List<HexShopOffer> stock = shop();
         final String key = tile().key();
         spend(p, price);
+        p.restocks++; // the head's own tabs get shelves they never had
         stock.removeIf(o -> playerName.equals(ownerOfTab(o.tab)));
         themeStockedAt.keySet().removeIf(k -> k.startsWith(key + "|") && playerName.equals(ownerOfTab(k.substring(key.length() + 1))));
         shop(); // the shelves of this head, new
@@ -2843,7 +2856,7 @@ public class HexCampaign {
         }
         p.themes[slot] = theme.id;
         p.themesPickedAt[slot] = fights();
-        stockTab(shop(), tabKey(p.name, TAB_PICKED + slot), theme.id, importColours(p)); // a fresh assortment
+        stockOwnTab(shop(), p, tabKey(p.name, TAB_PICKED + slot), theme.id); // a fresh assortment
         log(msg("lblHexJournalTheme", p.name, theme.getLabel()));
         return true;
     }
@@ -3201,13 +3214,57 @@ public class HexCampaign {
      * Moves one copy of a card between the deck and the sideboard of a head; a deck may not
      * fall below the minimum size. Whether a fight is running is for the caller to check.
      */
+    /** The deck of the head's with the most cards that is big enough for a fight, other than the one played; -1 if none. */
+    public int bestFightDeck(final HexPlayer p) {
+        int best = -1;
+        for (int i = 0; i < p.deckCount(); i++) {
+            if (i != p.activeDeckIndex() && p.deckSize(i) >= MIN_DECK_SIZE && (best < 0 || p.deckSize(i) > p.deckSize(best))) {
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * May the deck played lose a card? Always while it has more than the minimum; below that only if the head has
+     * another deck big enough to fight with (a new deck is built up from nothing).
+     */
+    public boolean mayShrinkDeck(final HexPlayer p) {
+        return p.deck.size() > MIN_DECK_SIZE || bestFightDeck(p) >= 0;
+    }
+
+    /**
+     * Before a fight: a head whose deck has too few cards fights with its biggest deck that has enough; should it have
+     * none, its deck is filled up with basic lands (as for a deck that lost cards).
+     */
+    public void readyDecksForFight() {
+        for (final HexPlayer p : players) {
+            if (p.deck.size() >= MIN_DECK_SIZE) {
+                continue;
+            }
+            final int best = bestFightDeck(p);
+            if (best >= 0) {
+                final String small = p.deckName(p.activeDeckIndex());
+                selectDeck(p.name, best);
+                log(msg("lblHexJournalDeckTooSmall", p.name, small == null ? msg("lblHexDeckMain") : small, p.deckName(best) == null
+                        ? msg("lblHexDeckMain") : p.deckName(best)));
+            } else {
+                final String basic = basicLandFor(p.deck);
+                while (p.deck.size() < MIN_DECK_SIZE) {
+                    p.sideboard.remove(basic); // the sideboard's own copies first, else new ones
+                    p.deck.add(basic);
+                }
+            }
+        }
+    }
+
     public boolean moveCard(final String playerName, final String card, final boolean toSideboard) {
         final HexPlayer p = player(playerName);
         if (p == null || deckLocked()) {
             return false;
         }
         if (toSideboard) {
-            if (p.deck.size() <= MIN_DECK_SIZE || !p.deck.remove(card)) {
+            if (!mayShrinkDeck(p) || !p.deck.remove(card)) {
                 return false;
             }
             p.sideboard.add(card);
@@ -3261,13 +3318,6 @@ public class HexCampaign {
         for (final String card : p.decks.get(index).cards) {
             if (pool.remove(card)) {
                 next.add(card);
-            }
-        }
-        if (next.size() < MIN_DECK_SIZE) {
-            final String basic = basicLandFor(next);
-            while (next.size() < MIN_DECK_SIZE) {
-                pool.remove(basic); // the sideboard's own copies first, else new ones
-                next.add(basic);
             }
         }
         p.deck = next;
@@ -3332,6 +3382,8 @@ public class HexCampaign {
         p.decks.get(p.activeDeck).cards = new ArrayList<>(p.deck);
         p.decks.add(new HexDeck(clean));
         p.activeDeck = p.decks.size() - 1;
+        p.sideboard.addAll(p.deck); // the new deck starts empty: it is built from the sideboard
+        p.deck = new ArrayList<>();
         return true;
     }
 

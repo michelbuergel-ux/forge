@@ -126,7 +126,16 @@ public class HexImportShopTest extends AITest {
                 AssertJUnit.assertTrue("the town's tab keeps its colour " + o.card, color.isColorless() || color.hasRed());
             }
         }
-        AssertJUnit.assertFalse("once between two fights", c.chooseImport("Ann", HexColor.GREEN.name()));
+        // as often as Ann likes: back to blue brings the same shelves, not new ones
+        final List<String> blue = ownTabCards(c);
+        AssertJUnit.assertTrue(c.chooseImport("Ann", HexColor.GREEN.name()));
+        AssertJUnit.assertTrue(ownCards(c, ColorSet::hasGreen) > 20);
+        AssertJUnit.assertTrue(c.chooseImport("Ann", HexColor.BLUE.name()));
+        AssertJUnit.assertEquals("the same blue shelves", blue, ownTabCards(c));
+        // paid new goods: new shelves
+        c.player("Ann").gold = 10000;
+        AssertJUnit.assertTrue(c.restock("Ann"));
+        AssertJUnit.assertFalse("new shelves", blue.equals(ownTabCards(c)));
         AssertJUnit.assertTrue("Bob chooses for himself", c.chooseImport("Bob", null));
     }
 
@@ -149,5 +158,18 @@ public class HexImportShopTest extends AITest {
         // besieged again (a new cycle's town not yet free): back to the town's goods
         c.rainbowTown().siege = HexContent.get().randomEncounter(HexColor.BLUE, 0.5, new java.util.Random(3));
         AssertJUnit.assertNull(c.importSource(c.player("Ann")));
+    }
+
+    /** The cards of Ann's own tabs, in shelf order. */
+    private static List<String> ownTabCards(final HexCampaign c) {
+        final List<String> cards = new ArrayList<>();
+        for (final HexShopOffer o : c.shop()) {
+            if (o.shop != HexShopType.RELIC && "Ann".equals(HexCampaign.ownerOfTab(o.tab))
+                    && !o.tab.equals(HexCampaign.tabKey("Ann", HexCampaign.TAB_TOWN))) {
+                cards.add(o.tab + "/" + o.card);
+            }
+        }
+        java.util.Collections.sort(cards);
+        return cards;
     }
 }

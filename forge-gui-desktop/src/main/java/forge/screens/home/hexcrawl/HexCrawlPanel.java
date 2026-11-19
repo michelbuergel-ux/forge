@@ -1848,8 +1848,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             final List<String> choices = new ArrayList<>();
             for (int i = 0; i < mine.deckCount(); i++) {
                 final String name = mine.deckName(i);
-                choices.add((name == null ? t("lblHexDeckMain") : name) + "  ·  "
-                        + t("lblHexCardsCount", String.valueOf(Math.max(mine.deckSize(i), HexCampaign.MIN_DECK_SIZE))));
+                final int size = mine.deckSize(i);
+                choices.add((name == null ? t("lblHexDeckMain") : name) + "  ·  " + t("lblHexCardsCount", String.valueOf(size))
+                        + (size < HexCampaign.MIN_DECK_SIZE ? "  ·  " + t("lblHexDeckTooSmallForFight") : ""));
             }
             final forge.toolbox.FComboBox<String> box = new forge.toolbox.FComboBox<>(choices);
             box.setSelectedIndex(mine.activeDeckIndex());
@@ -1857,8 +1858,11 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                     FOptionPane.QUESTION_ICON, box, Arrays.asList(t("lblHexFight"), t("lblHexDeckFirst")), 0);
             if (choice == 0 && session.mustChooseDeck(me)) {
                 final int index = box.getSelectedIndex();
-                if (index >= 0 && index != mine.activeDeckIndex()) {
+                if (index >= 0 && index != mine.activeDeckIndex() && mine.deckSize(index) >= HexCampaign.MIN_DECK_SIZE) {
                     session.selectDeck(me, index);
+                } else if (index >= 0 && mine.deckSize(index) < HexCampaign.MIN_DECK_SIZE) {
+                    // too small to fight: the fight takes the biggest deck that has enough
+                    FOptionPane.showMessageDialog(t("lblHexDeckTooSmallPicked", String.valueOf(HexCampaign.MIN_DECK_SIZE)), campaign.name);
                 }
                 session.readyToFight();
             } else if (choice == 1) {

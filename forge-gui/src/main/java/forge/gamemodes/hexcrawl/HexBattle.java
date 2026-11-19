@@ -59,6 +59,7 @@ public final class HexBattle {
     /** The players of the fight, in seat order: the heads first, the enemy last. */
     public static List<RegisteredPlayer> createPlayers(final HexCampaign campaign, final HexEncounter enc, final boolean allAi) {
         final HexContent content = HexContent.get();
+        campaign.readyDecksForFight(); // a deck still being built does not fight
         final List<RegisteredPlayer> players = new ArrayList<>();
         boolean humanSeated = allAi;
         int avatar = 0;
