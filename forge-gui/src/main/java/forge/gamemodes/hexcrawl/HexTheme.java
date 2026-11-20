@@ -122,16 +122,24 @@ public final class HexTheme {
         all.add(mechanic("tokens", r -> hints(r, DeckHints.Type.ABILITY, "Token")));
         // counters of every kind, also the experience counters a player gets (few cards, and proliferate adds them too)
         all.add(mechanic("counters", r -> hints(r, DeckHints.Type.ABILITY, "Counters", "Proliferate") || caresAboutExperience(r)));
-        all.add(mechanic("graveyard", r -> hints(r, DeckHints.Type.ABILITY, "Graveyard", "Mill", "Delirium", "Surveil")));
-        // life gain: cards that give life, lifelink (having or giving it) and doubling life gained ("if you would gain life");
-        // not the cards that only care about life (paying it, life totals) or that merely have the AI's LifeGain hint
+        // the graveyard: the cards hinted so (delirium, surveil, ...) and those that bring cards back (reanimating creatures,
+        // returning cards to the hand, casting from the graveyard)
+        all.add(mechanic("graveyard", r -> hints(r, DeckHints.Type.ABILITY, "Graveyard", "Mill", "Delirium", "Surveil")
+                || mentionsAnyFace(r, HexTheme.FROM_GRAVEYARD)));
+        // life gain: cards that give life, lifelink (having or giving it), doubling life gained ("if you would gain life") and
+        // the payoffs (whenever you gain life, life gained this turn, a high life total); not paying life, not Food (a theme
+        // of its own), not the cards that merely have the AI's LifeGain hint
         all.add(mechanic("lifegain", r -> r.hasKeyword("Lifelink") || mentionsAnyFace(r, HexTheme.LIFEGAIN)));
-        // sacrifice: cards that make you (or others) sacrifice something, outlets, edicts, payoffs, and paying life
-        // (not the lands that may cost life); not the cards that only sacrifice themselves or make Food, Treasure, Clues
-        all.add(mechanic("sacrifice", r -> mentionsAnyFace(r, HexTheme.SACRIFICE)
+        // sacrifice: cards that make you (or others) sacrifice something, outlets, edicts, payoffs, paying life (not the
+        // lands that may cost life) and the "aristocrats" (whenever a creature dies, Teysa Karlov's dying causes a trigger);
+        // not the cards that only sacrifice themselves or make Food, Treasure, Clues
+        all.add(mechanic("sacrifice", r -> mentionsAnyFace(r, HexTheme.SACRIFICE) || mentionsAnyFace(r, HexTheme.DIES)
                 || !r.getType().isLand() && mentionsAnyFace(r, HexTheme.PAY_LIFE)));
-        all.add(mechanic("discard", r -> hints(r, DeckHints.Type.ABILITY, "Discard")));
-        all.add(mechanic("ramp", r -> hints(r, DeckHints.Type.ABILITY, "Mana")));
+        // discard: cards that discard (yours or an opponent's), madness, connive, hellbent, Blood; not discarding only themselves
+        all.add(mechanic("discard", r -> mentionsAnyFace(r, HexTheme.DISCARD)));
+        // ramp: nonland cards that make mana, double it, fetch lands onto the battlefield, give extra land drops, untap lands
+        // or make spells cheaper (the AI's "Mana" hint that this used is on no card)
+        all.add(mechanic("ramp", r -> !r.getType().isLand() && mentionsAnyFace(r, HexTheme.RAMP)));
         all.add(mechanic("treasure", r -> hints(r, DeckHints.Type.TYPE, "Treasure", "Food", "Clue")
                 || hints(r, DeckHints.Type.ABILITY, "Investigate")));
         all.add(mechanic("artifacts", r -> r.getType().isArtifact() || hints(r, DeckHints.Type.TYPE, "Artifact", "Equipment")));
@@ -195,7 +203,8 @@ public final class HexTheme {
         all.add(mechanic("burn", r -> mentions(r, HexTheme.BURN)));
         // drawing cards; milling (a library into its graveyard); Alchemy, the digital cards of MTG Arena
         all.add(mechanic("carddraw", r -> mentionsAnyFace(r, HexTheme.DRAW)));
-        all.add(mechanic("mill", r -> mentions(r, HexTheme.MILL) || hints(r, DeckHints.Type.ABILITY, "Mill")));
+        // milling only: the graveyard's payoffs are the graveyard theme
+        all.add(mechanic("mill", r -> mentionsAnyFace(r, HexTheme.MILL)));
         all.add(new HexTheme("alchemy", "lblHexTheme_alchemy", null, HexTheme::alchemy, true));
         // poison: cards that give poison counters (infect, toxic, poisonous), add more (proliferate) or care about them (corrupted)
         all.add(mechanic("poison", r -> mentions(r, HexTheme.POISON) || hints(r, DeckHints.Type.KEYWORD, "Infect", "Toxic", "Poisonous")));
@@ -217,7 +226,11 @@ public final class HexTheme {
     private static final java.util.regex.Pattern LIFEGAIN = java.util.regex.Pattern.compile(
             "\\bgains? (?:(?:\\d+|x|one|two|three|four|five|six|seven|eight|nine|ten|that much|twice that much|half that much"
             + "|that many|an equal amount of|an amount of) life|life equal to)|\\blifelink\\b|\\bif you would gain life\\b"
-            + "|\\bextort\\b");
+            + "|\\bextort\\b"
+            // and the cards that reward gaining life: whenever you gain life, life gained this turn, a high life total
+            + "|\\bwhenever you gain life\\b|\\byou(?:'ve)? gained (?:\\d+ or more )?life this turn\\b|\\blife you(?:'ve)? gained this turn\\b"
+            + "|\\bamount of life you gained\\b|\\bat least \\d+ life\\b|\\b\\d+ or more life\\b|\\blife total is (?:at least|greater)"
+            + "|\\bmore life than your starting\\b|\\bequal to your life total\\b");
     private static final java.util.regex.Pattern SACRIFICE = java.util.regex.Pattern.compile(
             "\\bsacrifices? (?:a|an|another|one or more|one|two|three|four|five|x|any number of|half|all|that many|\\d+)\\b"
             + "|\\b(?:exploit|casualty|bargain|emerge|devour)\\b");
@@ -237,6 +250,23 @@ public final class HexTheme {
             "(?<!opponent )\\bdraws? (?:a|an|one|two|three|four|five|six|seven|x|that many|a number of)(?: additional)? cards?\\b"
             + "|(?<!opponent )\\bdraws? cards equal to\\b");
     private static final java.util.regex.Pattern MILL = java.util.regex.Pattern.compile("\\bmill(?:s|ed)?\\b");
+    private static final java.util.regex.Pattern DISCARD = java.util.regex.Pattern.compile(
+            "\\bdiscard(?:s|ed)?\\b(?! this card)|\\bmadness\\b|\\bconnives?\\b|\\bhellbent\\b|\\bblood tokens?\\b");
+    private static final java.util.regex.Pattern RAMP = java.util.regex.Pattern.compile(
+            "\\badd (?:\\{[wubrgcs0-9x]\\}|one mana|two mana|three mana|x mana|an amount of mana|that much mana|mana)"
+            + "|\\badds? (?:an )?additional\\b[^.]*mana|\\bproduces? (?:twice|three times) as much\\b"
+            + "|\\bsearch your library for [^.]*?\\blands? cards?[^.]*?onto the battlefield"
+            + "|\\bput (?:a|up to \\w+|that|those|x|two|three) (?:basic )?lands? cards? [^.]*?onto the battlefield"
+            + "|\\bplay (?:an|two|three) additional lands?\\b|\\buntap (?:target|all|up to \\w+|x|two|three) lands?\\b"
+            + "|\\bspells you cast cost \\{\\d\\} less\\b");
+    private static final java.util.regex.Pattern FROM_GRAVEYARD = java.util.regex.Pattern.compile(
+            "\\breturn [^.]*?from (?:your|a|an opponent's|their|its owner's|any|each player's|all) graveyards? (?:to|onto) "
+            + "|\\bput [^.]*?from (?:your|a|an opponent's|their|any) graveyards? onto the battlefield"
+            + "|\\bcast [^.]*?from (?:your|a|an opponent's|their|any) graveyards?"
+            + "|\\breturn enchanted creature card to the battlefield\\b");
+    private static final java.util.regex.Pattern DIES = java.util.regex.Pattern.compile(
+            "\\bwhenever [^.]*?\\b(?:a|an|another|one or more|nontoken|each)\\b[^.]*?\\b(?:creatures?|permanents?|tokens?)\\b[^.]*? dies?\\b"
+            + "|\\bdying causes a triggered ability\\b");
     /** The mechanics only MTG Arena's cards have. */
     private static final java.util.regex.Pattern DIGITAL = java.util.regex.Pattern.compile(
             "\\bperpetually\\b|\\bseeks? (?:a|an|two|three|x)\\b|\\bconjures? (?:a|an|two|three|x)\\b|\\bspellbook\\b"
