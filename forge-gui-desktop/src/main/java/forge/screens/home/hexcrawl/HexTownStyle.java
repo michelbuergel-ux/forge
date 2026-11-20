@@ -1428,14 +1428,23 @@ final class HexTownStyle {
                 final Font f = body(Font.BOLD, 11f);
                 g.setFont(f);
                 final FontMetrics fm2 = g.getFontMetrics();
-                final int cw = fm2.stringWidth(inDeck) + 18;
-                final RoundRectangle2D chip = round(w - cw - 0.5, sy + 4.5, cw, STRIP - 9, STRIP - 9);
-                g.setColor(new Color(0, 0, 0, 102));
-                g.fill(chip);
-                g.setColor(new Color(255, 255, 255, 36));
-                g.draw(chip);
-                g.setColor(new Color(0xe6e0d2));
-                g.drawString(inDeck, (float) (w - cw + 9 - 0.5), sy + (STRIP + fm2.getAscent() - fm2.getDescent()) / 2f);
+                // beside the price if there is room, else on the foot of the card's face; too wide even there, the
+                // deck's and the sideboard's copies get a chip each, one above the other
+                final boolean beside = pw + 6 + fm2.stringWidth(inDeck) + 18 <= w;
+                final String[] lines = beside || fm2.stringWidth(inDeck) + 18 <= w - 12 ? new String[] { inDeck } : inDeck.split(" · ");
+                final int chipH = STRIP - 9;
+                for (int i = 0; i < lines.length; i++) {
+                    final int cw = fm2.stringWidth(lines[i]) + 18;
+                    final double cx = beside ? w - cw - 0.5 : w - cw - 6.5;
+                    final double cy = beside ? sy + 4.5 : top + faceH - 6.5 - (lines.length - i) * (chipH + 3) + 3;
+                    final RoundRectangle2D chip = round(cx, cy, cw, chipH, chipH);
+                    g.setColor(new Color(0, 0, 0, beside ? 102 : 190)); // darker on the picture, to stay readable
+                    g.fill(chip);
+                    g.setColor(new Color(255, 255, 255, 36));
+                    g.draw(chip);
+                    g.setColor(new Color(0xe6e0d2));
+                    g.drawString(lines[i], (float) (cx + 9), (float) (cy + (chipH + fm2.getAscent() - fm2.getDescent()) / 2.0));
+                }
             }
         }
     }

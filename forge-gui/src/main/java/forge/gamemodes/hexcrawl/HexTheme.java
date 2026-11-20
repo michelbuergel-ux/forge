@@ -123,8 +123,13 @@ public final class HexTheme {
         // counters of every kind, also the experience counters a player gets (few cards, and proliferate adds them too)
         all.add(mechanic("counters", r -> hints(r, DeckHints.Type.ABILITY, "Counters", "Proliferate") || caresAboutExperience(r)));
         all.add(mechanic("graveyard", r -> hints(r, DeckHints.Type.ABILITY, "Graveyard", "Mill", "Delirium", "Surveil")));
-        all.add(mechanic("lifegain", r -> hints(r, DeckHints.Type.ABILITY, "LifeGain") || r.hasKeyword("Lifelink")));
-        all.add(mechanic("sacrifice", r -> hints(r, DeckHints.Type.ABILITY, "Sacrifice")));
+        // life gain: cards that give life, lifelink (having or giving it) and doubling life gained ("if you would gain life");
+        // not the cards that only care about life (paying it, life totals) or that merely have the AI's LifeGain hint
+        all.add(mechanic("lifegain", r -> r.hasKeyword("Lifelink") || mentionsAnyFace(r, HexTheme.LIFEGAIN)));
+        // sacrifice: cards that make you (or others) sacrifice something, outlets, edicts, payoffs, and paying life
+        // (not the lands that may cost life); not the cards that only sacrifice themselves or make Food, Treasure, Clues
+        all.add(mechanic("sacrifice", r -> mentionsAnyFace(r, HexTheme.SACRIFICE)
+                || !r.getType().isLand() && mentionsAnyFace(r, HexTheme.PAY_LIFE)));
         all.add(mechanic("discard", r -> hints(r, DeckHints.Type.ABILITY, "Discard")));
         all.add(mechanic("ramp", r -> hints(r, DeckHints.Type.ABILITY, "Mana")));
         all.add(mechanic("treasure", r -> hints(r, DeckHints.Type.TYPE, "Treasure", "Food", "Clue")
@@ -189,11 +194,13 @@ public final class HexTheme {
         all.add(mechanic("deathtouch", r -> mentions(r, HexTheme.DEATHTOUCH) || hints(r, DeckHints.Type.KEYWORD, "Deathtouch")));
         all.add(mechanic("burn", r -> mentions(r, HexTheme.BURN)));
         // drawing cards; milling (a library into its graveyard); Alchemy, the digital cards of MTG Arena
-        all.add(mechanic("carddraw", r -> mentions(r, HexTheme.DRAW)));
+        all.add(mechanic("carddraw", r -> mentionsAnyFace(r, HexTheme.DRAW)));
         all.add(mechanic("mill", r -> mentions(r, HexTheme.MILL) || hints(r, DeckHints.Type.ABILITY, "Mill")));
         all.add(new HexTheme("alchemy", "lblHexTheme_alchemy", null, HexTheme::alchemy, true));
         // poison: cards that give poison counters (infect, toxic, poisonous), add more (proliferate) or care about them (corrupted)
         all.add(mechanic("poison", r -> mentions(r, HexTheme.POISON) || hints(r, DeckHints.Type.KEYWORD, "Infect", "Toxic", "Poisonous")));
+        // energy: cards that give energy counters ({E}) or pay them
+        all.add(mechanic("energy", r -> mentionsAnyFace(r, HexTheme.ENERGY)));
         ALL = Collections.unmodifiableList(all);
     }
 
@@ -207,7 +214,18 @@ public final class HexTheme {
 
     private static final java.util.regex.Pattern POISON = java.util.regex.Pattern.compile(
             "\\b(?:poison counters?|infect|toxic|poisonous|proliferate|corrupted)\\b");
-    private static final java.util.regex.Pattern HASTE = java.util.regex.Pattern.compile("\\bhaste\\b");
+    private static final java.util.regex.Pattern LIFEGAIN = java.util.regex.Pattern.compile(
+            "\\bgains? (?:(?:\\d+|x|one|two|three|four|five|six|seven|eight|nine|ten|that much|twice that much|half that much"
+            + "|that many|an equal amount of|an amount of) life|life equal to)|\\blifelink\\b|\\bif you would gain life\\b"
+            + "|\\bextort\\b");
+    private static final java.util.regex.Pattern SACRIFICE = java.util.regex.Pattern.compile(
+            "\\bsacrifices? (?:a|an|another|one or more|one|two|three|four|five|x|any number of|half|all|that many|\\d+)\\b"
+            + "|\\b(?:exploit|casualty|bargain|emerge|devour)\\b");
+    private static final java.util.regex.Pattern PAY_LIFE = java.util.regex.Pattern.compile(
+            "\\bpays? (?:(?:\\d+|x|one|two|three|four|five|six|seven|eight|nine|ten|any amount of) life|life equal to"
+            + "|half (?:your|their|his or her) life)");
+    private static final java.util.regex.Pattern ENERGY = java.util.regex.Pattern.compile("\\{e\\}|\\benergy counters?\\b");
+    private static final java.util.regex.Pattern HASTE = java.util.regex.Pattern.compile("\\b(?:haste|dash|blitz)\\b");
     private static final java.util.regex.Pattern DEATHTOUCH = java.util.regex.Pattern.compile("\\bdeathtouch\\b");
     /** Damage dealt to any target, players, creatures, planeswalkers (not "deals combat damage", not "to you"). */
     private static final java.util.regex.Pattern BURN = java.util.regex.Pattern.compile(
@@ -216,8 +234,8 @@ public final class HexTheme {
             + "|that permanent's controller)\\b");
 
     private static final java.util.regex.Pattern DRAW = java.util.regex.Pattern.compile(
-            "\\bdraws? (?:a|an|one|two|three|four|five|six|seven|x|that many|a number of)(?: additional)? cards?\\b"
-            + "|\\bdraws? cards equal to\\b");
+            "(?<!opponent )\\bdraws? (?:a|an|one|two|three|four|five|six|seven|x|that many|a number of)(?: additional)? cards?\\b"
+            + "|(?<!opponent )\\bdraws? cards equal to\\b");
     private static final java.util.regex.Pattern MILL = java.util.regex.Pattern.compile("\\bmill(?:s|ed)?\\b");
     /** The mechanics only MTG Arena's cards have. */
     private static final java.util.regex.Pattern DIGITAL = java.util.regex.Pattern.compile(
@@ -249,10 +267,33 @@ public final class HexTheme {
         });
     }
 
+    private static final java.util.regex.Pattern REMINDER = java.util.regex.Pattern.compile("\\([^)]*\\)");
+
+    /**
+     * The rules text as the themes read it: lower case, the lines apart (the card scripts keep a literal "\\n" between
+     * them, which glued a line's first word to the line before), and without reminder text: "(... Draw a card.)" of
+     * cycling, Clues or Blood is not what the card does itself.
+     */
+    static String rulesText(final String oracle) {
+        if (oracle == null) {
+            return null;
+        }
+        return REMINDER.matcher(oracle.replace("\\n", "\n")).replaceAll("").toLowerCase(java.util.Locale.ROOT);
+    }
+
     /** Rules text (all faces, lower case) that matches. */
     private static boolean mentions(final CardRules r, final java.util.regex.Pattern pattern) {
-        final String oracle = r.getOracleText();
-        return oracle != null && pattern.matcher(oracle.toLowerCase(java.util.Locale.ROOT)).find();
+        final String text = rulesText(r.getOracleText());
+        return text != null && pattern.matcher(text).find();
+    }
+
+    /** As {@link #mentions}, also on the card's other face. */
+    private static boolean mentionsAnyFace(final CardRules r, final java.util.regex.Pattern pattern) {
+        if (mentions(r, pattern)) {
+            return true;
+        }
+        final String other = r.getOtherPart() == null ? null : rulesText(r.getOtherPart().getOracleText());
+        return other != null && pattern.matcher(other).find();
     }
 
     private static final java.util.regex.Pattern COPY = java.util.regex.Pattern.compile("\\bcop(y|ies|ied|ying)\\b");

@@ -1169,11 +1169,27 @@ final class HexTownDialog {
     private final List<Found> tileOrder = new ArrayList<>();
     private final List<JComponent> tileViews = new ArrayList<>();
 
+    /** The copies of the card the buyer has, in the deck and in the sideboard ("Deck ×2 · SB ×1"); null if none. */
+    private String ownedCopies(final HexPlayer buyer, final String card) {
+        final int inDeck = Collections.frequency(buyer.deck, card);
+        final int inSideboard = Collections.frequency(buyer.sideboard, card);
+        if (inDeck == 0 && inSideboard == 0) {
+            return null;
+        }
+        final StringBuilder owned = new StringBuilder();
+        if (inDeck > 0) {
+            owned.append(t("lblHexOwnedInDeck", String.valueOf(inDeck)));
+        }
+        if (inSideboard > 0) {
+            owned.append(owned.length() > 0 ? " · " : "").append(t("lblHexOwnedInSideboard", String.valueOf(inSideboard)));
+        }
+        return owned.toString();
+    }
+
     private void addTile(final HexPlayer buyer, final HexShopType type, final int section, final HexShopOffer o) {
         final int price = price(buyer, o);
-        final int inDeck = Collections.frequency(buyer.deck, o.card);
         final ShopTile tile = new ShopTile(content.getCard(o.card, o.theme), tileW, String.valueOf(price),
-                inDeck > 0 ? t("lblHexInDeck", String.valueOf(inDeck)) : null, buyer.gold < price, new TileListener() {
+                ownedCopies(buyer, o.card), buyer.gold < price, new TileListener() {
                     @Override
                     public void hovered() {
                         showPreview(type, section, o);
