@@ -217,7 +217,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnStats.setText(t("lblHexChronicle"));
         btnInvite.setText(t("lblHexInvite"));
         btnMenu.setText(t("lblHexCampaignMenu"));
-        side.add(lblTitle);
+        // "wmin 0" everywhere: MigLayout keeps a component at least as wide as its minimum (a label's: its whole text),
+        // even in a fixed column, and a long campaign name pushed the panel out of the window
+        side.add(lblTitle, "wmin 0");
         // a click on the campaign's name: rename it (the host) or export it, without more buttons in the sidebar
         lblTitle.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
@@ -227,8 +229,8 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
                 }
             }
         });
-        side.add(lblPlace, "gaptop 2");
-        side.add(lblConnection, "gaptop 6");
+        side.add(lblPlace, "gaptop 2, wmin 0");
+        side.add(lblConnection, "gaptop 6, wmin 0");
 
         // what there is to do right now, the most pressing first
         final JPanel actions = transparent(new MigLayout("insets 0, gap 0 8, wrap 1, fillx, hidemode 3", "[grow, fill]"));
@@ -243,7 +245,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         actions.add(btnShop, "h 44!");
         actions.add(btnDecks, "h 38!");
         actions.add(btnStats, "h 34!");
-        side.add(actions, "gaptop 12");
+        side.add(actions, "gaptop 12, wmin 0");
 
         // the party and the campaign so far, then the journal: scrolls when there is a lot of it
         final JPanel middle = transparent(new MigLayout("insets 0 0 0 4, gap 0, wrap 1, hidemode 3", "[" + MIDDLE_W + "!, fill]"));
@@ -253,7 +255,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         middle.add(btnAutoOk, "h 28!, gaptop 6");
         middle.add(hdBosses, "gaptop 12");
         middle.add(bossTrack, "gaptop 2");
-        middle.add(lblRecord, "gaptop 2");
+        middle.add(lblRecord, "gaptop 2, wmin 0");
         middle.add(hdTasks, "gaptop 12");
         middle.add(tasksBox, "gaptop 2");
         middle.add(hdCycle, "gaptop 12");
@@ -265,7 +267,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         final FScrollPane scroll = new FScrollPane(middle, false, javax.swing.ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
                 javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.getVerticalScrollBar().setUnitIncrement(24);
-        side.add(scroll, "gaptop 14, grow, push, h 120:120:n"); // whatever room the rest leaves
+        side.add(scroll, "gaptop 14, grow, push, h 120:120:n, wmin 0"); // whatever room the rest leaves
 
         // campaigns and friends
         final JPanel footer = transparent(new MigLayout("insets 0, gap 0 6, wrap 1, hidemode 3", "[grow, fill]"));
@@ -273,7 +275,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         footer.add(btnMenu, "h 32!");
         footer.add(btnInvite, "h 32!");
         footer.add(btnLeave, "h 32!");
-        side.add(footer, "gaptop 10");
+        side.add(footer, "gaptop 10, wmin 0");
         add(side, "grow");
 
         mapPanel.setOnTileClicked(this::onTileClicked);
@@ -779,6 +781,33 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         return panel;
     }
 
+    /**
+     * A label's text broken into lines no wider than the given width (measured in the label's font), instead of
+     * widening the label and with it the side panel. Swing's HTML "width" does not wrap the decorative fonts.
+     */
+    static String wrapToWidth(final JLabel label, final String text, final int width) {
+        final java.awt.FontMetrics fm = label.getFontMetrics(label.getFont());
+        if (fm.stringWidth(text) <= width) {
+            return text;
+        }
+        final StringBuilder html = new StringBuilder("<html>");
+        StringBuilder line = new StringBuilder();
+        for (final String word : text.split(" ")) {
+            final String next = line.length() == 0 ? word : line + " " + word;
+            if (line.length() > 0 && fm.stringWidth(next.trim()) > width) {
+                html.append(escape(line.toString().trim())).append("<br>");
+                line = new StringBuilder(word);
+            } else {
+                line = new StringBuilder(next);
+            }
+        }
+        return html.append(escape(line.toString().trim())).append("</html>").toString();
+    }
+
+    private static String escape(final String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
     private static void setText(final JPanel box, final String text, final java.awt.Font font, final java.awt.Color color, final int width) {
         final boolean has = text != null && !text.trim().isEmpty();
         final String key = has ? text + '|' + color.getRGB() + '|' + width : "";
@@ -901,8 +930,9 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnEvent.setVisible(mine != null && mine.eventOffer != null);
         btnShop.setVisible(campaign.inTown());
 
-        lblTitle.setText(campaign.cycle > 1 ? campaign.name + "  –  " + t("lblHexCycle", String.valueOf(campaign.cycle - 1)) : campaign.name);
-        lblTitle.setToolTipText(lblTitle.getText() + " – " + t("lblHexTitleHint"));
+        final String title = campaign.cycle > 1 ? campaign.name + "  –  " + t("lblHexCycle", String.valueOf(campaign.cycle - 1)) : campaign.name;
+        lblTitle.setText(wrapToWidth(lblTitle, title, SIDE_W - 32)); // a long name (with its New Game+) takes two lines
+        lblTitle.setToolTipText(title + " – " + t("lblHexTitleHint"));
         lblTitle.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
         final HexTile here = campaign.tile();
         String place = t(here.color.getLabelKey());
@@ -1029,7 +1059,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         if (campaign.teamPermanents) {
             record += "  ·  " + t("lblHexTeamPermanentsInfo");
         }
-        lblRecord.setText(record);
+        lblRecord.setText(wrapToWidth(lblRecord, record, MIDDLE_W));
         for (final JComponent c : new JComponent[] { hdBosses, bossTrack, lblRecord }) {
             c.setVisible(true);
         }
