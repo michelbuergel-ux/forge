@@ -94,6 +94,23 @@ public final class HexTheme {
         return labelArg == null ? Localizer.getInstance().getMessage(labelKey) : Localizer.getInstance().getMessage(labelKey, labelArg);
     }
 
+    /**
+     * One line on what the theme collects, for the tooltips of the shop's tabs and the theme picker: the theme's own
+     * (lblHexThemeTip_id), else one for its group (tribes, worlds); null if neither.
+     */
+    public String getDescription() {
+        final Localizer loc = Localizer.getInstance();
+        final String own = loc.getMessageorUseDefault("lblHexThemeTip_" + id, null);
+        if (own != null) {
+            return own;
+        }
+        switch (group()) {
+            case TRIBES: return loc.getMessage("lblHexThemeTipTribe", getLabel());
+            case WORLDS: return loc.getMessage("lblHexThemeTipWorld", getLabel());
+            default: return null;
+        }
+    }
+
     /** The theme's name, as the shops and the town's banner show it (the same as its label). */
     public String getName() {
         return getLabel();
@@ -120,8 +137,10 @@ public final class HexTheme {
     static {
         final List<HexTheme> all = new ArrayList<>();
         all.add(mechanic("tokens", r -> hints(r, DeckHints.Type.ABILITY, "Token")));
-        // counters of every kind, also the experience counters a player gets (few cards, and proliferate adds them too)
-        all.add(mechanic("counters", r -> hints(r, DeckHints.Type.ABILITY, "Counters", "Proliferate") || caresAboutExperience(r)));
+        // counters of every kind: putting, moving, removing or counting them, doubling them (Doubling Season, Hardened
+        // Scales), keeping them (The Ozolith), proliferate, and the experience counters a player gets; not countering spells
+        all.add(mechanic("counters", r -> hints(r, DeckHints.Type.ABILITY, "Counters", "Proliferate") || caresAboutExperience(r)
+                || mentionsAnyFace(r, HexTheme.COUNTERS)));
         // the graveyard: the cards hinted so (delirium, surveil, ...) and those that bring cards back (reanimating creatures,
         // returning cards to the hand, casting from the graveyard)
         all.add(mechanic("graveyard", r -> hints(r, DeckHints.Type.ABILITY, "Graveyard", "Mill", "Delirium", "Surveil")
@@ -155,16 +174,14 @@ public final class HexTheme {
         for (final String tribe : new String[] { "Elf", "Goblin", "Zombie", "Vampire", "Dragon", "Human", "Spirit",
                 "Knight", "Soldier", "Wizard", "Merfolk", "Angel", "Beast", "Dinosaur", "Cat", "Elemental", "Faerie",
                 "Pirate", "Warrior", "Cleric", "Rogue", "Sliver" }) {
-            all.add(new HexTheme("tribe." + tribe, "lblHexTribe_" + tribe, null, r -> hasCreatureType(r.getType(), tribe)
-                    || hints(r, DeckHints.Type.TYPE, tribe)));
+            all.add(tribe(tribe));
         }
         // expensive cards: what costs 500 gold or more (the price list's treasures); last, so the indices above stay
         all.add(new HexTheme("valuable", "lblHexTheme_valuable", null,
                 r -> HexContent.get().price(r.getName()) >= VALUABLE_PRICE, true));
         // added later, so after the others: the indices above stay
         for (final String tribe : new String[] { "Dwarf", "Giant" }) {
-            all.add(new HexTheme("tribe." + tribe, "lblHexTribe_" + tribe, null, r -> hasCreatureType(r.getType(), tribe)
-                    || hints(r, DeckHints.Type.TYPE, tribe)));
+            all.add(tribe(tribe));
         }
         // colourless cards only (artifacts, Eldrazi, ...), no lands
         all.add(new HexTheme("colorless", "lblHexTheme_colorless", null,
@@ -326,12 +343,29 @@ public final class HexTheme {
         return other != null && pattern.matcher(other).find();
     }
 
-    private static final java.util.regex.Pattern COPY = java.util.regex.Pattern.compile("\\bcop(y|ies|ied|ying)\\b");
+    /** Copying, and the keywords that copy (their reminder text says so, which the themes don't read). */
+    private static final java.util.regex.Pattern COPY = java.util.regex.Pattern.compile("\\bcop(y|ies|ied|ying)\\b"
+            + "|\\b(?:conspire|replicate|storm|gravestorm|casualty|myriad|encore|embalm|eternalize|squad|offspring|mobilize)\\b");
+    /** Counters as things (a +1/+1 counter, counters on it), not countering ("counter target spell", "can't be countered"). */
+    private static final java.util.regex.Pattern COUNTERS = java.util.regex.Pattern.compile(
+            "\\bcounters?\\b(?! (?:target|that spell|that ability|it unless|it\\.|all|the next|up to|each|any|this spell|those spells"
+            + "|spells?|abilit(?:y|ies)|unless|a spell|an ability|one target|two target|x target)\\b)|\\bproliferate\\b");
 
     /** Rules text that copies something: a permanent (as a clone or a token), a spell or an ability. */
     private static boolean copies(final CardRules r) {
-        final String oracle = r.getOracleText();
-        return oracle != null && COPY.matcher(oracle.toLowerCase(java.util.Locale.ROOT)).find();
+        return mentionsAnyFace(r, COPY);
+    }
+
+    /**
+     * A tribe: its creatures, and the cards the AI's hints tie to it that name it in their text (Elvish Archdruid's
+     * "Elf you control"); not the cards hinted at many types at once (party cards, Moat, Protean War Engine).
+     */
+    private static HexTheme tribe(final String tribe) {
+        final String word = tribe.toLowerCase(java.util.Locale.ROOT);
+        final String plural = "Elf".equals(tribe) ? "elves" : "Dwarf".equals(tribe) ? "dwarves" : word + "s";
+        final java.util.regex.Pattern named = java.util.regex.Pattern.compile("\\b(?:" + word + "|" + plural + ")\\b");
+        return new HexTheme("tribe." + tribe, "lblHexTribe_" + tribe, null, r -> hasCreatureType(r.getType(), tribe)
+                || hints(r, DeckHints.Type.TYPE, tribe) && mentionsAnyFace(r, named));
     }
 
     /** Rules text about Equipment or equipped creatures. */
@@ -360,7 +394,29 @@ public final class HexTheme {
     }
 
     /** Does the card do (DeckHas) or want (DeckHints, DeckNeeds) any of these things? */
+    /** While set (on this thread), the AI's hints count for nothing: see {@link #onlyByHints}. */
+    private static final ThreadLocal<Boolean> IGNORE_HINTS = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
+    /**
+     * Does the card fit only through the AI's deck hints (DeckHas, DeckHints, DeckNeeds), not by its type or rules
+     * text? Those are the weak matches worth a look in an audit (see HexThemeReport).
+     */
+    public boolean onlyByHints(final CardRules rules) {
+        if (!fits(rules)) {
+            return false;
+        }
+        IGNORE_HINTS.set(Boolean.TRUE);
+        try {
+            return !fits(rules);
+        } finally {
+            IGNORE_HINTS.set(Boolean.FALSE);
+        }
+    }
+
     private static boolean hints(final CardRules r, final DeckHints.Type type, final String... values) {
+        if (IGNORE_HINTS.get()) {
+            return false;
+        }
         for (final DeckHints h : new DeckHints[] { r.getAiHints().getDeckHas(), r.getAiHints().getDeckHints(), r.getAiHints().getDeckNeeds() }) {
             if (h == null || !h.isValid()) {
                 continue;

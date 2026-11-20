@@ -20,6 +20,13 @@ public class Localizer {
     private ResourceBundle resourceBundle;
     private ResourceBundle englishBundle;
     private ResourceBundle adventureBundle;
+    /**
+     * The texts of game modes kept apart from the main files: each subfolder of the languages folder holds a mode's own
+     * "en-US.properties", "de-DE.properties" ... (its keys must not clash with the main files'). Looked up after the main
+     * file; the English one stands in for a missing translation as the main English file does.
+     */
+    private final List<ResourceBundle> modeBundles = new ArrayList<>();
+    private final List<ResourceBundle> modeEnglishBundles = new ArrayList<>();
     private String currentLanguageRegionID;
     private boolean silent = false;
     private boolean english = false;
@@ -103,9 +110,12 @@ public class Localizer {
                 return "INVALID PROPERTY: '" + key + "' -- Translation missing from English?";
             }
             try {
-                formatter = new MessageFormat(englishBundle.getString(key), Locale.ENGLISH);
+                rawValue = englishString(key);
+                if (rawValue == null) {
+                    throw new MissingResourceException("Can't find resource for key " + key, "en-US", key);
+                }
+                formatter = new MessageFormat(rawValue, Locale.ENGLISH);
                 forcedEnglish = true;
-                rawValue = englishBundle.getString(key);
             } catch (final IllegalArgumentException | MissingResourceException e) {
                 if (!silent) {
                     e.printStackTrace();
@@ -174,6 +184,7 @@ public class Localizer {
             }
 
             adventureBundle = null;
+            loadModeBundles(file, splitLocale);
 
             System.out.println("Language '" + resourceBundle.getBaseBundleName() + "' loaded successfully.");
 
@@ -195,13 +206,72 @@ public class Localizer {
         }
     }
 
+    private void loadModeBundles(final File languagesDirectory, final String[] splitLocale) {
+        modeBundles.clear();
+        modeEnglishBundles.clear();
+        final File[] modes = languagesDirectory.listFiles(File::isDirectory);
+        if (modes == null) {
+            return;
+        }
+        Arrays.sort(modes);
+        for (final File mode : modes) {
+            try {
+                final ClassLoader loader = new URLClassLoader(new URL[] { mode.toURI().toURL() });
+                ResourceBundle english = null;
+                try {
+                    english = ResourceBundle.getBundle("en-US", new Locale("en", "US"), loader);
+                    modeEnglishBundles.add(english);
+                } catch (final MissingResourceException ignored) {
+                    // a mode without English texts: only its translations
+                }
+                try {
+                    modeBundles.add(ResourceBundle.getBundle(currentLanguageRegionID, new Locale(splitLocale[0], splitLocale[1]), loader));
+                } catch (final MissingResourceException e) {
+                    if (english != null) {
+                        modeBundles.add(english);
+                    }
+                }
+            } catch (final MalformedURLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private static String modeString(final List<ResourceBundle> bundles, final String key) {
+        if (bundles == null) { // a mocked instance (tests) skips the constructor
+            return null;
+        }
+        for (final ResourceBundle bundle : bundles) {
+            if (bundle.containsKey(key)) {
+                return bundle.getString(key);
+            }
+        }
+        return null;
+    }
+
     private String lookup(final String key, final boolean forceEnglish) {
         if (!forceEnglish && adventureBundle != null) {
             try {
                 return adventureBundle.getString(key);
             } catch (final MissingResourceException ignored) {}
         }
-        return (forceEnglish ? englishBundle : resourceBundle).getString(key);
+        final ResourceBundle main = forceEnglish ? englishBundle : resourceBundle;
+        if (main.containsKey(key)) {
+            return main.getString(key);
+        }
+        final String mode = modeString(forceEnglish ? modeEnglishBundles : modeBundles, key);
+        if (mode != null) {
+            return mode;
+        }
+        return main.getString(key); // throws: missing
+    }
+
+    /** The English text of a key, from the main English file or a mode's; null if none has it. */
+    private String englishString(final String key) {
+        if (englishBundle.containsKey(key)) {
+            return englishBundle.getString(key);
+        }
+        return modeString(modeEnglishBundles, key);
     }
 
     public void registerObserver(LocalizationChangeObserver observer) {

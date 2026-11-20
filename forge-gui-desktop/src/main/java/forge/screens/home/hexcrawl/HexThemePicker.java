@@ -131,6 +131,7 @@ final class HexThemePicker {
             for (final HexTheme theme : group.getValue()) {
                 shown.add(theme);
                 final Row row = new Row(theme.getLabel(), String.valueOf(count.applyAsInt(theme)), theme.id.equals(current));
+                row.setToolTipText(HexTownDialog.themeTip(theme, null));
                 row.addActionListener(e -> pick(theme));
                 list.add(row, "h 32!, wmin 0");
             }

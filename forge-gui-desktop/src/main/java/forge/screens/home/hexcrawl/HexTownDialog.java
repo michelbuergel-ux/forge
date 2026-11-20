@@ -466,9 +466,27 @@ final class HexTownDialog {
             addNav(side, TAB_TRADE, t("lblHexTabTrade"), GOLD);
         }
         addNav(side, TAB_PRACTICE, t("lblHexPractice"), GOLD);
-        // the keys: one line, the whole list when the mouse rests on it
-        final JLabel keys = label(t("lblHexTownKeysTitle"), body(Font.PLAIN, 12f), HexTownStyle.FAINT);
-        keys.setToolTipText("<html>" + t("lblHexTownKeys").replace(" · ", "<br>") + "</html>");
+        // the keys: one line like a link; a click (or F1) shows the whole list
+        final JLabel keys = label(t("lblHexTownKeysTitle") + "  [F1]", body(Font.PLAIN, 12f), HexTownStyle.FAINT);
+        keys.setToolTipText(t("lblHexTownKeysClick"));
+        keys.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+        keys.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseEntered(final java.awt.event.MouseEvent e) {
+                keys.setForeground(GOLD_LIGHT);
+            }
+
+            @Override
+            public void mouseExited(final java.awt.event.MouseEvent e) {
+                keys.setForeground(HexTownStyle.FAINT);
+            }
+
+            @Override
+            public void mousePressed(final java.awt.event.MouseEvent e) {
+                showKeys(keys);
+            }
+        });
+        keysAnchor = keys;
         side.add(keys, "gaptop 14, gapleft 12");
         return side;
     }
@@ -699,6 +717,21 @@ final class HexTownDialog {
         fill();
     }
 
+    /** A theme tab's tooltip: what the theme collects (bold) above the tab's own hint. */
+    static String themeTip(final HexTheme theme, final String hint) {
+        final String about = theme == null ? null : theme.getDescription();
+        if (about == null) {
+            return hint;
+        }
+        final String head = "<b>" + escape(theme.getLabel()) + "</b><br>" + escape(about);
+        return "<html><div style='width:320px'>" + head + (hint == null || hint.equals(theme.getLabel()) ? "" : "<br><i>" + escape(hint) + "</i>")
+                + "</div></html>";
+    }
+
+    private static String escape(final String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
     /** The theme of a tab: 0 the town's, 1 the random one, 2 and 3 the ones the head picked; null if none. */
     private String themeId(final int tabIndex) {
         final HexCampaign c = campaign();
@@ -828,7 +861,7 @@ final class HexTownDialog {
             } else {
                 tip = theme == null ? null : theme.getLabel();
             }
-            themePills[i].setToolTipText(tip);
+            themePills[i].setToolTipText(themeTip(theme, tip));
         }
         btnRestock.setEnabled(!session.isFightRunning());
         fillImport(p);
@@ -1208,11 +1241,32 @@ final class HexTownDialog {
     // ------------------------------------------------------------------ keys
 
     /** The keys of the town window; none while a text field has the focus or a menu is open (only Esc, Ctrl+F there). */
+    /** The list of the town's keys, opened from the line at the foot of the side bar (or F1). */
+    private HexKeysPopup keysPopup;
+    private JComponent keysAnchor;
+
+    private void showKeys(final JComponent anchor) {
+        if (keysPopup != null && keysPopup.isOpen()) {
+            keysPopup.close();
+            return;
+        }
+        keysPopup = new HexKeysPopup(() -> palette, t("lblHexTownKeysTitle"), t("lblHexTownKeyTable"));
+        keysPopup.show(anchor);
+    }
+
     private boolean onKey(final java.awt.event.KeyEvent e) {
         final int code = e.getKeyCode();
         final boolean ctrl = e.isControlDown() || e.isMetaDown();
         if (javax.swing.MenuSelectionManager.defaultManager().getSelectedPath().length > 0) {
             return false; // a menu is open: its own keys
+        }
+        if (keysPopup != null && keysPopup.isOpen()) { // any key closes the list of keys
+            keysPopup.close();
+            return code == java.awt.event.KeyEvent.VK_ESCAPE || code == java.awt.event.KeyEvent.VK_F1;
+        }
+        if (code == java.awt.event.KeyEvent.VK_F1 && keysAnchor != null) {
+            showKeys(keysAnchor);
+            return true;
         }
         if (ctrl && code == java.awt.event.KeyEvent.VK_F) {
             search.requestFocusInWindow();
