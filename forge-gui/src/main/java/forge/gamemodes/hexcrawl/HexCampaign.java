@@ -97,6 +97,15 @@ public class HexCampaign {
     public static final int RAINBOW_TOWN_MAX_WINS = 30;
     /** Cards the party lost in a cycle after which the Vault of the Lost opens. */
     public static final int VAULT_LOST_CARDS = 15;
+    /**
+     * The Tower of the Archivist: the price to open it is this many gold times the gold setting (200,000 on Normal), for
+     * the players who already have most of what they want; each Archivist's seal takes a share off, up to a limit.
+     */
+    public static final int TOWER_PRICE = 40000;
+    public static final int TOWER_SEAL_PERCENT = 5;
+    public static final int TOWER_MAX_SEALS = 10;
+    /** In the tower a card costs this many times the wandering archivist's price. */
+    public static final int TOWER_CARD_FACTOR = 2;
     /** The Collector starts with these in play; the second only from New Game Plus on. */
     public static final String COLLECTOR_ENGINE = "Maelstrom Nexus";
     public static final String COLLECTOR_ENGINE_HARD = "Mind's Dilation";
@@ -214,6 +223,10 @@ public class HexCampaign {
     public boolean arzakonAwake;
     /** Arzakon was beaten in this cycle: the campaign's true ending. */
     public boolean arzakonBeaten;
+    /** Cards the party bought from the wandering archivist, ever: each one a seal that lowers the tower's price. */
+    public int archivistSeals;
+    /** The Tower of the Archivist is open, for good: on this map and on the map of every following cycle. */
+    public boolean towerUnlocked;
     /** The party lost to Arzakon in this cycle: he withdrew and does not return before the next one. */
     public boolean arzakonWithdrew;
     /** The last town the party freed (thanked once on every screen), and a counter for it. */
@@ -1069,6 +1082,9 @@ public class HexCampaign {
         }
         // a party that grew meanwhile gets a bigger map; a map never shrinks
         newMap(seed * 31L + cycle * 7919L, Math.max(map.radius, HexMap.radiusFor(players.size())));
+        if (towerUnlocked) {
+            placeTower(); // bought for good: it stands on every map from now on
+        }
         tile().explored = true;
         scout();
         final List<String> added = new ArrayList<>();
@@ -1498,6 +1514,10 @@ public class HexCampaign {
             }
             return enterLabyrinth(); // into its labyrinth, at the entrance
         }
+        if (target.poi == HexPoi.TOWER) {
+            log(msg("lblHexJournalTowerReached"));
+            return MoveResult.NOTHING;
+        }
         final HexContent content = HexContent.get();
         final HexQuest quest = questAt(q, r);
         if (target.event != null && quest == null && target.poi == HexPoi.NONE && target.enemy == null) {
@@ -1525,6 +1545,110 @@ public class HexCampaign {
         }
         log(msg(pendingEncounter.boss ? "lblHexJournalBoss" : "lblHexJournalEncounter", pendingEncounter.enemyName));
         return MoveResult.ENCOUNTER;
+    }
+
+    // ------------------------------------------------------------------ the Tower of the Archivist
+
+    /** The seals that count for the tower's price (no more than TOWER_MAX_SEALS). */
+    public int towerSeals() {
+        return Math.min(Math.max(0, archivistSeals), TOWER_MAX_SEALS);
+    }
+
+    /** What it costs to open the tower: TOWER_PRICE times the gold setting, less TOWER_SEAL_PERCENT for each seal. */
+    public int towerPrice() {
+        final long full = (long) TOWER_PRICE * Math.max(1, goldMultiplier);
+        return (int) (full * (100 - TOWER_SEAL_PERCENT * towerSeals()) / 100);
+    }
+
+    /** May a head open the tower now: in a town (not besieged), the tower still closed, and it can pay? */
+    public boolean mayUnlockTower(final String playerName) {
+        final HexPlayer p = player(playerName);
+        return p != null && !towerUnlocked && inTown() && tile().siege == null && p.gold >= towerPrice();
+    }
+
+    /** A head pays to open the tower for the whole party, for good; it rises on this map at once. */
+    public boolean unlockTower(final String playerName) {
+        if (!mayUnlockTower(playerName)) {
+            return false;
+        }
+        final HexPlayer p = player(playerName);
+        final int price = towerPrice();
+        spend(p, price);
+        towerUnlocked = true;
+        final HexTile t = placeTower();
+        log(msg("lblHexJournalTowerUnlocked", p.name, String.valueOf(price)));
+        if (t != null) {
+            t.explored = true; // the party learns where it stands
+        }
+        return true;
+    }
+
+    /** The tower's field on this map, or null. */
+    public HexTile towerTile() {
+        for (final HexTile t : map.tiles.values()) {
+            if (t.poi == HexPoi.TOWER) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+    /** Does the party stand at the tower, free to shop there? */
+    public boolean atTower() {
+        return towerUnlocked && tile().poi == HexPoi.TOWER && !isBusy() && !inLabyrinth();
+    }
+
+    /**
+     * Raises the tower on a free field away from the party and from the other places (so that going there is a
+     * journey); one per map. Returns its field, or null if the map has none free.
+     */
+    HexTile placeTower() {
+        final HexTile standing = towerTile();
+        if (standing != null) {
+            return standing;
+        }
+        final Random rnd = new Random(seed * 151L + cycle * 7919L + 97L);
+        for (int pass = 0; pass < 2; pass++) {
+            final List<HexTile> fields = new ArrayList<>();
+            for (final HexTile t : map.tiles.values()) {
+                if (t.poi == HexPoi.NONE && t != tile() && HexMap.distance(t.q, t.r, partyQ, partyR) >= (pass == 0 ? 4 : 2)
+                        && questAt(t.q, t.r) == null && farFromPlaces(t, pass == 0)) {
+                    fields.add(t);
+                }
+            }
+            if (fields.isEmpty()) {
+                continue;
+            }
+            fields.sort((a, b) -> a.key().compareTo(b.key())); // a stable order, so seeds are reproducible
+            final HexTile t = fields.get(rnd.nextInt(fields.size()));
+            t.poi = HexPoi.TOWER;
+            t.name = msg("lblHexTower");
+            t.enemy = null;
+            t.event = null;
+            return t;
+        }
+        return null;
+    }
+
+    /** What a card costs in the tower: TOWER_CARD_FACTOR times the wandering archivist's price. */
+    public static int towerCardPrice(final String cardName) {
+        return HexContent.get().archivistPrice(cardName) * TOWER_CARD_FACTOR;
+    }
+
+    /** A head buys any card in the tower: into the deck played, or the sideboard (always while the decks are locked). */
+    public boolean buyAtTower(final String playerName, final String card, final boolean toSideboard) {
+        final HexPlayer p = player(playerName);
+        if (p == null || !atTower() || !HexContent.get().archivistSells(card)) {
+            return false;
+        }
+        final int price = towerCardPrice(card);
+        if (price > p.gold) {
+            return false;
+        }
+        spend(p, price);
+        (toSideboard || deckLocked() ? p.sideboard : p.deck).add(card);
+        log(msg("lblHexJournalTowerBuy", p.name, card, String.valueOf(price)));
+        return true;
     }
 
     /** Gold a head gets (rewards, bounties, finds, sales): counted in its statistics. Gifts of other heads are not. */
@@ -2307,6 +2431,10 @@ public class HexCampaign {
             spend(p, price);
             (fromSideboard || deckLocked() ? p.sideboard : p.deck).add(card);
             log(msg("lblHexJournalArchivist", p.name, card, String.valueOf(price)));
+            archivistSeals++;
+            if (!towerUnlocked) {
+                log(msg("lblHexJournalArchivistSeal", String.valueOf(archivistSeals), String.valueOf(towerPrice())));
+            }
             clearEventOffer(p);
             return true;
         }

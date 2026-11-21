@@ -35,6 +35,8 @@ public final class HexActionEvent implements ModeChannel.Message {
     public static final String DECK_SEEN = "DECK_SEEN";
     /** A head pays for a whole new stock of the town. */
     public static final String RESTOCK = "RESTOCK";
+    /** The Tower of the Archivist: q 0 = a head opens it (in town), q 1 = a head buys the card text (flag: into the sideboard). */
+    public static final String TOWER = "TOWER";
     /** After the victory: the host starts the next New Game Plus cycle. */
     public static final String NEW_GAME_PLUS = "NEW_GAME_PLUS";
     /** A head's answer to a shrine or caravan: q 1 = leave it; else text = the card given, flag = from the sideboard. */

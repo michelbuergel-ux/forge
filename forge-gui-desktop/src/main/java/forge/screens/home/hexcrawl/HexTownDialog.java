@@ -98,6 +98,7 @@ final class HexTownDialog {
     private static final String TAB_SELL = "SELL";
     private static final String TAB_TRADE = "TRADE";
     private static final String TAB_PRACTICE = "PRACTICE";
+    private static final String TAB_TOWER = "TOWER";
     private static final String PAGE_CARDS = "cards";
     private static final int SIDEBAR_W = 228;
     private static final int PREVIEW_W = 290;
@@ -358,6 +359,7 @@ final class HexTownDialog {
         body.add(buildSellPage(), TAB_SELL);
         body.add(buildTradePage(), TAB_TRADE);
         body.add(buildPracticePage(), TAB_PRACTICE);
+        body.add(buildTowerPage(), TAB_TOWER);
         main.add(body, "wmin 0, hmin 0");
         lblMessage.setFont(body(Font.PLAIN, 13f));
         final JPanel messageRow = transparent(new MigLayout("insets 0, gap 12, fillx, hidemode 3", "[grow, fill][]", "[26!]"));
@@ -466,6 +468,7 @@ final class HexTownDialog {
             addNav(side, TAB_TRADE, t("lblHexTabTrade"), GOLD);
         }
         addNav(side, TAB_PRACTICE, t("lblHexPractice"), GOLD);
+        addNav(side, TAB_TOWER, t("lblHexTower"), GOLD);
         // the keys: one line like a link; a click (or F1) shows the whole list
         final JLabel keys = label(t("lblHexTownKeysTitle") + "  [F1]", body(Font.PLAIN, 12f), HexTownStyle.FAINT);
         keys.setToolTipText(t("lblHexTownKeysClick"));
@@ -542,7 +545,7 @@ final class HexTownDialog {
 
     private boolean isCardShop() {
         return !TAB_QUESTS.equals(tab) && !TAB_SELL.equals(tab) && !TAB_TRADE.equals(tab) && !TAB_PRACTICE.equals(tab)
-                && !HexShopType.RELIC.name().equals(tab);
+                && !TAB_TOWER.equals(tab) && !HexShopType.RELIC.name().equals(tab);
     }
 
     /** The offers of one shop of this town in one section (theme tab). Read only, so it is safe on a guest's copy too. */
@@ -566,7 +569,7 @@ final class HexTownDialog {
     }
 
     private String navCount(final HexCampaign c, final String key) {
-        if (TAB_SELL.equals(key) || TAB_TRADE.equals(key) || TAB_PRACTICE.equals(key)) {
+        if (TAB_SELL.equals(key) || TAB_TRADE.equals(key) || TAB_PRACTICE.equals(key) || TAB_TOWER.equals(key)) {
             return "";
         }
         if (TAB_QUESTS.equals(key)) {
@@ -916,6 +919,8 @@ final class HexTownDialog {
                 fillTrade(p);
             } else if (TAB_PRACTICE.equals(tab)) {
                 fillPractice(p);
+            } else if (TAB_TOWER.equals(tab)) {
+                fillTower(c, p);
             } else {
                 fillDeck(p);
             }
@@ -1713,6 +1718,63 @@ final class HexTownDialog {
         for (final GoldButton b : practiceButtons) {
             b.setEnabled(may);
         }
+    }
+
+    // ------------------------------------------------------------------ the Tower of the Archivist
+
+    private final JLabel lblTowerPrice = label(" ", display(17f), GOLD_LIGHT);
+    private final JPanel towerStatus = transparent(new MigLayout("insets 0, gap 0, wrap 1", "[grow, fill]"));
+    private GoldButton btnTowerUnlock;
+
+    /** The tower: what it is, its price (less the archivist's seals), and the purchase that opens it for good. */
+    private JPanel buildTowerPage() {
+        final JPanel page = transparent(new MigLayout("insets 0, gap 0, wrap 1, fillx", "[grow, fill]", "[]10[]18[]"));
+        page.add(title(t("lblHexTower")));
+        page.add(wrapped(t("lblHexTowerIntro", String.valueOf(HexCampaign.TOWER_CARD_FACTOR)), body(Font.PLAIN, 15f), TEXT_BRIGHT, pageW - 20));
+        final GildedPanel panel = new GildedPanel(palette, new MigLayout("insets 20 20 22 20, gap 0, wrap 1, fillx", "[grow, fill]", "[]8[]16[]"));
+        panel.add(lblTowerPrice);
+        panel.add(towerStatus);
+        btnTowerUnlock = new GoldButton(t("lblHexTowerUnlock"), GoldButton.Kind.GOLD, 13f);
+        btnTowerUnlock.addActionListener(e -> unlockTower());
+        panel.add(btnTowerUnlock, "h 44!, w 320!");
+        page.add(panel, "w " + (questW * 2 + GAP) + "!");
+        return page;
+    }
+
+    private void fillTower(final HexCampaign c, final HexPlayer p) {
+        towerStatus.removeAll();
+        final int width = questW * 2 + GAP - 44;
+        if (c.towerUnlocked) {
+            lblTowerPrice.setText(t("lblHexTowerOpen"));
+            towerStatus.add(wrapped(t("lblHexTowerOpenText"), body(Font.PLAIN, 14f), MUTED, width));
+            btnTowerUnlock.setVisible(false);
+        } else {
+            final int price = c.towerPrice();
+            lblTowerPrice.setText(t("lblHexTowerPrice", String.format("%,d", price)));
+            towerStatus.add(wrapped(t("lblHexTowerSeals", String.valueOf(c.towerSeals()), String.valueOf(HexCampaign.TOWER_MAX_SEALS),
+                    String.valueOf(HexCampaign.TOWER_SEAL_PERCENT), String.valueOf(HexCampaign.TOWER_SEAL_PERCENT * c.towerSeals())),
+                    body(Font.PLAIN, 14f), MUTED, width));
+            towerStatus.add(wrapped(t("lblHexTowerYourGold", p.name, String.format("%,d", p.gold)), body(Font.PLAIN, 14f),
+                    p.gold >= price ? TEXT_BRIGHT : HexTownStyle.BAD, width), "gaptop 6");
+            btnTowerUnlock.setVisible(true);
+            btnTowerUnlock.setEnabled(!session.isFightRunning() && c.mayUnlockTower(p.name));
+        }
+        towerStatus.revalidate();
+    }
+
+    private void unlockTower() {
+        final HexCampaign c = campaign();
+        final HexPlayer p = head();
+        if (c == null || p == null || c.towerUnlocked) {
+            return;
+        }
+        if (!c.mayUnlockTower(p.name)) {
+            setMessage(t("lblHexNotEnoughGold"), true);
+        } else if (FOptionPane.showConfirmDialog(t("lblHexTowerConfirm", p.name, String.format("%,d", c.towerPrice())), t("lblHexTower"))) {
+            setMessage(t("lblHexTowerUnlockedMessage"), false);
+            session.unlockTower(p.name);
+        }
+        fill();
     }
 
     private JPanel buildQuestPage() {

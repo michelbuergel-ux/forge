@@ -439,6 +439,9 @@ public class HexMapPanel extends JPanel {
         final forge.gamemodes.hexcrawl.HexBiomeRule rule = forge.gamemodes.hexcrawl.HexBiomeRule.forField(campaign, t);
         if (t.poi == HexPoi.TOWN) {
             sb.append(" – ").append(loc.getMessage("lblHexTown")).append(' ').append(t.name);
+        } else if (t.poi == HexPoi.TOWER) {
+            sb.append(" – ").append(loc.getMessage("lblHexTower")).append('\n').append(loc.getMessage("lblHexTowerHint",
+                    String.valueOf(forge.gamemodes.hexcrawl.HexCampaign.TOWER_CARD_FACTOR)));
         } else if (t.poi == HexPoi.BOSS) {
             sb.append(" – ").append(t.name);
             if (campaign.arzakonWaits(t)) {
@@ -561,6 +564,8 @@ public class HexMapPanel extends JPanel {
                 if (t.freed) {
                     drawDiscount(g, cx + s, cy - s, size);
                 }
+            } else if (t.poi == HexPoi.TOWER) {
+                HexPixelIcons.draw(g, HexPixelIcons.tower(), cx, cy, s * PIXEL, 9, 12);
             } else if (t.poi == HexPoi.DUNGEON) {
                 final forge.gamemodes.hexcrawl.HexDungeon d = t.dungeon;
                 if (d != null && d.vault && !d.cleared) {

@@ -270,6 +270,16 @@ public class HexSession {
         act(new HexActionEvent(HexActionEvent.NEW_GAME_PLUS, 0, 0, null, false, null));
     }
 
+    /** A head pays to open the Tower of the Archivist for the party. */
+    public void unlockTower(final String head) {
+        act(new HexActionEvent(HexActionEvent.TOWER, 0, 0, null, false, head));
+    }
+
+    /** A head buys a card in the Tower of the Archivist (into the sideboard if asked). */
+    public void buyAtTower(final String head, final String card, final boolean toSideboard) {
+        act(new HexActionEvent(HexActionEvent.TOWER, 1, 0, card, toSideboard, head));
+    }
+
     /** A head pays for a whole new stock of the town (every theme tab and the relics). */
     public void restock(final String head) {
         act(new HexActionEvent(HexActionEvent.RESTOCK, 0, 0, null, false, head));
@@ -471,6 +481,14 @@ public class HexSession {
                 }
             } else if (HexActionEvent.RESTOCK.equals(type)) {
                 campaign.restock(head);
+            } else if (HexActionEvent.TOWER.equals(type)) {
+                if (!fightRunning) {
+                    if (action.getQ() == 0) {
+                        campaign.unlockTower(head);
+                    } else {
+                        campaign.buyAtTower(head, action.getText(), action.getFlag());
+                    }
+                }
             } else if (HexActionEvent.NEW_GAME_PLUS.equals(type)) {
                 if (actor.equals(hostHead) && !fightRunning) {
                     campaign.startNewGamePlus();

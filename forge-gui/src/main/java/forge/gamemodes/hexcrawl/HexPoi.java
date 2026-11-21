@@ -8,5 +8,7 @@ public enum HexPoi {
     /** The lair of the archmage of this field's colour (or of the final boss in the centre). */
     BOSS,
     /** A dungeon: three fights in a row, with a chest at the end (see {@link HexDungeon}). */
-    DUNGEON
+    DUNGEON,
+    /** The Tower of the Archivist: any card for sale, once the party bought its way in (see HexCampaign#towerUnlocked). */
+    TOWER
 }

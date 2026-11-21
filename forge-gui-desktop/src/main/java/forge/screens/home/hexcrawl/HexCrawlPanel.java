@@ -106,6 +106,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
     private final GoldButton btnPerk = new GoldButton("", GoldButton.Kind.GOLD, 13f);
     private final GoldButton btnEvent = new GoldButton("", GoldButton.Kind.GOLD, 13f);
     private final GoldButton btnShop = new GoldButton("", GoldButton.Kind.GOLD, 14f);
+    private final GoldButton btnTower = new GoldButton("", GoldButton.Kind.GOLD, 14f);
     private final GoldButton btnDecks = new GoldButton("", GoldButton.Kind.OUTLINE, 13f);
     private final GoldButton btnStats = new GoldButton("", GoldButton.Kind.OUTLINE, 13f);
     /** "Always OK my partner" in the fights, switched here as well (a saved setting of this computer). */
@@ -213,6 +214,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnPerk.setText(t("lblHexChoosePerk"));
         btnEvent.setText(t("lblHexEventChooseButton"));
         btnShop.setText(t("lblHexShop"));
+        btnTower.setText(t("lblHexTowerEnter"));
         btnDecks.setText(t("lblHexDecks"));
         btnStats.setText(t("lblHexChronicle"));
         btnInvite.setText(t("lblHexInvite"));
@@ -243,6 +245,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         actions.add(btnNewGamePlus, "h 40!");
         actions.add(voteBox);
         actions.add(btnShop, "h 44!");
+        actions.add(btnTower, "h 44!");
         actions.add(btnDecks, "h 38!");
         actions.add(btnStats, "h 34!");
         side.add(actions, "gaptop 12, wmin 0");
@@ -313,6 +316,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnPerk.addActionListener(e -> promptPerk());
         btnEvent.addActionListener(e -> promptEvent());
         btnShop.addActionListener(e -> openShop());
+        btnTower.addActionListener(e -> openTower());
         btnDecks.addActionListener(e -> showDeck());
         btnStats.addActionListener(e -> showStats(false));
         btnAutoOk.setToolTipText(t("lblAlwaysOkPartnerHint"));
@@ -873,6 +877,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             btnPerk.setVisible(false);
             btnEvent.setVisible(false);
             btnShop.setVisible(false);
+            btnTower.setVisible(false);
             threatBox.setVisible(false);
             voteBox.setVisible(false);
             for (final JComponent c : new JComponent[] { hdParty, cboLeader, pnlParty, hdBosses, bossTrack, lblRecord, hdTasks, tasksBox,
@@ -929,6 +934,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         btnPerk.setVisible(mine != null && !mine.perkOffer.isEmpty() && campaign.pendingReward(me) == null);
         btnEvent.setVisible(mine != null && mine.eventOffer != null);
         btnShop.setVisible(campaign.inTown());
+        btnTower.setVisible(campaign.atTower());
 
         final String title = campaign.cycle > 1 ? campaign.name + "  –  " + t("lblHexCycle", String.valueOf(campaign.cycle - 1)) : campaign.name;
         lblTitle.setText(wrapToWidth(lblTitle, title, SIDE_W - 32)); // a long name (with its New Game+) takes two lines
@@ -1874,7 +1880,7 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
         deckPromptShown = key;
         deckPromptOpen = true;
         try {
-            final HexPlayer mine = campaign.player(me);
+            final HexPlayer mine = campaign.player(session.getMyHead());
             final List<String> choices = new ArrayList<>();
             for (int i = 0; i < mine.deckCount(); i++) {
                 final String name = mine.deckName(i);
@@ -1943,6 +1949,47 @@ public class HexCrawlPanel extends JPanel implements HexSession.Listener {
             session.chooseEvent(mine.name, null, false, HexEvent.PICK_GOLD);
         } else if (choice >= 1 && choice <= mine.eventCards.size()) {
             session.chooseEvent(mine.name, null, rewardToSideboard, choice);
+        }
+    }
+
+    /**
+     * The Tower of the Archivist: the head searches for any card and buys it at the tower's price; the window opens
+     * again after each purchase (with the gold left), until the head leaves.
+     */
+    private void openTower() {
+        while (true) {
+            final HexCampaign campaign = getCampaign();
+            if (campaign == null || !campaign.atTower() || session == null) {
+                return;
+            }
+            final HexPlayer mine = campaign.player(session.getMyHead());
+            if (mine == null) {
+                return;
+            }
+            final HexArchivistPanel search = new HexArchivistPanel(mine.gold, HexCampaign::towerCardPrice);
+            final JPanel body = new JPanel(new MigLayout("insets 0, gap 0, wrap 1", "[center]"));
+            body.setOpaque(false);
+            body.add(search);
+            if (!campaign.deckLocked()) {
+                body.add(newCardsSwitch(), "gaptop 10, alignx center");
+            }
+            final String message = t("lblHexTowerChoose", mine.name, String.format("%,d", mine.gold), String.valueOf(HexCampaign.TOWER_CARD_FACTOR));
+            final int choice = FOptionPane.showOptionDialog(message, t("lblHexTower"), FOptionPane.QUESTION_ICON, body,
+                    Arrays.asList(t("lblHexArchivistBuy"), t("lblHexTowerLeave")), 0);
+            final PaperCard card = search.selected();
+            if (choice != 0 || card == null) {
+                return;
+            }
+            final int price = HexCampaign.towerCardPrice(card.getName());
+            if (price > mine.gold) {
+                FOptionPane.showMessageDialog(t("lblHexArchivistTooDear", forge.util.CardTranslation.getTranslatedName(card.getName()),
+                        String.valueOf(price)), t("lblHexTower"));
+                continue;
+            }
+            session.buyAtTower(mine.name, card.getName(), rewardToSideboard || campaign.deckLocked());
+            if (session.isGuest()) {
+                return; // the host's answer brings the gold left; the button opens the tower again
+            }
         }
     }
 

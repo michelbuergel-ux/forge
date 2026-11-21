@@ -292,6 +292,38 @@ final class HexPixelIcons {
         });
     }
 
+    /**
+     * The Tower of the Archivist: a slim tower of pale stone with a blue pointed roof, a lit window and a book's gold
+     * seal over the door, in a golden glow (16 x 20 pixels, outlined to 18 x 22; its middle at 8, 11).
+     */
+    private static final String[] TOWER = {
+        ".......kk.......",
+        "......kBBk......",
+        "......kBBk......",
+        ".....kBBbBk.....",
+        ".....kBBbBk.....",
+        "....kBBBbBBk....",
+        "....kkkkkkkk....",
+        ".....kLLLSk.....",
+        ".....kLyySk.....",
+        ".....kLyySk.....",
+        ".....kLLLSk.....",
+        ".....kLSLSk.....",
+        "....kLLLLSSk....",
+        "....kLLGGSSk....",
+        "....kLGggGSk....",
+        "....kLLGGSSk....",
+        "....kLLLLSSk....",
+        "...kLLLDDLSSk...",
+        "...kLLLDDLSSk...",
+        "..kkkkkkkkkkkk..",
+    };
+
+    static synchronized BufferedImage tower() {
+        return CACHE.computeIfAbsent("tower", k -> outlined(paint(TOWER, palette('k', 0x221C2E, 'B', 0x3F6FB8, 'b', 0x2A4C86,
+                'L', 0xE6DEC8, 'S', 0xB4AA92, 'y', 0xFFD45A, 'G', 0xE8C04A, 'g', 0xFFF1B0, 'D', 0x5A3A22)), 0x90FFD23F));
+    }
+
     /** The Vault of the Lost: a dungeon of dark stone, its mouth glowing violet, in a violet glow (18 pixels). */
     static synchronized BufferedImage vault() {
         return CACHE.computeIfAbsent("vault", k -> outlined(paint(DUNGEON, palette('k', 0x1E1A24, 'L', 0x8A7FA0, 'S', 0x655A7A, 's', 0x463D58,

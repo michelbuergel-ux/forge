@@ -54,6 +54,8 @@ final class HexArchivistPanel extends JPanel {
     private static final String[] MANA_VALUES = { "0–1", "2", "3", "4", "5", "6+" };
 
     private final int gold;
+    /** What a card costs here: the wandering archivist's price, or the tower's. */
+    private final java.util.function.ToIntFunction<String> priceOf;
     private final HexTownStyle.SearchField field;
     private final Set<Integer> colors = new java.util.HashSet<>(); // 0..4 the colours, 5 colourless, 6 multicoloured
     private final Set<CardRarity> rarities = EnumSet.noneOf(CardRarity.class);
@@ -70,8 +72,13 @@ final class HexArchivistPanel extends JPanel {
     private final Timer delay;
 
     HexArchivistPanel(final int gold0) {
+        this(gold0, name -> HexContent.get().archivistPrice(name));
+    }
+
+    HexArchivistPanel(final int gold0, final java.util.function.ToIntFunction<String> priceOf0) {
         super(new MigLayout("insets 0, gap 8, wrap 2", "[400!, fill][230!, fill]", "[][][][top][]"));
         gold = gold0;
+        priceOf = priceOf0;
         setOpaque(false);
         final Localizer loc = Localizer.getInstance();
         field = new HexTownStyle.SearchField(loc.getMessage("lblHexArchivistSearch"));
@@ -192,7 +199,7 @@ final class HexArchivistPanel extends JPanel {
     }
 
     private boolean affordable(final PaperCard card) {
-        return HexContent.get().archivistPrice(card.getName()) <= gold;
+        return priceOf.applyAsInt(card.getName()) <= gold;
     }
 
     /** Does the card fit the colour, rarity and mana value pills (none chosen in a group: any)? */
@@ -237,7 +244,7 @@ final class HexArchivistPanel extends JPanel {
         model.clear();
         for (final PaperCard card : shown) {
             model.addElement(CardTranslation.getTranslatedName(card.getName()) + "  ·  "
-                    + Localizer.getInstance().getMessage("lblHexArchivistPrice", String.valueOf(HexContent.get().archivistPrice(card.getName()))));
+                    + Localizer.getInstance().getMessage("lblHexArchivistPrice", String.valueOf(priceOf.applyAsInt(card.getName()))));
         }
         final Localizer loc = Localizer.getInstance();
         count.setText(found.isEmpty() ? loc.getMessage("lblHexArchivistNone")
@@ -282,7 +289,7 @@ final class HexArchivistPanel extends JPanel {
             picture.revalidate();
             picture.repaint();
         }
-        final int p = HexContent.get().archivistPrice(card.getName());
+        final int p = priceOf.applyAsInt(card.getName());
         price.setText(Localizer.getInstance().getMessage("lblHexArchivistPrice", String.valueOf(p)));
         price.setForeground(p <= gold ? GOLD_LIGHT : HexTownStyle.BAD);
     }
