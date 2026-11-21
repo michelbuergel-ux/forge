@@ -106,6 +106,9 @@ public class HexCampaign {
     public static final int TOWER_MAX_SEALS = 10;
     /** In the tower a card costs this many times the wandering archivist's price. */
     public static final int TOWER_CARD_FACTOR = 2;
+    /** An import route costs this many gold times the gold setting; the five-colour town's route more. */
+    public static final int IMPORT_ROUTE_PRICE = 2000;
+    public static final int IMPORT_RAINBOW_ROUTE_PRICE = 5000;
     /** The Collector starts with these in play; the second only from New Game Plus on. */
     public static final String COLLECTOR_ENGINE = "Maelstrom Nexus";
     public static final String COLLECTOR_ENGINE_HARD = "Mind's Dilation";
@@ -227,6 +230,11 @@ public class HexCampaign {
     public int archivistSeals;
     /** The Tower of the Archivist is open, for good: on this map and on the map of every following cycle. */
     public boolean towerUnlocked;
+    /**
+     * The import routes the party bought, for good (colour names, IMPORT_RAINBOW): a head imports only from these.
+     * Null in a save from before routes were bought: see {@link #importRoutes()}.
+     */
+    public List<String> importRoutes;
     /** The party lost to Arzakon in this cycle: he withdrew and does not return before the next one. */
     public boolean arzakonWithdrew;
     /** The last town the party freed (thanked once on every screen), and a counter for it. */
@@ -254,6 +262,7 @@ public class HexCampaign {
         c.perkBaseWins = 0; // perks every PERK_EVERY_WINS won fights from the start
         c.perkBasePerks = 0;
         c.goldMultiplier = Math.max(1, goldMultiplier);
+        c.importRoutes = new ArrayList<>(); // imports are bought, route by route
         c.difficulty = HexDifficulty.of(difficulty0);
         c.teamLife = c.difficulty.teamLife;
         c.seed = seed;
@@ -2809,9 +2818,61 @@ public class HexCampaign {
         return town != null && town.siege == null;
     }
 
+    /**
+     * The import routes the party owns. A save from before they were bought keeps what its heads import from now
+     * (nobody loses a source that worked), the rest is bought from here on.
+     */
+    public List<String> importRoutes() {
+        if (importRoutes == null) {
+            importRoutes = new ArrayList<>();
+            for (final HexPlayer p : players) {
+                if (p.importFrom != null && !importRoutes.contains(p.importFrom)) {
+                    importRoutes.add(p.importFrom);
+                }
+            }
+        }
+        return importRoutes;
+    }
+
+    public boolean hasImportRoute(final String source) {
+        return source != null && importRoutes().contains(source);
+    }
+
+    /** What an import route costs: IMPORT_ROUTE_PRICE (the five-colour town's: IMPORT_RAINBOW_ROUTE_PRICE) times the gold setting. */
+    public int importRoutePrice(final String source) {
+        return (IMPORT_RAINBOW.equals(source) ? IMPORT_RAINBOW_ROUTE_PRICE : IMPORT_ROUTE_PRICE) * Math.max(1, goldMultiplier);
+    }
+
+    /**
+     * The route the town the party is in sells, or null: a colour's route in a town of that colour, the five-colour
+     * route in the five-colour town once it is free; none the party owns already.
+     */
+    public String importRouteForSale() {
+        if (!inTown() || tile().siege != null) {
+            return null;
+        }
+        final String route = tile().rainbow ? IMPORT_RAINBOW : tile().color == HexColor.COLORLESS ? null : tile().color.name();
+        return route == null || hasImportRoute(route) ? null : route;
+    }
+
+    /** A head buys the town's import route for the party, for good (every head may import from it from now on). */
+    public boolean buyImportRoute(final String playerName) {
+        final HexPlayer p = player(playerName);
+        final String route = importRouteForSale();
+        if (p == null || route == null || p.gold < importRoutePrice(route)) {
+            return false;
+        }
+        final int price = importRoutePrice(route);
+        spend(p, price);
+        importRoutes().add(route);
+        log(msg("lblHexJournalImportRoute", p.name, IMPORT_RAINBOW.equals(route) ? msg("lblHexRainbowTown")
+                : msg(HexColor.valueOf(route).getLabelKey()), String.valueOf(price)));
+        return true;
+    }
+
     /** Where the head imports from right now: its choice while it still holds (the five-colour town only while free), else null. */
     public String importSource(final HexPlayer p) {
-        if (p.importFrom == null) {
+        if (p.importFrom == null || !hasImportRoute(p.importFrom)) {
             return null;
         }
         if (IMPORT_RAINBOW.equals(p.importFrom)) {
@@ -2843,9 +2904,9 @@ public class HexCampaign {
         if (!inTown() || p == null || !mayChooseImport(playerName)) {
             return false;
         }
-        if (source != null && !(IMPORT_RAINBOW.equals(source) ? importsOpen()
-                : java.util.Arrays.stream(HexColor.COLORS).anyMatch(c -> c.name().equals(source)))) {
-            return false;
+        if (source != null && (!hasImportRoute(source) || !(IMPORT_RAINBOW.equals(source) ? importsOpen()
+                : java.util.Arrays.stream(HexColor.COLORS).anyMatch(c -> c.name().equals(source))))) {
+            return false; // only over a route the party bought
         }
         p.importFrom = source;
         final List<HexShopOffer> stock = shop();

@@ -270,6 +270,11 @@ public class HexSession {
         act(new HexActionEvent(HexActionEvent.NEW_GAME_PLUS, 0, 0, null, false, null));
     }
 
+    /** A head buys the town's import route for the party. */
+    public void buyImportRoute(final String head) {
+        act(new HexActionEvent(HexActionEvent.IMPORT_ROUTE, 0, 0, null, false, head));
+    }
+
     /** A head pays to open the Tower of the Archivist for the party. */
     public void unlockTower(final String head) {
         act(new HexActionEvent(HexActionEvent.TOWER, 0, 0, null, false, head));
@@ -481,6 +486,10 @@ public class HexSession {
                 }
             } else if (HexActionEvent.RESTOCK.equals(type)) {
                 campaign.restock(head);
+            } else if (HexActionEvent.IMPORT_ROUTE.equals(type)) {
+                if (!fightRunning) {
+                    campaign.buyImportRoute(head);
+                }
             } else if (HexActionEvent.TOWER.equals(type)) {
                 if (!fightRunning) {
                     if (action.getQ() == 0) {

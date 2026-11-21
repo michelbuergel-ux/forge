@@ -108,6 +108,34 @@ public class HexImportShopTest extends AITest {
     }
 
     @Test
+    public void aTownSellsTheRouteOfItsColourForTheWholeParty() {
+        final HexCampaign c = inTownOf(HexColor.RED);
+        AssertJUnit.assertTrue("none at the start", c.importRoutes().isEmpty());
+        AssertJUnit.assertEquals(HexColor.RED.name(), c.importRouteForSale());
+        final int price = HexCampaign.IMPORT_ROUTE_PRICE * c.goldMultiplier;
+        AssertJUnit.assertEquals(price, c.importRoutePrice(HexColor.RED.name()));
+        AssertJUnit.assertEquals(HexCampaign.IMPORT_RAINBOW_ROUTE_PRICE * c.goldMultiplier, c.importRoutePrice(HexCampaign.IMPORT_RAINBOW));
+        c.player("Ann").gold = price - 1;
+        AssertJUnit.assertFalse("too dear", c.buyImportRoute("Ann"));
+        c.player("Ann").gold = price + 5;
+        AssertJUnit.assertTrue(c.buyImportRoute("Ann"));
+        AssertJUnit.assertEquals(5, c.player("Ann").gold);
+        AssertJUnit.assertTrue(c.hasImportRoute(HexColor.RED.name()));
+        AssertJUnit.assertNull("bought: no longer for sale", c.importRouteForSale());
+        AssertJUnit.assertFalse(c.buyImportRoute("Bob"));
+    }
+
+    @Test
+    public void aSaveFromBeforeRoutesKeepsTheImportsItUses() {
+        final HexCampaign c = inTownOf(HexColor.RED);
+        c.importRoutes = null; // as read from an old save
+        c.player("Ann").importFrom = HexColor.BLUE.name();
+        AssertJUnit.assertTrue(c.hasImportRoute(HexColor.BLUE.name()));
+        AssertJUnit.assertFalse(c.hasImportRoute(HexColor.GREEN.name()));
+        AssertJUnit.assertEquals(HexColor.BLUE.name(), c.importSource(c.player("Ann")));
+    }
+
+    @Test
     public void ownShelvesSellTheTownsGoodsUntilAnImportIsChosen() {
         final HexCampaign c = inTownOf(HexColor.RED);
         AssertJUnit.assertNull(c.importSource(c.player("Ann")));
@@ -117,7 +145,10 @@ public class HexImportShopTest extends AITest {
     @Test
     public void aHeadImportsFromTheColourItChooses() {
         final HexCampaign c = inTownOf(HexColor.RED);
-        AssertJUnit.assertTrue("any colour from the start", c.chooseImport("Ann", HexColor.BLUE.name()));
+        AssertJUnit.assertFalse("only over a route the party bought", c.chooseImport("Ann", HexColor.BLUE.name()));
+        c.importRoutes().add(HexColor.BLUE.name());
+        c.importRoutes().add(HexColor.GREEN.name());
+        AssertJUnit.assertTrue(c.chooseImport("Ann", HexColor.BLUE.name()));
         AssertJUnit.assertEquals(HexColor.BLUE.name(), c.importSource(c.player("Ann")));
         AssertJUnit.assertTrue("blue at once", ownCards(c, ColorSet::hasBlue) > 20);
         for (final HexShopOffer o : c.shop()) {
@@ -144,6 +175,8 @@ public class HexImportShopTest extends AITest {
         final HexCampaign c = inTownOf(HexColor.RED);
         AssertJUnit.assertFalse("not before it is free", c.chooseImport("Ann", HexCampaign.IMPORT_RAINBOW));
         openImports(c);
+        AssertJUnit.assertFalse("not without its route", c.chooseImport("Ann", HexCampaign.IMPORT_RAINBOW));
+        c.importRoutes().add(HexCampaign.IMPORT_RAINBOW);
         AssertJUnit.assertTrue(c.chooseImport("Ann", HexCampaign.IMPORT_RAINBOW));
         final java.util.Set<HexColor> seen = java.util.EnumSet.noneOf(HexColor.class);
         ownCards(c, color -> {

@@ -650,18 +650,45 @@ final class HexTownDialog {
         }
         for (final String source : sources) {
             final boolean chosen = java.util.Objects.equals(source, current);
-            final javax.swing.JMenuItem item = new javax.swing.JMenuItem(importLabel(source));
+            final boolean owned = source == null || campaign().hasImportRoute(source);
+            // a route not bought yet: shown, with where to buy it
+            final javax.swing.JMenuItem item = new javax.swing.JMenuItem(owned ? importLabel(source)
+                    : t("lblHexImportRouteLocked", importLabel(source)));
             item.setFont(body(chosen ? Font.BOLD : Font.PLAIN, 13f));
             item.setOpaque(true);
             item.setBackground(palette.mid());
             item.setForeground(chosen ? GOLD : HexTownStyle.TEXT);
-            item.setEnabled(may && !chosen);
+            item.setEnabled(may && !chosen && owned);
             item.addActionListener(e -> {
                 session.chooseImport(p.name, source);
                 setMessage(t("lblHexImportChosen", importLabel(source)), false);
                 fill();
             });
             menu.add(item);
+        }
+        // the route this town sells: bought once for the whole party
+        final String forSale = campaign().importRouteForSale();
+        if (forSale != null) {
+            menu.addSeparator();
+            final int price = campaign().importRoutePrice(forSale);
+            final javax.swing.JMenuItem buy = new javax.swing.JMenuItem(t("lblHexImportRouteBuy", importLabel(forSale), String.format("%,d", price)));
+            buy.setFont(body(Font.BOLD, 13f));
+            buy.setOpaque(true);
+            buy.setBackground(palette.mid());
+            buy.setForeground(GOLD_LIGHT);
+            buy.setEnabled(!session.isFightRunning() && p.gold >= price);
+            if (p.gold < price) {
+                buy.setToolTipText(t("lblHexNotEnoughGold"));
+            }
+            buy.addActionListener(e -> {
+                if (FOptionPane.showConfirmDialog(t("lblHexImportRouteConfirm", p.name, String.format("%,d", price), importLabel(forSale)),
+                        t("lblHexTown"))) {
+                    session.buyImportRoute(p.name);
+                    setMessage(t("lblHexImportRouteBought", importLabel(forSale)), false);
+                }
+                fill();
+            });
+            menu.add(buy);
         }
         menu.show(importPill, 0, importPill.getHeight() + 6);
     }
