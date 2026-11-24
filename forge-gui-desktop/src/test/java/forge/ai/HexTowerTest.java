@@ -14,7 +14,7 @@ import forge.gamemodes.hexcrawl.HexPoi;
 import forge.gamemodes.hexcrawl.HexTile;
 
 /**
- * The Tower of the Archivist: bought once in a town for a high price (the gold setting's share of it, less the
+ * The Tower of the Archivist: bought once in a town for a high price (the same on every gold setting, less the
  * archivist's seals), it stands on the map of this and every later cycle and sells any card at twice the archivist's price.
  */
 public class HexTowerTest extends AITest {
@@ -42,15 +42,15 @@ public class HexTowerTest extends AITest {
     }
 
     @Test
-    public void thePriceFollowsTheGoldSettingAndTheSeals() {
-        AssertJUnit.assertEquals(40000, campaign(1).towerPrice());
+    public void thePriceFollowsTheSealsNotTheGoldSetting() {
+        AssertJUnit.assertEquals(200000, campaign(1).towerPrice());
+        AssertJUnit.assertEquals(200000, campaign(20).towerPrice());
         final HexCampaign c = campaign(5);
         AssertJUnit.assertEquals("Normal", 200000, c.towerPrice());
         c.archivistSeals = 4;
         AssertJUnit.assertEquals("four seals: 20% off", 160000, c.towerPrice());
         c.archivistSeals = 25;
         AssertJUnit.assertEquals("no more than ten seals count: half price", 100000, c.towerPrice());
-        AssertJUnit.assertEquals(800000, campaign(20).towerPrice());
     }
 
     @Test
@@ -68,7 +68,7 @@ public class HexTowerTest extends AITest {
     public void openedInTownItRisesOnTheMapAndSellsAnyCard() {
         final HexCampaign c = campaign(1);
         final HexPlayer ann = c.player("Ann");
-        ann.gold = 50000;
+        ann.gold = 250000;
         for (final HexTile t : c.map.tiles.values()) {
             if (t.poi == HexPoi.NONE) {
                 stand(c, t); // the party starts in a town: out on a field first
@@ -78,11 +78,11 @@ public class HexTowerTest extends AITest {
         AssertJUnit.assertFalse("only in a town", c.unlockTower("Ann"));
         stand(c, town(c));
         AssertJUnit.assertTrue(c.inTown());
-        ann.gold = 39999;
+        ann.gold = 199999;
         AssertJUnit.assertFalse("too dear", c.unlockTower("Ann"));
-        ann.gold = 50000;
+        ann.gold = 250000;
         AssertJUnit.assertTrue(c.unlockTower("Ann"));
-        AssertJUnit.assertEquals(10000, ann.gold);
+        AssertJUnit.assertEquals(50000, ann.gold);
         AssertJUnit.assertTrue(c.towerUnlocked);
         AssertJUnit.assertFalse("once", c.unlockTower("Bob"));
         final HexTile tower = c.towerTile();
@@ -110,7 +110,7 @@ public class HexTowerTest extends AITest {
     @Test
     public void itStandsOnTheMapOfEveryNewCycle() {
         final HexCampaign c = campaign(1);
-        c.player("Ann").gold = 40000;
+        c.player("Ann").gold = 170000; // three seals: 15% off
         c.archivistSeals = 3;
         stand(c, town(c));
         AssertJUnit.assertTrue(c.unlockTower("Ann"));

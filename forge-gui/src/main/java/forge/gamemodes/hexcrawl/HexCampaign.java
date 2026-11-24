@@ -101,14 +101,17 @@ public class HexCampaign {
      * The Tower of the Archivist: the price to open it is this many gold times the gold setting (200,000 on Normal), for
      * the players who already have most of what they want; each Archivist's seal takes a share off, up to a limit.
      */
-    public static final int TOWER_PRICE = 40000;
+    public static final int TOWER_PRICE = 200000;
     public static final int TOWER_SEAL_PERCENT = 5;
     public static final int TOWER_MAX_SEALS = 10;
     /** In the tower a card costs this many times the wandering archivist's price. */
     public static final int TOWER_CARD_FACTOR = 2;
-    /** An import route costs this many gold times the gold setting; the five-colour town's route more. */
-    public static final int IMPORT_ROUTE_PRICE = 2000;
-    public static final int IMPORT_RAINBOW_ROUTE_PRICE = 5000;
+    /**
+     * An import route costs this much gold on every gold setting (the setting speeds the game up, so routes come
+     * sooner with it, like the shop's cards); the five-colour town's route more.
+     */
+    public static final int IMPORT_ROUTE_PRICE = 1000;
+    public static final int IMPORT_RAINBOW_ROUTE_PRICE = 2500;
     /** The Collector starts with these in play; the second only from New Game Plus on. */
     public static final String COLLECTOR_ENGINE = "Maelstrom Nexus";
     public static final String COLLECTOR_ENGINE_HARD = "Mind's Dilation";
@@ -1563,10 +1566,12 @@ public class HexCampaign {
         return Math.min(Math.max(0, archivistSeals), TOWER_MAX_SEALS);
     }
 
-    /** What it costs to open the tower: TOWER_PRICE times the gold setting, less TOWER_SEAL_PERCENT for each seal. */
+    /**
+     * What it costs to open the tower: TOWER_PRICE on every gold setting (the setting speeds the game up, so the tower
+     * comes sooner with it), less TOWER_SEAL_PERCENT for each seal.
+     */
     public int towerPrice() {
-        final long full = (long) TOWER_PRICE * Math.max(1, goldMultiplier);
-        return (int) (full * (100 - TOWER_SEAL_PERCENT * towerSeals()) / 100);
+        return (int) ((long) TOWER_PRICE * (100 - TOWER_SEAL_PERCENT * towerSeals()) / 100);
     }
 
     /** May a head open the tower now: in a town (not besieged), the tower still closed, and it can pay? */
@@ -2838,9 +2843,9 @@ public class HexCampaign {
         return source != null && importRoutes().contains(source);
     }
 
-    /** What an import route costs: IMPORT_ROUTE_PRICE (the five-colour town's: IMPORT_RAINBOW_ROUTE_PRICE) times the gold setting. */
+    /** What an import route costs: IMPORT_ROUTE_PRICE (the five-colour town's: IMPORT_RAINBOW_ROUTE_PRICE), on every gold setting. */
     public int importRoutePrice(final String source) {
-        return (IMPORT_RAINBOW.equals(source) ? IMPORT_RAINBOW_ROUTE_PRICE : IMPORT_ROUTE_PRICE) * Math.max(1, goldMultiplier);
+        return IMPORT_RAINBOW.equals(source) ? IMPORT_RAINBOW_ROUTE_PRICE : IMPORT_ROUTE_PRICE;
     }
 
     /**

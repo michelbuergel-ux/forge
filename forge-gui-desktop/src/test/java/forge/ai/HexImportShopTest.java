@@ -112,9 +112,12 @@ public class HexImportShopTest extends AITest {
         final HexCampaign c = inTownOf(HexColor.RED);
         AssertJUnit.assertTrue("none at the start", c.importRoutes().isEmpty());
         AssertJUnit.assertEquals(HexColor.RED.name(), c.importRouteForSale());
-        final int price = HexCampaign.IMPORT_ROUTE_PRICE * c.goldMultiplier;
-        AssertJUnit.assertEquals(price, c.importRoutePrice(HexColor.RED.name()));
-        AssertJUnit.assertEquals(HexCampaign.IMPORT_RAINBOW_ROUTE_PRICE * c.goldMultiplier, c.importRoutePrice(HexCampaign.IMPORT_RAINBOW));
+        final int price = c.importRoutePrice(HexColor.RED.name());
+        for (final int setting : new int[] {1, 5, 20}) { // the gold setting speeds the game up: routes cost the same on each
+            final HexCampaign any = HexCampaign.create("Gold", 5L, 4, java.util.Collections.singletonList(new HexPlayer("Cid", false)), setting);
+            AssertJUnit.assertEquals("a colour route on " + setting + "x", 1000, any.importRoutePrice(HexColor.RED.name()));
+            AssertJUnit.assertEquals("the five-colour route on " + setting + "x", 2500, any.importRoutePrice(HexCampaign.IMPORT_RAINBOW));
+        }
         c.player("Ann").gold = price - 1;
         AssertJUnit.assertFalse("too dear", c.buyImportRoute("Ann"));
         c.player("Ann").gold = price + 5;
